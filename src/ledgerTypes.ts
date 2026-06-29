@@ -1,0 +1,88 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description 原料购销台账系统相关的基础类型定义
+ */
+
+/**
+ * @description 单个购销台账对象
+ */
+export interface Ledger {
+  /** 唯一标识符 */
+  id: string;
+  /** 台账名称，如 "幼儿", "教师", "幼儿晚餐", "在校生" */
+  name: string;
+  /** 创建时间的ISO字符串 */
+  createdAt: string;
+}
+
+/**
+ * @description 每日出入库库存及详细数据记录 (扩充图片所需购销台账和出入库要件字段)
+ */
+export interface DailyStockRecord {
+  /** 今日入库数量 */
+  inQuantity: number;
+  /** 今日入库单价 (元) */
+  inPrice: number;
+  /** 今日入库总金额 (元) = 入库数量 * 入库单价 */
+  inAmount: number;
+  /** 今日出库数量 */
+  outQuantity: number;
+  /** 今日出库单价 (元，可选) */
+  outPrice?: number;
+  /** 今日出库总金额 (元，可选) */
+  outAmount?: number;
+  /** 备注说明，如出库去处或入库来源 */
+  note?: string;
+  
+  // ================= 购销台账特有要件字段 =================
+  /** 食品索证，如 "已索证" 或 "是/否" */
+  certification?: string;
+  /** 感官性状，如 "合格", "良好" 等 */
+  sensoryProperty?: string;
+  /** 供货商名称及联系地址 / 经销商 */
+  supplier?: string;
+  /** 采购时间 (格式 YYYY-MM-DD，默认就是数据记录的日期) */
+  purchaseDate?: string;
+  /** 采购员名称 */
+  buyer?: string;
+  /** 检验员名称 */
+  inspector?: string;
+  /** 保管员名称 */
+  keeper?: string;
+  /** 生产日期 (格式 YYYY-MM-DD) */
+  produceDate?: string;
+  /** 保质期，如 "6个月" 或 "2026-12-28" */
+  shelfLife?: string;
+
+  // ================= 出入库单据特有签字要件 =================
+  /** 发料出库人名称 */
+  outHandler?: string;
+  /** 领用接收人名称 */
+  outRecipient?: string;
+}
+
+/**
+ * @description 台账中具体挂载的采购原料项目
+ */
+export interface LedgerItem {
+  /** 原料项目的唯一标识ID */
+  id: string;
+  /** 所属的台账ID */
+  ledgerId: string;
+  /** 原料细分品类名称 (如：大米, 猪肉, 鸡蛋等) */
+  name: string;
+  /** 包装或计量单位 (如：斤, 公斤, 袋, 箱) */
+  unit: string;
+  /** 原料规格或辅助备注描述 */
+  spec?: string;
+  /** 初始库存数量 (系统新建该原料项目时的默认库存) */
+  initialStock: number;
+  /** 当前实时库存数量 (计算公式: 初始库存 + 历史所有天入库累加 - 历史所有天出库累加) */
+  currentStock: number;
+  /** 每日出入库及明细记录，以 YYYY-MM-DD 为 Key 进行索引 */
+  dailyRecords: Record<string, DailyStockRecord>;
+}

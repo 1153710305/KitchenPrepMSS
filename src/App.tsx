@@ -13,6 +13,8 @@ import { HeadcountPanel } from "./components/HeadcountPanel.tsx";
 import { AiAssistant } from "./components/AiAssistant.tsx";
 import { AdminBackend } from "./components/AdminBackend.tsx";
 import { LogBroker } from "./utils.ts";
+import { LedgerSystem } from "./components/LedgerSystem.tsx";
+import { LedgerService } from "./ledgerStore.ts";
 import { 
   Settings, 
   RefreshCw, 
@@ -66,6 +68,8 @@ export default function App() {
   const [activeGroupsList, setActiveGroupsList] = useState<DynamicGroup[]>([]);
   /** 动态从底层存储库嗅探的二级食材大类 */
   const [activeCategoriesList, setActiveCategoriesList] = useState<DynamicCategory[]>([]);
+  /** 订阅的购销台账原料列表 */
+  const [ledgerItemsList, setLedgerItemsList] = useState<any[]>([]);
 
   // ================= 动态配置计算属性 =================
 
@@ -157,9 +161,17 @@ export default function App() {
       }
     });
 
+    // 监听原料台账数据的变动，为了能在 aside 底栏展示统计金额
+    const unsubscribeLedger = LedgerService.subscribe((_ledgers, updatedItems) => {
+      if (active) {
+        setLedgerItemsList(updatedItems);
+      }
+    });
+
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeLedger();
     };
   }, []);
 
@@ -378,6 +390,19 @@ export default function App() {
     return Math.round(sum * 100) / 100;
   }, [reports]);
 
+  /**
+   * @description 计算原料购销台账所有原料的累计入库总额 (全账期)
+   */
+  const allLedgersTotalAmount = useMemo(() => {
+    return ledgerItemsList.reduce((sum, item) => {
+      let itemSum = 0;
+      Object.values(item.dailyRecords || {}).forEach((record: any) => {
+        itemSum += record.inAmount || 0;
+      });
+      return sum + itemSum;
+    }, 0);
+  }, [ledgerItemsList]);
+
   // ================= 首页系统安全验证屏 =================
   if (!isLoggedIn) {
     return (
@@ -565,25 +590,48 @@ export default function App() {
               </div>
 
               {/* 多维分析决策顶级独立入口，隔离至独立菜单项中 */}
-              <div className="border-t border-slate-100 pt-2 mt-auto">
-                <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  多维统计决策
+              <div className="border-t border-slate-100 pt-2 mt-auto space-y-1">
+                <div>
+                  <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    多维统计决策
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveGroup("ANALYTICS");
+                      setIsSidebarOpen(false); // 点击后折叠侧边栏
+                      LogBroker.publish("INFO", "App", "激活宏观决策:「每日就餐人数与人均餐费多维度分析」入口页。");
+                    }}
+                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
+                      activeGroup === "ANALYTICS"
+                        ? "bg-sky-50 border-r-4 border-sky-500 text-sky-700 font-black"
+                        : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
+                    }`}
+                  >
+                    <span className="mr-3 text-base">📊</span>
+                    <span>人数与餐费分析</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setActiveGroup("ANALYTICS");
-                    setIsSidebarOpen(false); // 点击后折叠侧边栏
-                    LogBroker.publish("INFO", "App", "激活宏观决策:「每日就餐人数与人均餐费多维度分析」入口页。");
-                  }}
-                  className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
-                    activeGroup === "ANALYTICS"
-                      ? "bg-sky-50 border-r-4 border-sky-500 text-sky-700 font-black"
-                      : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                  }`}
-                >
-                  <span className="mr-3 text-base">📊</span>
-                  <span>人数与餐费分析</span>
-                </button>
+
+                <div>
+                  <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    仓库与库存台账
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveGroup("LEDGER");
+                      setIsSidebarOpen(false); // 点击后折叠侧边栏
+                      LogBroker.publish("INFO", "App", "激活原料购销台账及仓储库存模块。");
+                    }}
+                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
+                      activeGroup === "LEDGER"
+                        ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-black"
+                        : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
+                    }`}
+                  >
+                    <span className="mr-3 text-base">📋</span>
+                    <span>原料购销台账</span>
+                  </button>
+                </div>
               </div>
             </nav>
           </div>
@@ -592,10 +640,18 @@ export default function App() {
           <div className="p-4 border-t border-slate-100">
             <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
               <div className="text-[10px] text-slate-500 mb-1 font-bold font-sans">
-                {activeGroup === "ANALYTICS" ? "全客群月度采购支出" : "当前受众全月采购支出"}
+                {activeGroup === "ANALYTICS" 
+                  ? "全客群月度采购支出" 
+                  : activeGroup === "LEDGER"
+                    ? "台账原料累计入库"
+                    : "当前受众全月采购支出"}
               </div>
               <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight">
-                ¥{(activeGroup === "ANALYTICS" ? allGroupsReportTotal : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+                ¥{(activeGroup === "ANALYTICS" 
+                  ? allGroupsReportTotal 
+                  : activeGroup === "LEDGER"
+                    ? allLedgersTotalAmount
+                    : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -603,37 +659,40 @@ export default function App() {
 
         {/* 核心右侧工作记账盘与二级品类选项页签 */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
-          
-          {/* 二级动态联动大分类大 Tab / 专属分析页头 (蔬菜、粮油、品料等以及右端的合计汇总) */}
-          <div className="flex items-center px-4 bg-white border-b border-slate-200 justify-between shrink-0 h-12">
-            {activeGroup === "ANALYTICS" ? (
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  📊 后厨决策分析中心：每日就餐人数与全客群人均单耗走势看板
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-1 overflow-x-auto h-full scrollbar-none">
-                {activeCategoriesList.map((cat) => {
-                  const isSelected = activeCategory === cat.key;
-                  return (
-                    <button
-                      key={cat.key}
-                      onClick={() => {
-                        setActiveCategory(cat.key);
-                        LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
-                      }}
-                      className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${
-                        isSelected
-                          ? "border-emerald-500 text-emerald-600 font-extrabold"
-                          : "border-transparent text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      {cat.label}品类
-                    </button>
-                  );
-                })}
+          {activeGroup === "LEDGER" ? (
+            <LedgerSystem />
+          ) : (
+            <>
+              {/* 二级动态联动大分类大 Tab / 专属分析页头 (蔬菜、粮油、品料等以及右端的合计汇总) */}
+              <div className="flex items-center px-4 bg-white border-b border-slate-200 justify-between shrink-0 h-12">
+                {activeGroup === "ANALYTICS" ? (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      📊 后厨决策分析中心：每日就餐人数与全客群人均单耗走势看板
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-1 overflow-x-auto h-full scrollbar-none">
+                    {activeCategoriesList.map((cat) => {
+                      const isSelected = activeCategory === cat.key;
+                      return (
+                        <button
+                          key={cat.key}
+                          onClick={() => {
+                            setActiveCategory(cat.key);
+                            LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
+                          }}
+                          className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${
+                            isSelected
+                              ? "border-emerald-500 text-emerald-600 font-extrabold"
+                              : "border-transparent text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          {cat.label}品类
+                        </button>
+                      );
+                    })}
                 
                 <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
                 
@@ -702,7 +761,9 @@ export default function App() {
             )}
 
           </div>
-        </main>
+        </>
+      )}
+    </main>
       </div>
 
       {/* 各项备餐审计说明页脚 */}

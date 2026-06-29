@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { PrepReportService } from "../store.ts";
+import { LedgerService } from "../ledgerStore.ts";
 import { DynamicGroup, DynamicCategory, GroupMonthlyReport } from "../types.ts";
 import { LogView } from "./LogView.tsx";
 import { LogBroker, getDaysInMonth, convertAllGroupsToCsv } from "../utils.ts";
@@ -421,6 +422,40 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
         PrepReportService.factoryReset().then((data) => {
           onResetToSeeds(data);
           LogBroker.publish("INFO", "AdminBackend", "配置后台：全局销毁本地缓存并重绘了出厂预置种子。");
+        });
+      },
+      "warn"
+    );
+  };
+
+  /**
+   * @description 物理彻底清空购销库存台账全量数据 (用 React 弹窗替代 confirm)
+   */
+  const handleClearLedgerAll = () => {
+    showConfirm(
+      "安全核销：清空购销台账数据",
+      "🚨 警告：该操作将物理清除整个原料购销库存系统下的所有台账、采购原料采购项目、以及所有的历史出入库与当前库存数据，使台账全库归零！此操作不可逆，确定继续？",
+      () => {
+        LedgerService.clearAllLedgerData().then(() => {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+          LogBroker.publish("WARN", "AdminBackend", "已完成购销库存台账的物理清空全库操作。");
+        });
+      },
+      "danger"
+    );
+  };
+
+  /**
+   * @description 恢复购销台账系统至出厂初始种子数据 (用 React 弹窗替代 confirm)
+   */
+  const handleResetLedgerSeeds = () => {
+    showConfirm(
+      "出厂复位：恢复购销台账预设",
+      "您确定要执行购销台账系统复位并导入初始预设吗？这会抹除您当前建立的所有台账、自定义采购原料以及录入的出入库数据，并重新装载幼儿、教师、幼儿晚餐、在校生四个默认台账及预设原料种子！",
+      () => {
+        LedgerService.factoryResetLedger().then(() => {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+          LogBroker.publish("INFO", "AdminBackend", "配置后台：已重新合成并加载购销台账系统的出厂种子数据。");
         });
       },
       "warn"
@@ -887,6 +922,32 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                     </div>
                     <span className="text-xs font-bold text-amber-700">恢复演示种子数据</span>
                     <span className="text-[9px] text-amber-500 font-semibold">一键重置、装载标准中式后厨样本</span>
+                  </button>
+
+                  {/* 清空原料购销台账数据 */}
+                  <button
+                    onClick={handleClearLedgerAll}
+                    className="flex flex-col items-center justify-center p-4 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 text-rose-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
+                    title="一键将所有原料台账下的入库、出库、金额以及当前库存物理清除清空"
+                  >
+                    <div className="w-9 h-9 bg-rose-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
+                      <Trash2 size={18} />
+                    </div>
+                    <span className="text-xs font-bold text-rose-700">清空购销台账数据</span>
+                    <span className="text-[9px] text-rose-500 font-semibold">物理清空全库、重新开始台账录入</span>
+                  </button>
+
+                  {/* 恢复购销台账种子预设 */}
+                  <button
+                    onClick={handleResetLedgerSeeds}
+                    className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
+                    title="清除所有自定义台账和原料，恢复幼儿、教师、幼儿晚餐、在校生四个初始台账及预设原料"
+                  >
+                    <div className="w-9 h-9 bg-amber-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
+                      <Sparkles size={18} />
+                    </div>
+                    <span className="text-xs font-bold text-amber-700">恢复购销台账初始预设</span>
+                    <span className="text-[9px] text-amber-500 font-semibold">装载幼儿/教师等四大初始购销台账</span>
                   </button>
 
                 </div>
