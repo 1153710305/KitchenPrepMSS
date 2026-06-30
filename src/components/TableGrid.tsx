@@ -379,15 +379,15 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-200">
                     {filteredItems.map((item) => {
                       const monthlySummary = getItemMonthlySummary(item, days);
                       return (
-                        <tr key={item.id} className="hover:bg-gray-50/35 transition-colors">
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-300">
                           
                           {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                          <td className="p-2.5 sticky left-0 bg-white border-r border-gray-200 z-10 font-bold text-gray-700 flex justify-between items-center group/cell min-w-[140px]">
-                            <span className="truncate max-w-[110px]" title={item.name}>
+                          <td className="p-3 sticky left-0 bg-white border-r-2 border-slate-400 z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                            <span className="truncate max-w-[110px] text-xs font-bold" title={item.name}>
                               {(() => {
                                 const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
                                 const displayName = dictItem ? dictItem.name : item.name;
@@ -395,8 +395,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
                                 const displayRemark = dictItem?.remark || "";
                                 return (
                                   <>
-                                    {displayName}
-                                    <span className="text-[10px] font-normal text-gray-400 block mt-0.5">
+                                    <span className="text-slate-900 text-xs font-black">{displayName}</span>
+                                    <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
                                       单位: {displayUnit} {displayRemark && `(${displayRemark})`}
                                     </span>
                                   </>
@@ -419,13 +419,13 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
                             return (
                               <React.Fragment key={`cell-${item.id}-${day}`}>
-                                <td className="p-1 border-b text-center font-mono text-[11px] text-gray-500 bg-slate-50/5">
+                                <td className="p-2 border-b border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/20">
                                   {entry.quantity || 0}
                                 </td>
-                                <td className="p-1 border-b text-center font-mono text-[11px] text-gray-500 bg-slate-50/5">
+                                <td className="p-2 border-b border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/20">
                                   ¥{entry.price || 0}
                                 </td>
-                                <td className="p-1 border-b border-r border-gray-100 text-center text-[10px] font-semibold text-gray-700 font-mono bg-sky-50/5">
+                                <td className="p-2 border-b border-r border-slate-300 text-center text-xs font-bold text-sky-700 font-mono bg-sky-50/30">
                                   {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                                 </td>
                               </React.Fragment>
@@ -433,10 +433,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           })}
 
                           {/* 全月累加列 */}
-                          <td className="p-2 border-r border-gray-100 text-center font-semibold font-mono text-gray-600 bg-gray-50/10">
+                          <td className="p-3 border-r border-slate-300 text-center font-black font-mono text-xs text-slate-800 bg-slate-100/50">
                             {monthlySummary.totalQty} {item.unit}
                           </td>
-                          <td className="p-2 text-center font-bold font-mono text-indigo-700 bg-indigo-50/10">
+                          <td className="p-3 text-center font-black font-mono text-xs text-indigo-900 bg-indigo-100/30">
                             ¥{monthlySummary.totalCost}
                           </td>
 
@@ -445,19 +445,19 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     })}
 
                     {/* 表底累加汇总：各单日大类整体耗资 */}
-                    <tr className="bg-gray-100/50 font-bold text-gray-700">
-                      <td className="p-3 sticky left-0 bg-gray-100 text-gray-800 border-r border-gray-200">
+                    <tr className="bg-slate-200 font-extrabold text-slate-900 border-t-2 border-slate-400">
+                      <td className="p-3 sticky left-0 bg-slate-200 text-slate-900 border-r border-slate-300 font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-xs">
                         【{PrepReportService.getActiveCategories().find(c => c.key === selectedCategory)?.label || selectedCategory}】每日开支合计
                       </td>
                       {days.map((day) => (
                         <React.Fragment key={`tot-cell-${day}`}>
-                          <td colSpan={2} className="px-1 py-2 text-[10px] text-gray-400 text-center font-semibold uppercase">合计金额:</td>
-                          <td className="px-1 py-2 text-center text-[11px] text-sky-700 font-mono border-r border-gray-200 bg-sky-100/30">
+                          <td colSpan={2} className="px-1 py-3 text-[10px] text-slate-500 text-center font-bold uppercase">合计金额:</td>
+                          <td className="px-1 py-3 text-center text-xs text-sky-800 font-black border-r border-slate-300 bg-sky-100/50 font-mono">
                             ¥{dayTotals[day]}
                           </td>
                         </React.Fragment>
                       ))}
-                      <th colSpan={2} className="p-3 text-center text-indigo-800 bg-indigo-100/30">
+                      <th colSpan={2} className="p-3 text-center text-indigo-950 bg-indigo-200/50 font-black text-xs">
                         ¥{Math.round(Object.values(dayTotals).reduce((s,v)=>s+v,0)*100)/100}
                       </th>
                     </tr>

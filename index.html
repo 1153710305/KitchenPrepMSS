@@ -13,6 +13,23 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
+      /* 全局等比例放大字号并强化按钮清晰度 */
+      html {
+        font-size: 16px; /* 提升基准字体 */
+      }
+      body {
+        font-size: 0.95rem; /* 微调页面基础字号 */
+        letter-spacing: 0.01em;
+      }
+      /* 增强所有普通按钮的视觉清晰度与描边对比 */
+      button, input, select {
+        font-weight: 500 !important;
+        text-rendering: optimizeLegibility;
+      }
+      button:hover {
+        transform: translateY(-0.5px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+      }
       /* 针对 Windows 7 及旧系统的 emoji 图片样式兼容 */
       img.emoji {
         height: 1.15em;
@@ -23,18 +40,34 @@
       }
       /* 针对 Windows 7 滚动条显示不全或遮挡内容进行优化 */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
       }
       ::-webkit-scrollbar-track {
         background: #f1f5f9;
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
+        background: #94a3b8; /* 加深滚动条颜色以获得更清晰的指示 */
+        border-radius: 5px;
+        border: 2px solid #f1f5f9;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+        background: #64748b;
+      }
+      /* 全局明细表格线及色彩对比度强补丁 */
+      table td, table th {
+        border-color: #cbd5e1 !important; /* 加深单元格灰色边框线，实现强力横竖线效果 */
+      }
+      thead th {
+        background-color: #f1f5f9 !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
+        border-bottom: 2px solid #94a3b8 !important; /* 加重表头底部分界 */
+      }
+      /* 输入框聚焦和高反差 */
+      input:focus, select:focus {
+        border-color: #10b981 !important;
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
       }
     </style>
     <!-- 引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片 -->
