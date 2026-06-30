@@ -38,6 +38,8 @@ interface SearchableSelectProps {
   disabled?: boolean;
 }
 
+import { matchPinyin } from "../utils.ts";
+
 /**
  * @description 支持拼音/中文输入实时过滤、可手动录入未知原料自动过滤的安全下拉选择器组件
  */
@@ -93,11 +95,11 @@ export function SearchableSelect({
   }, [searchText, options, onChange]);
 
   /**
-   * @description 过滤出的选项列表，根据搜索内容进行实时匹配
+   * @description 过滤出的选项列表，根据搜索内容进行实时匹配，升级为支持拼音模糊匹配
    */
   const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(searchText.toLowerCase()) ||
-    opt.value.toLowerCase().includes(searchText.toLowerCase())
+    matchPinyin(opt.label, searchText) ||
+    matchPinyin(opt.value, searchText)
   );
 
   /**
