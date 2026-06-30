@@ -25,7 +25,8 @@ import {
   X,
   LayoutGrid,
   TrendingUp,
-  Award
+  Award,
+  Save
 } from "lucide-react";
 
 /**
@@ -85,6 +86,12 @@ export function LedgerSystem() {
   /** 仅供打印使用的纯净弹出视图状态: null | "in" | "out" */
   const [printDocType, setPrintDocType] = useState<null | "in" | "out">(null);
 
+  // --- 批量确认录入模式相关状态 ---
+  /** 当前选定台账与日期是否正处于“录入中”状态 */
+  const [isRecordingMode, setIsRecordingMode] = useState<boolean>(false);
+  /** 处于录入模式时，存储的当前日采购及出库草稿数据 */
+  const [draftRecords, setDraftRecords] = useState<Record<string, DailyStockRecord>>({});
+
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
     return RawMaterialsDictService.getItems().map((item) => ({
@@ -141,6 +148,12 @@ export function LedgerSystem() {
       setActiveItemId("");
     }
   }, [activeLedgerId, currentLedgerItems.length]);
+
+  // 当切换台账或修改日期时，退出录入模式并清理内存草稿
+  useEffect(() => {
+    setIsRecordingMode(false);
+    setDraftRecords({});
+  }, [activeLedgerId, selectedDate]);
 
   /** 解析选定日期的年份与月份 */
   const dateParts = useMemo(() => {
@@ -341,6 +354,124 @@ export function LedgerSystem() {
         triggerSaveToast();
       })
       .catch((err) => triggerError(err.message));
+  };
+
+  /**
+   * @description 启动录入模式，优先从本地缓存（LocalStorage）读取未确认的草稿数据
+   */
+  const handleStartRecording = () => {
+    const draftKey = `ledger_draft_${activeLedgerId}_${selectedDate}`;
+    const cached = localStorage.getItem(draftKey);
+    let initialDraft: Record<string, DailyStockRecord> = {};
+
+    if (cached) {
+      try {
+        initialDraft = JSON.parse(cached);
+        LogBroker.publish("INFO", "LedgerSystem", `成功加载本地未提交的台账录入缓存: ${draftKey}`);
+        setSaveToast("已恢复未提交的本地缓存数据");
+        setTimeout(() => setSaveToast(null), 2500);
+      } catch (err) {
+        console.error("加载台账缓存失败:", err);
+      }
+    } else {
+      // 否则从当前已存的 dailyRecords 中读取数据作为初始草稿
+      currentLedgerItems.forEach((item) => {
+        const record = item.dailyRecords[selectedDate];
+        if (record) {
+          initialDraft[item.id] = { ...record };
+        } else {
+          initialDraft[item.id] = {
+            inQuantity: 0,
+            inPrice: 0,
+            inAmount: 0,
+            outQuantity: 0,
+            note: "",
+            certification: "",
+            sensoryProperty: "",
+            supplier: "",
+            buyer: "",
+            inspector: "",
+            keeper: ""
+          };
+        }
+      });
+    }
+
+    setDraftRecords(initialDraft);
+    setIsRecordingMode(true);
+  };
+
+  /**
+   * @description 录入模式下，更新草稿内存与 LocalStorage 缓存
+   */
+  const handleDraftCellChange = (itemId: string, fields: Partial<DailyStockRecord>) => {
+    setDraftRecords((prev) => {
+      const current = prev[itemId] || {
+        inQuantity: 0,
+        inPrice: 0,
+        inAmount: 0,
+        outQuantity: 0,
+        note: "",
+        certification: "",
+        sensoryProperty: "",
+        supplier: "",
+        buyer: "",
+        inspector: "",
+        keeper: ""
+      };
+      const updatedRecord = { ...current, ...fields };
+      // 自动重算入库金额
+      if (updatedRecord.inQuantity !== undefined || updatedRecord.inPrice !== undefined) {
+        const qty = updatedRecord.inQuantity ?? 0;
+        const prc = updatedRecord.inPrice ?? 0;
+        updatedRecord.inAmount = Number((qty * prc).toFixed(2));
+      }
+      
+      const newDrafts = { ...prev, [itemId]: updatedRecord };
+      // 同步缓存到 localStorage
+      const draftKey = `ledger_draft_${activeLedgerId}_${selectedDate}`;
+      localStorage.setItem(draftKey, JSON.stringify(newDrafts));
+      return newDrafts;
+    });
+  };
+
+  /**
+   * @description 确认提交并同步数据，保存至数据库并清空本地 LocalStorage 缓存
+   */
+  const handleConfirmRecording = async () => {
+    try {
+      // 遍历所有项目，调用 LedgerService.updateDailyRecord 批量持久化保存
+      const promises = Object.entries(draftRecords).map(([itemId, record]) => {
+        return LedgerService.updateDailyRecord(itemId, selectedDate, record);
+      });
+
+      await Promise.all(promises);
+
+      // 清除本地缓存
+      const draftKey = `ledger_draft_${activeLedgerId}_${selectedDate}`;
+      localStorage.removeItem(draftKey);
+
+      setIsRecordingMode(false);
+      setDraftRecords({});
+      
+      setSaveToast("当天采购与台账数据已成功保存并同步！");
+      setTimeout(() => setSaveToast(null), 2500);
+      LogBroker.publish("INFO", "LedgerSystem", `成功提交保存并同步 ${selectedDate} 的全部台账与入库数据`);
+    } catch (err: any) {
+      setErrorMessage(err.message || "批量保存台账记录失败");
+      setTimeout(() => setErrorMessage(null), 3000);
+    }
+  };
+
+  /**
+   * @description 放弃当前草稿录入（不会清除本地缓存，下次点击录入可找回）
+   */
+  const handleCancelRecording = () => {
+    setIsRecordingMode(false);
+    setDraftRecords({});
+    LogBroker.publish("INFO", "LedgerSystem", `已暂停 ${selectedDate} 的台账录入，草稿已暂存本地`);
+    setSaveToast("录入草稿已暂存本地");
+    setTimeout(() => setSaveToast(null), 2000);
   };
 
   /**
@@ -774,6 +905,34 @@ export function LedgerSystem() {
           <div className="flex items-center gap-2 flex-wrap">
             {activeTab === "entry" ? (
               <>
+                {/* 录入模式控制键 */}
+                {!isRecordingMode ? (
+                  <button
+                    onClick={handleStartRecording}
+                    className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                  >
+                    <Edit3 size={13} />
+                    <span>开始录入今日采购数据</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleConfirmRecording}
+                      className="flex items-center gap-1 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm animate-pulse"
+                    >
+                      <Check size={13} />
+                      <span>保存并同步今日采购</span>
+                    </button>
+                    <button
+                      onClick={handleCancelRecording}
+                      className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                    >
+                      <Save size={13} />
+                      <span>暂存本地并退出</span>
+                    </button>
+                  </>
+                )}
+
                 {/* 样式二的原料选择下拉框 */}
                 {ledgerStyle === "style2" && currentLedgerItems.length > 0 && (
                   <div className="flex items-center gap-1.5 text-xs">
@@ -792,7 +951,7 @@ export function LedgerSystem() {
                 
                 <button
                   onClick={() => setIsAddMaterialOpen(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
                 >
                   <PlusCircle size={13} />
                   <span>{LEDGER_UI_TEXT.addMaterialBtn}</span>
@@ -965,6 +1124,12 @@ export function LedgerSystem() {
                               );
                             }
 
+                            const draftRecord = draftRecords[item.id];
+                            const recordToRender = isRecordingMode ? (draftRecord || {
+                              inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
+                              certification: "", sensoryProperty: "", supplier: "", buyer: "", inspector: "", keeper: ""
+                            }) : record;
+
                             return (
                               <tr key={item.id} className="hover:bg-slate-50/50">
                                 <td className="px-4 py-2.5 font-bold text-slate-800">
@@ -976,81 +1141,108 @@ export function LedgerSystem() {
                                 {/* 采购数量 */}
                                 <td className="px-3 py-2 bg-emerald-50/10">
                                   <input 
-                                    type="number" step="any" defaultValue={record.inQuantity || ""} placeholder="0"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { inQuantity: Number(e.target.value) })}
+                                    type="number" step="any"
+                                    value={recordToRender.inQuantity || ""}
+                                    placeholder={isRecordingMode ? "0" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { inQuantity: Number(e.target.value) })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                   />
                                 </td>
                                 
                                 {/* 单价 */}
                                 <td className="px-3 py-2 bg-emerald-50/10">
                                   <input 
-                                    type="number" step="any" defaultValue={record.inPrice || ""} placeholder="¥0.00"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { inPrice: Number(e.target.value) })}
+                                    type="number" step="any"
+                                    value={recordToRender.inPrice || ""}
+                                    placeholder={isRecordingMode ? "¥0.00" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { inPrice: Number(e.target.value) })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                   />
                                 </td>
 
                                 {/* 出库数量 */}
                                 <td className="px-3 py-2 bg-indigo-50/10">
                                   <input 
-                                    type="number" step="any" defaultValue={record.outQuantity || ""} placeholder="0"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { outQuantity: Number(e.target.value) })}
+                                    type="number" step="any"
+                                    value={recordToRender.outQuantity || ""}
+                                    placeholder={isRecordingMode ? "0" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { outQuantity: Number(e.target.value) })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                   />
                                 </td>
 
                                 {/* 食品索证 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.certification || ""} placeholder="已索证"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { certification: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.certification || ""}
+                                    placeholder={isRecordingMode ? "已索证" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { certification: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
-
+ 
                                 {/* 感官性状 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.sensoryProperty || ""} placeholder="合格/合格率"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { sensoryProperty: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.sensoryProperty || ""}
+                                    placeholder={isRecordingMode ? "合格/合格率" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { sensoryProperty: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
-
+ 
                                 {/* 供货商及地址 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.supplier || ""} placeholder="经销商地址及名称"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { supplier: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.supplier || ""}
+                                    placeholder={isRecordingMode ? "经销商地址及名称" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
-
+ 
                                 {/* 采购员 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.buyer || ""} placeholder="采购经办"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { buyer: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.buyer || ""}
+                                    placeholder={isRecordingMode ? "采购经办" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { buyer: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
-
+ 
                                 {/* 检验员 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.inspector || ""} placeholder="检验验收"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { inspector: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.inspector || ""}
+                                    placeholder={isRecordingMode ? "检验验收" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { inspector: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
-
+ 
                                 {/* 保管员 */}
                                 <td className="px-3 py-2">
                                   <input 
-                                    type="text" defaultValue={record.keeper || ""} placeholder="库管签字"
-                                    className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                    onBlur={(e) => handleCellBlur(item.id, selectedDate, { keeper: e.target.value })}
+                                    type="text"
+                                    value={recordToRender.keeper || ""}
+                                    placeholder={isRecordingMode ? "库管签字" : "未开启录入"}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { keeper: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                   />
                                 </td>
 
@@ -1101,6 +1293,11 @@ export function LedgerSystem() {
                         ([d, rec]) => d.startsWith(currentMonthStr) && (rec.supplier || rec.certification)
                       )?.[1] || { supplier: "", certification: "" };
 
+                      const draftRecord = draftRecords[activeItem.id];
+                      const recordForSelectedDate = activeItem.dailyRecords[selectedDate] || { supplier: "", certification: "" };
+                      const currentSupplier = isRecordingMode ? (draftRecord?.supplier ?? "") : (recordForSelectedDate.supplier ?? sampleRecord.supplier ?? "");
+                      const currentCertification = isRecordingMode ? (draftRecord?.certification ?? "") : (recordForSelectedDate.certification ?? sampleRecord.certification ?? "");
+
                       return (
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
                           
@@ -1118,13 +1315,13 @@ export function LedgerSystem() {
                               <span className="text-[11px] font-bold text-slate-400 block uppercase">经销商/供货商</span>
                               <input 
                                 type="text"
-                                defaultValue={sampleRecord.supplier || ""}
-                                placeholder={LEDGER_UI_TEXT.defaultSupplierPlaceholder}
-                                className="w-full bg-white border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
-                                onBlur={(e) => {
-                                  // 同步至当天作为当前供货商数据
-                                  handleCellBlur(activeItem.id, selectedDate, { supplier: e.target.value });
+                                value={currentSupplier}
+                                placeholder={isRecordingMode ? LEDGER_UI_TEXT.defaultSupplierPlaceholder : "未开启录入"}
+                                disabled={!isRecordingMode}
+                                onChange={(e) => {
+                                  handleDraftCellChange(activeItem.id, { supplier: e.target.value });
                                 }}
+                                className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
                               />
                             </div>
 
@@ -1132,12 +1329,13 @@ export function LedgerSystem() {
                               <span className="text-[11px] font-bold text-slate-400 block uppercase">索证索票情况</span>
                               <input 
                                 type="text"
-                                defaultValue={sampleRecord.certification || ""}
-                                placeholder={LEDGER_UI_TEXT.defaultCertificationPlaceholder}
-                                className="w-full bg-white border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
-                                onBlur={(e) => {
-                                  handleCellBlur(activeItem.id, selectedDate, { certification: e.target.value });
+                                value={currentCertification}
+                                placeholder={isRecordingMode ? LEDGER_UI_TEXT.defaultCertificationPlaceholder : "未开启录入"}
+                                disabled={!isRecordingMode}
+                                onChange={(e) => {
+                                  handleDraftCellChange(activeItem.id, { certification: e.target.value });
                                 }}
+                                className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
                               />
                             </div>
                           </div>
@@ -1160,7 +1358,7 @@ export function LedgerSystem() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 text-center">
-                                {daysArray.map((dayStr) => {
+                                 {daysArray.map((dayStr) => {
                                   const dayDateStr = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}-${dayStr}`;
                                   const record = activeItem.dailyRecords[dayDateStr] || {
                                     inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
@@ -1168,70 +1366,103 @@ export function LedgerSystem() {
                                   };
                                   const balance = dailyStockBalances[dayDateStr] ?? activeItem.initialStock;
 
+                                  const isRowEditable = isRecordingMode && dayDateStr === selectedDate;
+                                  const draftRecord = draftRecords[activeItem.id];
+                                  const recordToRender = isRowEditable ? (draftRecord || {
+                                    inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
+                                    produceDate: "", shelfLife: "", sensoryProperty: ""
+                                  }) : record;
+
                                   return (
-                                    <tr key={dayDateStr} className="hover:bg-slate-50/50">
-                                      <td className="px-4 py-2 font-mono text-slate-500 font-bold">{dayDateStr}</td>
+                                    <tr key={dayDateStr} className={`hover:bg-slate-50/50 ${dayDateStr === selectedDate ? "bg-amber-50/20" : ""}`}>
+                                      <td className="px-4 py-2 font-mono text-slate-500 font-bold flex items-center justify-center gap-1">
+                                        <span>{dayDateStr}</span>
+                                        {dayDateStr === selectedDate && (
+                                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" title="当前选中同步日"></span>
+                                        )}
+                                      </td>
                                       
                                       {/* 采购数量 */}
                                       <td className="px-2 py-1.5 bg-emerald-50/10">
                                         <input 
-                                          type="number" step="any" defaultValue={record.inQuantity || ""} placeholder="0"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { inQuantity: Number(e.target.value) })}
+                                          type="number" step="any"
+                                          value={recordToRender.inQuantity || ""}
+                                          placeholder={isRowEditable ? "0" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { inQuantity: Number(e.target.value) })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                         />
                                       </td>
                                       
                                       {/* 采购员 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.buyer || ""} placeholder="填采购员"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { buyer: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.buyer || ""}
+                                          placeholder={isRowEditable ? "填采购员" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { buyer: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                         />
                                       </td>
 
                                       {/* 生产日期 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.produceDate || ""} placeholder="生产日期"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none font-mono"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { produceDate: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.produceDate || ""}
+                                          placeholder={isRowEditable ? "生产日期" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { produceDate: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none font-mono"
                                         />
                                       </td>
 
                                       {/* 保质期 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.shelfLife || ""} placeholder="如: 12个月"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { shelfLife: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.shelfLife || ""}
+                                          placeholder={isRowEditable ? "如: 12个月" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { shelfLife: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                         />
                                       </td>
 
                                       {/* 感官性状 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.sensoryProperty || ""} placeholder="合格"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { sensoryProperty: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.sensoryProperty || ""}
+                                          placeholder={isRowEditable ? "合格" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { sensoryProperty: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                         />
                                       </td>
 
                                       {/* 检验员 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.inspector || ""} placeholder="填检验员"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { inspector: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.inspector || ""}
+                                          placeholder={isRowEditable ? "填检验员" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { inspector: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                         />
                                       </td>
 
                                       {/* 出库数量 */}
                                       <td className="px-2 py-1.5 bg-indigo-50/5">
                                         <input 
-                                          type="number" step="any" defaultValue={record.outQuantity || ""} placeholder="0"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { outQuantity: Number(e.target.value) })}
+                                          type="number" step="any"
+                                          value={recordToRender.outQuantity || ""}
+                                          placeholder={isRowEditable ? "0" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { outQuantity: Number(e.target.value) })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                         />
                                       </td>
 
@@ -1243,9 +1474,12 @@ export function LedgerSystem() {
                                       {/* 保管员 */}
                                       <td className="px-2 py-1.5">
                                         <input 
-                                          type="text" defaultValue={record.keeper || ""} placeholder="保管签字"
-                                          className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none"
-                                          onBlur={(e) => handleCellBlur(activeItem.id, dayDateStr, { keeper: e.target.value })}
+                                          type="text"
+                                          value={recordToRender.keeper || ""}
+                                          placeholder={isRowEditable ? "保管签字" : "锁定"}
+                                          disabled={!isRowEditable}
+                                          onChange={(e) => handleDraftCellChange(activeItem.id, { keeper: e.target.value })}
+                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                                         />
                                       </td>
                                     </tr>
