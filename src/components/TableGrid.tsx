@@ -7,8 +7,8 @@ import React, { useState, useMemo, useRef } from "react";
 import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../types.ts";
 import { PrepReportService } from "../store.ts";
 import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../constants.ts";
-import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin } from "../utils.ts";
-import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame } from "lucide-react";
+import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin, convertItemsToCsv } from "../utils.ts";
+import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { LedgerService } from "../ledgerStore.ts";
@@ -240,6 +240,34 @@ export const TableGrid: React.FC<TableGridProps> = ({
     setNewItemUnit("斤");
   };
 
+  /**
+   * @description 导出当前餐位二级分组在当月的采购明细表
+   */
+  const handleExportCsv = () => {
+    const catLabel = selectedCategory ? (FOOD_CATEGORY_LABELS[selectedCategory] || selectedCategory) : "汇总合计";
+    const groupLabel = getGroupLabel(report.targetGroup);
+    
+    // 生成 CSV 内容
+    const csvString = convertItemsToCsv(filteredItems, days, catLabel);
+    
+    // 创建 blob 并下载
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${report.year}年${report.month}月_${groupLabel}_${catLabel}_采购细表.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    LogBroker.publish(
+      "INFO",
+      "TableGrid",
+      `【导出明细】操作员导出了「${groupLabel}」的 [${catLabel}类] 在 ${report.year}年${report.month}月 的采购细表 CSV。`
+    );
+  };
+
+
 
 
   // --- 合计汇总报表视图渲染 (当 selectedCategory === null 时触发) ---
@@ -365,6 +393,18 @@ export const TableGrid: React.FC<TableGridProps> = ({
               </button>
             </form>
           )}
+
+          {/* 导出当前客群和二级分组的月度采购细表按钮 */}
+          <button
+            onClick={handleExportCsv}
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-100 hover:bg-sky-100/80 text-sky-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+            title="导出当前餐位二级大类当月所有的每日采购明细表 (CSV)"
+          >
+            <Download size={13} />
+            <span>导出本月细表 (CSV)</span>
+          </button>
+
         </div>
 
         {/* 辅视图控制切换 */}
