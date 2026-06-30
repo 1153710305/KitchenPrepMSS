@@ -103,10 +103,9 @@ export class PrepReportService {
             this.activeGroups = JSON.parse(cachedGroups);
           } else {
             this.activeGroups = [
-              { key: "TEACHER", label: "教师备餐", emoji: "🏫" },
               { key: "KID", label: "幼儿备餐", emoji: "👶" },
-              { key: "LOW_GRADE", label: "低年级备餐", emoji: "🎒" },
-              { key: "HIGH_GRADE", label: "高年级备餐", emoji: "🎓" }
+              { key: "STUDENT", label: "在校生备餐", emoji: "🎒" },
+              { key: "TEACHER", label: "教师备餐", emoji: "👩‍🏫" }
             ];
             localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(this.activeGroups));
           }

@@ -114,10 +114,9 @@ export class LedgerService {
     LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账和预设采购项...");
     
     const alignedGroups = [
-      { key: "TEACHER", name: "教师备餐" },
       { key: "KID", name: "幼儿备餐" },
-      { key: "LOW_GRADE", name: "低年级备餐" },
-      { key: "HIGH_GRADE", name: "高年级备餐" }
+      { key: "STUDENT", name: "在校生备餐" },
+      { key: "TEACHER", name: "教师备餐" }
     ];
 
     const initialLedgers: Ledger[] = alignedGroups.map((group) => ({

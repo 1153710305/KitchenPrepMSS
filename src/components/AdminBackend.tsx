@@ -180,24 +180,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     e.preventDefault();
     setGroupError(null);
 
-    if (!groupKeyInput.trim()) {
-      setGroupError("标识Key必须填写，且在系统内唯一！");
-      return;
-    }
     if (!groupLabelInput.trim()) {
       setGroupError("受众人群显名标签不能为空！");
       return;
     }
 
-    const targetKey = groupKeyInput.trim().toUpperCase();
-
-    if (!editingGroupKey) {
-      const isExist = activeGroupsList.some(g => g.key === targetKey);
-      if (isExist) {
-        setGroupError(`标识Key "${targetKey}" 已被其它群组占用，请换个全新标识。`);
-        return;
-      }
-    }
+    const targetKey = editingGroupKey || ("GROUP_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4)).toUpperCase();
 
     try {
       await PrepReportService.saveGroup(targetKey, groupLabelInput, groupEmojiInput);
@@ -741,15 +729,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">唯一识别Key(仅限英数字)</label>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">唯一识别Key</label>
                       <input
                         type="text"
-                        placeholder="如: PRESCHOOL"
-                        value={groupKeyInput}
-                        onChange={(e) => setGroupKeyInput(e.target.value)}
-                        disabled={editingGroupKey !== null}
-                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none uppercase font-mono disabled:opacity-50"
-                        required
+                        value={editingGroupKey ? groupKeyInput : "系统自动分配（只读）"}
+                        disabled={true}
+                        className="w-full bg-slate-100 text-xs text-slate-500 p-2 border border-slate-200 rounded outline-none font-mono opacity-70"
                       />
                     </div>
 
@@ -767,14 +752,15 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 block mb-1">外观展示Emoji</label>
-                      <input
-                        type="text"
-                        placeholder="如: 🌾"
+                      <select
                         value={groupEmojiInput}
                         onChange={(e) => setGroupEmojiInput(e.target.value)}
                         className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
-                        required
-                      />
+                      >
+                        {["🍽️", "👶", "🎒", "👩‍🏫", "🏫", "👨‍🍳", "🍲", "🍚", "🍎", "🥛", "🥯", "🍗", "🥪", "🥗", "🍇", "🍊"].map((em) => (
+                          <option key={em} value={em}>{em}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
