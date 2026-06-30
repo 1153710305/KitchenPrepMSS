@@ -60,6 +60,8 @@ export class LedgerService {
         LogBroker.publish("ERROR", "LedgerService", "分发台账数据变动通知失败:", String(err));
       }
     });
+    // 异步将变动同步至后端物理存储
+    SyncHelper.triggerSyncToServer();
   }
 
   /**

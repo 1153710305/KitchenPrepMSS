@@ -303,7 +303,7 @@ export class PrepReportService {
         this.reports[reportIndex] = updatedReport;
       }
 
-      this.saveToStorage();
+      this.saveConfigAndNotify();
       LogBroker.publish(
         "INFO",
         "PrepReportService",

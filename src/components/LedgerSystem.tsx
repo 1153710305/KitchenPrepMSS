@@ -911,14 +911,6 @@ export function LedgerSystem() {
                     </select>
                   </div>
                 )}
-                
-                <button
-                  onClick={() => setIsAddMaterialOpen(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                >
-                  <PlusCircle size={13} />
-                  <span>{LEDGER_UI_TEXT.addMaterialBtn}</span>
-                </button>
               </>
             ) : (
               <>
@@ -1016,7 +1008,6 @@ export function LedgerSystem() {
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.inspector}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.keeper}</th>
-                          <th className="px-3 py-3 text-center text-slate-600 font-bold w-16">管理</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1209,29 +1200,6 @@ export function LedgerSystem() {
                                   />
                                 </td>
 
-                                {/* 行编辑 */}
-                                <td className="px-3 py-2.5 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => {
-                                        setEditingMaterialId(item.id);
-                                        setEditMaterialName(item.name);
-                                        setEditMaterialUnit(item.unit);
-                                        setEditMaterialSpec(item.spec || "");
-                                        setEditMaterialStock(item.initialStock);
-                                      }}
-                                      className="p-1 text-slate-400 hover:text-emerald-600 rounded transition-colors"
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteMaterial(item.id)}
-                                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </td>
                               </tr>
                             );
                           })
