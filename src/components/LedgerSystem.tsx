@@ -1027,8 +1027,8 @@ export function LedgerSystem() {
             )?.[1] || { supplier: "", certification: "" };
 
             const recordForSelectedDate = activeItem.dailyRecords[selectedDate] || {};
-            const printSupplier = recordForSelectedDate.supplier || sampleRecord.supplier || "日常备货";
-            const printCert = recordForSelectedDate.certification || sampleRecord.certification || "已索证/合格";
+            const printSupplier = recordForSelectedDate.supplier || sampleRecord.supplier || "宾县鑫百达百货超市";
+            const printCert = recordForSelectedDate.certification || sampleRecord.certification || "";
 
             // 累计每日结余
             let tempStock = activeItem.initialStock;
@@ -1044,73 +1044,134 @@ export function LedgerSystem() {
 
             return (
               <div>
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl font-black tracking-widest border-b-2 border-black pb-2 inline-block">
-                    {activeLedger?.name} —— 单一原料出入库月度流水卡片
+                {/* 1. 大标题居中 */}
+                <div className="text-center mb-1">
+                  <h2 className="text-xl font-black tracking-widest">
+                    宾县第二小学食堂食品原材料购销台账
                   </h2>
-                  <div className="grid grid-cols-4 text-xs mt-4 px-1 gap-2 text-left border border-black p-3 bg-slate-50/50">
-                    <div><span>原材料品名：<strong className="underline text-sm">{activeItem.name}</strong></span></div>
-                    <div><span>规格描述：<strong className="underline">{activeItem.spec || "常温"}</strong></span></div>
-                    <div><span>计量单位：<strong className="underline">{activeItem.unit}</strong></span></div>
-                    <div><span>登记月份：<strong className="underline">{filterYear}年{filterMonth}月</strong></span></div>
-                    <div className="col-span-2"><span>主要供货商：<strong className="underline">{printSupplier}</strong></span></div>
-                    <div className="col-span-2"><span>索证票据状态：<strong className="underline">{printCert}</strong></span></div>
-                  </div>
                 </div>
 
-                <table className="w-full text-left border-collapse border border-black text-[10px] mb-6 text-center">
+                {/* 2. 日期部分居中 */}
+                <div className="text-center text-xs mb-3">
+                  <span>日期：（ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ）</span>
+                </div>
+
+                <table className="w-full text-center border-collapse border border-black text-[11px] mb-6" style={{ tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: "9%" }} />   {/* 日期 */}
+                    <col style={{ width: "9%" }} />   {/* 采购数量 */}
+                    <col style={{ width: "9%" }} />   {/* 采购员 */}
+                    <col style={{ width: "11%" }} />  {/* 生产日期 */}
+                    <col style={{ width: "9%" }} />   {/* 保质期 */}
+                    <col style={{ width: "13%" }} />  {/* 感官性状 */}
+                    <col style={{ width: "10%" }} />  {/* 检验员 */}
+                    <col style={{ width: "9%" }} />   {/* 出库数量 */}
+                    <col style={{ width: "11%" }} />  {/* 当日库存 */}
+                    <col style={{ width: "10%" }} />  {/* 保管员 */}
+                  </colgroup>
+
                   <thead>
-                    <tr className="bg-gray-100 font-bold">
-                      <th className="border border-black px-1 py-1.5 w-24">日期</th>
-                      <th className="border border-black px-1 py-1.5 w-16">采购入库量</th>
-                      <th className="border border-black px-1 py-1.5 w-16">采购经办人</th>
-                      <th className="border border-black px-1 py-1.5 w-20">生产日期</th>
-                      <th className="border border-black px-1 py-1.5 w-16">保质期</th>
-                      <th className="border border-black px-1 py-1.5 w-16">感官性状</th>
-                      <th className="border border-black px-1 py-1.5 w-16">验收/检测人</th>
-                      <th className="border border-black px-1 py-1.5 w-16 font-bold bg-indigo-50/20 text-indigo-900">领料出库量</th>
-                      <th className="border border-black px-1 py-1.5 w-20 font-bold bg-slate-100/50">结存库存数</th>
-                      <th className="border border-black px-1 py-1.5 w-16">保管员签字</th>
-                      <th className="border border-black px-2 py-1.5 text-left">备注说明</th>
+                    {/* 表头第一行：基础信息 */}
+                    <tr style={{ height: "28px" }}>
+                      <th className="border border-black px-1 font-bold bg-gray-50">采购项目</th>
+                      <th colSpan={2} className="border border-black px-1 font-bold text-left">{activeItem.name}</th>
+                      <th className="border border-black px-1 font-bold bg-gray-50">经销商</th>
+                      <th colSpan={3} className="border border-black px-1 font-normal text-left">{printSupplier}</th>
+                      <th className="border border-black px-1 font-bold bg-gray-50">索证索票</th>
+                      <th colSpan={2} className="border border-black px-1 font-normal text-left">{printCert}</th>
+                    </tr>
+
+                    {/* 表头第二行：大分类（入库/出库） */}
+                    <tr style={{ height: "24px" }} className="bg-gray-50 font-bold">
+                      <th colSpan={7} className="border border-black">入库</th>
+                      <th colSpan={3} className="border border-black">出库</th>
+                    </tr>
+
+                    {/* 表头第三行：明细列头 */}
+                    <tr style={{ height: "24px" }} className="bg-gray-50 font-bold">
+                      <th className="border border-black">日期</th>
+                      <th className="border border-black">采购数量</th>
+                      <th className="border border-black">采购员</th>
+                      <th className="border border-black">生产日期</th>
+                      <th className="border border-black">保质期</th>
+                      <th className="border border-black">感官性状</th>
+                      <th className="border border-black">检验员</th>
+                      <th className="border border-black">出库数量</th>
+                      <th className="border border-black">当日库存</th>
+                      <th className="border border-black">保管员</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {daysArray.map((dayStr) => {
-                      const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
-                      const record = activeItem.dailyRecords[dStr] || {
-                        inQuantity: 0, buyer: "", produceDate: "", shelfLife: "",
-                        sensoryProperty: "", inspector: "", outQuantity: 0, keeper: "", note: ""
-                      };
-                      const balance = stockByDay[dStr];
 
-                      // 仅有出入库活动或有结余的日期打印出来，如要打满31天则直接全量展现
+                  <tbody>
+                    {(() => {
+                      // 过滤并映射当月有变动的记录行
+                      const activeDays = daysArray.map((dayStr) => {
+                        const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
+                        const record = activeItem.dailyRecords[dStr];
+                        const hasActivity = record && ((record.inQuantity || 0) > 0 || (record.outQuantity || 0) > 0);
+                        return { dStr, dayStr, record, hasActivity };
+                      });
+
+                      const renderedRows = activeDays.map(({ dStr, dayStr, record, hasActivity }) => {
+                        const balance = stockByDay[dStr];
+                        if (!hasActivity) return null;
+
+                        return (
+                          <tr key={dStr} style={{ height: "28px" }}>
+                            {/* 日期仅显示日数字 */}
+                            <td className="border border-black font-mono">{dayStr}</td>
+                            {/* 采购数量 */}
+                            <td className="border border-black font-mono">{record.inQuantity || ""}</td>
+                            {/* 采购员 */}
+                            <td className="border border-black">{record.buyer || ""}</td>
+                            {/* 生产日期 */}
+                            <td className="border border-black font-mono text-[10px]">{record.produceDate || ""}</td>
+                            {/* 保质期 */}
+                            <td className="border border-black text-[10px]">{record.shelfLife || ""}</td>
+                            {/* 感官性状 */}
+                            <td className="border border-black">{record.sensoryProperty || ""}</td>
+                            {/* 检验员 */}
+                            <td className="border border-black">{record.inspector || ""}</td>
+                            {/* 出库数量 */}
+                            <td className="border border-black font-mono">{record.outQuantity || ""}</td>
+                            {/* 当日结余库存 */}
+                            <td className="border border-black font-mono font-bold">{balance}</td>
+                            {/* 保管员 */}
+                            <td className="border border-black">{record.keeper || ""}</td>
+                          </tr>
+                        );
+                      }).filter(Boolean);
+
+                      // 如果无任何出入库记录
+                      const filledCount = renderedRows.length;
+                      const emptyRowsCount = Math.max(0, 15 - filledCount);
+
                       return (
-                        <tr key={dStr} className="hover:bg-gray-50">
-                          <td className="border border-black py-1 font-mono">{dStr}</td>
-                          <td className="border border-black py-1 font-mono font-bold text-emerald-800">{record.inQuantity || "—"}</td>
-                          <td className="border border-black py-1">{record.buyer || "—"}</td>
-                          <td className="border border-black py-1 font-mono">{record.produceDate || "—"}</td>
-                          <td className="border border-black py-1">{record.shelfLife || "—"}</td>
-                          <td className="border border-black py-1 text-emerald-700">{record.sensoryProperty || "—"}</td>
-                          <td className="border border-black py-1">{record.inspector || "—"}</td>
-                          <td className="border border-black py-1 font-mono font-bold text-indigo-800">{record.outQuantity || "—"}</td>
-                          <td className="border border-black py-1 font-mono font-extrabold bg-slate-50">{balance}</td>
-                          <td className="border border-black py-1">{record.keeper || "—"}</td>
-                          <td className="border border-black px-2 py-1 text-left truncate max-w-[120px]">{record.note || "—"}</td>
-                        </tr>
+                        <>
+                          {renderedRows}
+                          {/* 自动补充空白行以对齐样式 */}
+                          {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                            <tr key={`empty-${i}`} style={{ height: "28px" }}>
+                              {Array.from({ length: 10 }).map((_, j) => (
+                                <td key={j} className="border border-black"></td>
+                              ))}
+                            </tr>
+                          ))}
+                        </>
                       );
-                    })}
+                    })()}
                   </tbody>
                 </table>
 
-                <div className="grid grid-cols-3 gap-4 text-xs mt-8 px-1">
-                  <div><span>审核负责人签字：____________________</span></div>
-                  <div className="text-center"><span>出纳稽核：____________________</span></div>
-                  <div className="text-right"><span>卡片打印时间：{selectedDate}</span></div>
+                {/* 底部签字栏 */}
+                <div className="flex justify-between text-xs mt-4 px-1 print:mt-6">
+                  <span>主管审核：____________________</span>
+                  <span>打印日期：{selectedDate}</span>
                 </div>
               </div>
             );
           })()
+
         )}
       </div>
     );

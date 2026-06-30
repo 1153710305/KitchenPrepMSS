@@ -386,11 +386,10 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
             {/* 低库存预警快捷切换 */}
             <button
               onClick={() => setShowLowStockOnly((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                showLowStockOnly
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${showLowStockOnly
                   ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200"
                   : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-600"
-              }`}
+                }`}
             >
               <AlertTriangle size={12} />
               仅看预警
@@ -495,8 +494,8 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
                   const rowBg = isCritical
                     ? "bg-rose-50/60 hover:bg-rose-50"
                     : isLow
-                    ? "bg-amber-50/40 hover:bg-amber-50/80"
-                    : "bg-white hover:bg-slate-50/50";
+                      ? "bg-amber-50/40 hover:bg-amber-50/80"
+                      : "bg-white hover:bg-slate-50/50";
 
                   return (
                     <tr key={row.id} className={`transition-colors ${rowBg}`}>
