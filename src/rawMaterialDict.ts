@@ -5,6 +5,9 @@
 
 import { FoodCategory } from "./types.ts";
 import { LogBroker } from "./utils.ts";
+import { LedgerService } from "./ledgerStore.ts";
+import { PrepReportService } from "./store.ts";
+import { SyncHelper } from "./syncHelper.ts";
 
 /**
  * @description 单个原料字典条目接口
@@ -173,6 +176,13 @@ export class RawMaterialsDictService {
       };
       this.saveToStorage();
       LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}）`);
+      
+      // 级联同步更新台账与备餐中的所有旧原料项目参数
+      LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤");
+      PrepReportService.cascadeUpdateMaterial(oldName, trimmedName, category, unit.trim() || "斤");
+
+      // 同步推送到服务端存盘
+      SyncHelper.triggerSyncToServer();
       resolve();
     });
   }
@@ -186,6 +196,13 @@ export class RawMaterialsDictService {
       this.items = this.items.filter((item) => item.name !== name);
       this.saveToStorage();
       LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
+      
+      // 级联物理删除关联采购原料项与备餐明细
+      LedgerService.cascadeDeleteMaterial(name);
+      PrepReportService.cascadeDeleteMaterial(name);
+
+      // 同步推送到服务端存盘
+      SyncHelper.triggerSyncToServer();
       resolve();
     });
   }

@@ -47,7 +47,8 @@ export class SyncHelper {
     activeGroups: "KITCHEN_TARGET_GROUPS_V1",
     activeCategories: "KITCHEN_FOOD_CATEGORIES_V1",
     ledgers: "KITCHEN_LEDGERS_LIST_V2",
-    ledgerItems: "KITCHEN_LEDGER_ITEMS_V2"
+    ledgerItems: "KITCHEN_LEDGER_ITEMS_V2",
+    rawMaterialsDict: "KITCHEN_RAW_MATERIALS_DICT_V1"
   };
 
   /**
@@ -73,6 +74,7 @@ export class SyncHelper {
       if (data.activeCategories) localStorage.setItem(this.keysMap.activeCategories, JSON.stringify(data.activeCategories));
       if (data.ledgers) localStorage.setItem(this.keysMap.ledgers, JSON.stringify(data.ledgers));
       if (data.ledgerItems) localStorage.setItem(this.keysMap.ledgerItems, JSON.stringify(data.ledgerItems));
+      if ((data as any).rawMaterialsDict) localStorage.setItem(this.keysMap.rawMaterialsDict, JSON.stringify((data as any).rawMaterialsDict));
 
       return data;
     } catch (err) {
@@ -99,14 +101,16 @@ export class SyncHelper {
         const categoriesStr = localStorage.getItem(this.keysMap.activeCategories);
         const ledgersStr = localStorage.getItem(this.keysMap.ledgers);
         const itemsStr = localStorage.getItem(this.keysMap.ledgerItems);
+        const dictStr = localStorage.getItem(this.keysMap.rawMaterialsDict);
 
         const payload: BackendData = {
           reports: reportsStr ? JSON.parse(reportsStr) : undefined,
           activeGroups: groupsStr ? JSON.parse(groupsStr) : undefined,
           activeCategories: categoriesStr ? JSON.parse(categoriesStr) : undefined,
           ledgers: ledgersStr ? JSON.parse(ledgersStr) : undefined,
-          ledgerItems: itemsStr ? JSON.parse(itemsStr) : undefined
-        };
+          ledgerItems: itemsStr ? JSON.parse(itemsStr) : undefined,
+          rawMaterialsDict: dictStr ? JSON.parse(dictStr) : undefined
+        } as any;
 
         const response = await fetch("/api/storage/save", {
           method: "POST",

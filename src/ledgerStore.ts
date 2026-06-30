@@ -626,4 +626,36 @@ export class LedgerService {
       }, LEDGER_API_LATENCY);
     });
   }
+
+  /**
+   * @description 当从后台原料大底库修改了原料属性时，级联同步更新所有关联的已存台账采购原料项目参数
+   */
+  public static cascadeUpdateMaterial(oldName: string, newName: string, newUnit: string): void {
+    let changed = false;
+    this.ledgerItems = this.ledgerItems.map((item) => {
+      if (item.name === oldName) {
+        changed = true;
+        return {
+          ...item,
+          name: newName,
+          unit: newUnit
+        };
+      }
+      return item;
+    });
+    if (changed) {
+      this.notifyListeners();
+    }
+  }
+
+  /**
+   * @description 当从后台原料大底库删除了原料时，级联同步删除所有关联的已存台账采购项
+   */
+  public static cascadeDeleteMaterial(name: string): void {
+    const exists = this.ledgerItems.some((item) => item.name === name);
+    if (exists) {
+      this.ledgerItems = this.ledgerItems.filter((item) => item.name !== name);
+      this.notifyListeners();
+    }
+  }
 }

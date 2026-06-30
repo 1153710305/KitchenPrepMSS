@@ -944,5 +944,55 @@ export class PrepReportService {
       }, MOCK_API_LATENCY);
     });
   }
+
+  /**
+   * @description 当从后台原料大底库修改了原料属性时，级联同步更新所有关联的已存备餐食材参数
+   */
+  public static cascadeUpdateMaterial(oldName: string, newName: string, newCategory: FoodCategory, newUnit: string): void {
+    let changed = false;
+    this.reports = this.reports.map((report) => {
+      const updatedItems = report.items.map((item) => {
+        if (item.name === oldName) {
+          changed = true;
+          return {
+            ...item,
+            name: newName,
+            category: newCategory,
+            unit: newUnit
+          };
+        }
+        return item;
+      });
+      return {
+        ...report,
+        items: updatedItems
+      };
+    });
+    if (changed) {
+      this.saveConfigAndNotify();
+    }
+  }
+
+  /**
+   * @description 当从后台原料大底库删除了原料时，级联同步删除所有关联的已存备餐食材采购项
+   */
+  public static cascadeDeleteMaterial(name: string): void {
+    let changed = false;
+    this.reports = this.reports.map((report) => {
+      const originalCount = report.items.length;
+      const updatedItems = report.items.filter((item) => item.name !== name);
+      if (updatedItems.length !== originalCount) {
+        changed = true;
+        return {
+          ...report,
+          items: updatedItems
+        };
+      }
+      return report;
+    });
+    if (changed) {
+      this.saveConfigAndNotify();
+    }
+  }
 }
 

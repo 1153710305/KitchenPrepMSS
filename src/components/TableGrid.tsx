@@ -26,8 +26,6 @@ interface TableGridProps {
   onAddItem: (targetGroup: TargetGroup, category: FoodCategory, name: string, unit: string) => void;
   /** 删除特定食材行的操作回调 */
   onDeleteItem: (itemId: string) => void;
-  /** 一键列单价批量克隆回调 */
-  onBatchPriceUpdate: (targetGroup: TargetGroup, category: FoodCategory, day: string, price: number) => void;
   /** 是否为管理员模式 */
   isAdminMode: boolean;
   /** 激活的一级受众人群列表 */
@@ -45,7 +43,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
   onCellUpdate,
   onAddItem,
   onDeleteItem,
-  onBatchPriceUpdate,
   isAdminMode,
   activeGroupsList,
   activeCategoriesList
@@ -190,20 +187,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
     setNewItemUnit("斤");
   };
 
-  /**
-   * @description 触发批量价格设定
-   */
-  const triggerBatchPrice = (day: string) => {
-    if (selectedCategory === null) return;
-    const priceInput = prompt(UI_TEXT.batchPricePrompt);
-    if (priceInput === null) return; // 取消
-    const parsed = parseFloat(priceInput);
-    if (isNaN(parsed) || parsed < 0) {
-      alert("请输入有效的非负数字。");
-      return;
-    }
-    onBatchPriceUpdate(report.targetGroup, selectedCategory, day, parsed);
-  };
+
 
   // --- 合计汇总报表视图渲染 (当 selectedCategory === null 时触发) ---
   const renderCategoryCombinedSummary = () => {
@@ -480,15 +464,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => triggerBatchPrice(focusDay)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-sky-600 border border-gray-100 rounded-xl text-xs cursor-pointer transition-all"
-                    >
-                      <Copy size={12} />
-                      <span>{UI_TEXT.batchPriceBtn}</span>
-                    </button>
-                  </div>
+
                 </div>
 
                 {/* 聚焦日卡片网络流 */}

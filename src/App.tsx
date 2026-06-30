@@ -770,7 +770,6 @@ export default function App() {
                     onCellUpdate={handleCellUpdate}
                     onAddItem={handleAddItem as any}
                     onDeleteItem={handleDeleteItem}
-                    onBatchPriceUpdate={handleBatchPriceUpdate as any}
                     isAdminMode={isAdminMode}
                     activeGroupsList={activeGroupsList}
                     activeCategoriesList={activeCategoriesList}
