@@ -357,8 +357,20 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
                           <td className="p-2.5 sticky left-0 bg-white border-r border-gray-100 z-10 font-bold text-gray-700 flex justify-between items-center group/cell">
                             <span className="truncate max-w-[110px]" title={item.name}>
-                              {item.name}
-                              <span className="text-[10px] font-normal text-gray-400 block mt-0.5">单位: {item.unit}</span>
+                              {(() => {
+                                const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                                const displayName = dictItem ? dictItem.name : item.name;
+                                const displayUnit = dictItem ? dictItem.unit : item.unit;
+                                const displayRemark = dictItem?.remark || "";
+                                return (
+                                  <>
+                                    {displayName}
+                                    <span className="text-[10px] font-normal text-gray-400 block mt-0.5">
+                                      单位: {displayUnit} {displayRemark && `(${displayRemark})`}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </span>
                           </td>
 
@@ -478,15 +490,29 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <span className="text-[10px] text-gray-400 font-mono tracking-wider block">原料项 / 单位：{item.unit}</span>
-                            <h5 className="font-bold text-gray-800 text-sm">{item.name}</h5>
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              const displayName = dictItem ? dictItem.name : item.name;
+                              const displayUnit = dictItem ? dictItem.unit : item.unit;
+                              const displayRemark = dictItem?.remark || "";
+                              return (
+                                <>
+                                  <span className="text-[10px] text-gray-400 font-mono tracking-wider block">
+                                    原料项 / 单位：{displayUnit} {displayRemark && `(${displayRemark})`}
+                                  </span>
+                                  <h5 className="font-bold text-gray-800 text-sm">{displayName}</h5>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
 
                         {/* 修改区 */}
                         <div className="grid grid-cols-2 gap-3 mt-4 text-center">
                           <div className="bg-slate-50 p-2 rounded-lg">
-                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">备载数量 ({item.unit})</label>
+                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">
+                              备载数量 ({RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit || item.unit})
+                            </label>
                             <span className="text-xs font-mono font-bold text-slate-700">{entry.quantity || 0}</span>
                           </div>
                           <div className="bg-slate-50 p-2 rounded-lg">

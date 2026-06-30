@@ -640,9 +640,24 @@ export function LedgerSystem() {
               printItems.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50 text-center">
                   <td className="border border-black px-2 py-2 font-mono">{index + 1}</td>
-                  <td className="border border-black px-3 py-2 text-left font-bold">{item.name}</td>
-                  <td className="border border-black px-3 py-2 text-left">{item.spec || "-"}</td>
-                  <td className="border border-black px-2 py-2">{item.unit}</td>
+                  <td className="border border-black px-3 py-2 text-left font-bold">
+                    {(() => {
+                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                      return dictItem ? dictItem.name : item.name;
+                    })()}
+                  </td>
+                  <td className="border border-black px-3 py-2 text-left">
+                    {(() => {
+                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                      return (dictItem?.remark) || item.spec || "-";
+                    })()}
+                  </td>
+                  <td className="border border-black px-2 py-2">
+                    {(() => {
+                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                      return dictItem ? dictItem.unit : item.unit;
+                    })()}
+                  </td>
                   <td className="border border-black px-3 py-2 text-right font-mono font-bold">
                     {isPrintIn ? item.record.inQuantity : item.record.outQuantity}
                   </td>
@@ -1087,10 +1102,25 @@ export function LedgerSystem() {
                             return (
                               <tr key={item.id} className="hover:bg-slate-50/50">
                                 <td className="px-4 py-2.5 font-bold text-slate-800">
-                                  {item.name}
-                                  <div className="text-[9px] text-slate-400 font-normal mt-0.5">{item.spec || "-"}</div>
+                                  {(() => {
+                                    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                                    const displayName = dictItem ? dictItem.name : item.name;
+                                    const displayRemark = dictItem?.remark || "";
+                                    return (
+                                      <>
+                                        {displayName}
+                                        {displayRemark ? (
+                                          <div className="text-[9px] text-slate-400 font-normal mt-0.5">{displayRemark}</div>
+                                        ) : (
+                                          <div className="text-[9px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </td>
-                                <td className="px-3 py-2.5 text-center text-slate-500">{item.unit}</td>
+                                <td className="px-3 py-2.5 text-center text-slate-500">
+                                  {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit || item.unit}
+                                </td>
                                 
                                 {/* 采购数量 */}
                                 <td className="px-3 py-2 bg-emerald-50/10">
@@ -1477,9 +1507,24 @@ export function LedgerSystem() {
                       dailyInwardItems.map((item, index) => (
                         <tr key={item.id} className="hover:bg-slate-50/30">
                           <td className="px-3 py-2 font-mono text-slate-400">{index + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800 text-left">{item.name}</td>
-                          <td className="px-3 py-2 text-slate-500 text-left">{item.spec || "-"}</td>
-                          <td className="px-2 py-2 text-slate-500">{item.unit}</td>
+                          <td className="px-3 py-2 font-bold text-slate-800 text-left">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return dictItem ? dictItem.name : item.name;
+                            })()}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 text-left">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return (dictItem?.remark) || item.spec || "-";
+                            })()}
+                          </td>
+                          <td className="px-2 py-2 text-slate-500">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return dictItem ? dictItem.unit : item.unit;
+                            })()}
+                          </td>
                           <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.inQuantity}</td>
                           <td className="px-3 py-2 font-mono text-slate-600">¥{item.record.inPrice.toFixed(2)}</td>
                           <td className="px-3 py-2 font-mono font-bold text-emerald-800">¥{item.record.inAmount.toFixed(2)}</td>
@@ -1530,9 +1575,24 @@ export function LedgerSystem() {
                       dailyOutwardItems.map((item, index) => (
                         <tr key={item.id} className="hover:bg-slate-50/30">
                           <td className="px-3 py-2 font-mono text-slate-400">{index + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800 text-left">{item.name}</td>
-                          <td className="px-3 py-2 text-slate-500 text-left">{item.spec || "-"}</td>
-                          <td className="px-2 py-2 text-slate-500">{item.unit}</td>
+                          <td className="px-3 py-2 font-bold text-slate-800 text-left">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return dictItem ? dictItem.name : item.name;
+                            })()}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 text-left">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return (dictItem?.remark) || item.spec || "-";
+                            })()}
+                          </td>
+                          <td className="px-2 py-2 text-slate-500">
+                            {(() => {
+                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                              return dictItem ? dictItem.unit : item.unit;
+                            })()}
+                          </td>
                           <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.outQuantity}</td>
                           <td className="px-3 py-2 text-slate-600">{item.record.outHandler || ""}</td>
                           <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || ""}</td>

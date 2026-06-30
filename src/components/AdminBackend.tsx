@@ -140,6 +140,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   const [dictNameInput, setDictNameInput] = useState<string>("");
   const [dictCategoryInput, setDictCategoryInput] = useState<FoodCategory>(FoodCategory.VEGETABLE);
   const [dictUnitInput, setDictUnitInput] = useState<string>("斤");
+  const [dictRemarkInput, setDictRemarkInput] = useState<string>("");
   const [editingDictName, setEditingDictName] = useState<string | null>(null);
   const [dictError, setDictError] = useState<string | null>(null);
 
@@ -268,13 +269,14 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
     try {
       if (editingDictName) {
-        await RawMaterialsDictService.updateMaterial(editingDictName, name, dictCategoryInput, dictUnitInput);
+        await RawMaterialsDictService.updateMaterial(editingDictName, name, dictCategoryInput, dictUnitInput, dictRemarkInput);
       } else {
-        await RawMaterialsDictService.addMaterial(name, dictCategoryInput, dictUnitInput);
+        await RawMaterialsDictService.addMaterial(name, dictCategoryInput, dictUnitInput, dictRemarkInput);
       }
       setDictItems([...RawMaterialsDictService.getItems()]);
       setDictNameInput("");
       setDictUnitInput("斤");
+      setDictRemarkInput("");
       setDictCategoryInput(FoodCategory.VEGETABLE);
       setEditingDictName(null);
     } catch (err: any) {
@@ -291,6 +293,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     setDictNameInput(item.name);
     setDictCategoryInput(item.category);
     setDictUnitInput(item.unit);
+    setDictRemarkInput(item.remark || "");
   };
 
   /**
@@ -936,13 +939,18 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                       >
                         <div className="min-w-0">
                           <span className="font-extrabold text-slate-800 truncate block">{item.name}</span>
-                          <div className="flex items-center gap-1.5 mt-1">
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
                               {item.unit}
                             </span>
                             <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded font-medium">
                               {item.category}
                             </span>
+                            {item.remark && (
+                              <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.2 rounded font-bold border border-amber-200 max-w-[120px] truncate" title={item.remark}>
+                                {item.remark}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -982,7 +990,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 block mb-1">原料品名(如: 土豆)</label>
                       <input
@@ -1019,6 +1027,17 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                         onChange={(e) => setDictUnitInput(e.target.value)}
                         className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
                         required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">备注(规格，如: 25kg/袋)</label>
+                      <input
+                        type="text"
+                        placeholder="如: 25kg/袋"
+                        value={dictRemarkInput}
+                        onChange={(e) => setDictRemarkInput(e.target.value)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
                       />
                     </div>
                   </div>

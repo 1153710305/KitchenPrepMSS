@@ -19,6 +19,8 @@ export interface RawMaterialDictItem {
   category: FoodCategory;
   /** 默认计量单位，如 "斤", "袋", "箱" */
   unit: string;
+  /** 原料备注（规格等），如 "25kg/袋" */
+  remark?: string;
 }
 
 /** 本地 LocalStorage 缓存原料库的 Key */
@@ -56,20 +58,20 @@ export class RawMaterialsDictService {
    */
   private static generateDefaultSeeds(): void {
     this.items = [
-      { name: "大米", category: FoodCategory.GRAIN_OIL, unit: "袋" },
-      { name: "面粉", category: FoodCategory.GRAIN_OIL, unit: "袋" },
-      { name: "大豆油", category: FoodCategory.GRAIN_OIL, unit: "箱" },
-      { name: "猪肉", category: FoodCategory.MEAT, unit: "斤" },
-      { name: "牛肉", category: FoodCategory.MEAT, unit: "斤" },
-      { name: "鸡蛋", category: FoodCategory.MEAT, unit: "箱" },
-      { name: "大豆腐", category: FoodCategory.VEGETABLE, unit: "斤" },
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤" },
-      { name: "西红柿", category: FoodCategory.VEGETABLE, unit: "斤" },
-      { name: "菠菜", category: FoodCategory.VEGETABLE, unit: "斤" },
-      { name: "食用盐", category: FoodCategory.SEASONING, unit: "包" },
-      { name: "洗洁精", category: FoodCategory.LOW_CONSUMP, unit: "瓶" },
-      { name: "苹果", category: FoodCategory.FRUIT, unit: "斤" },
-      { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤" }
+      { name: "大米", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋" },
+      { name: "面粉", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋" },
+      { name: "大豆油", category: FoodCategory.GRAIN_OIL, unit: "箱", remark: "20L/箱" },
+      { name: "猪肉", category: FoodCategory.MEAT, unit: "斤", remark: "新鲜冷鲜" },
+      { name: "牛肉", category: FoodCategory.MEAT, unit: "斤", remark: "新鲜冷鲜" },
+      { name: "鸡蛋", category: FoodCategory.MEAT, unit: "箱", remark: "360枚/箱" },
+      { name: "大豆腐", category: FoodCategory.VEGETABLE, unit: "斤", remark: "盒装" },
+      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "红土豆" },
+      { name: "西红柿", category: FoodCategory.VEGETABLE, unit: "斤", remark: "红熟" },
+      { name: "菠菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "带根" },
+      { name: "食用盐", category: FoodCategory.SEASONING, unit: "包", remark: "500g/包" },
+      { name: "洗洁精", category: FoodCategory.LOW_CONSUMP, unit: "瓶", remark: "1.5L/瓶" },
+      { name: "苹果", category: FoodCategory.FRUIT, unit: "斤", remark: "红富士" },
+      { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "进口" }
     ];
     this.saveToStorage();
     LogBroker.publish("INFO", "RawMaterialsDictService", "原料字典物理缓存缺失，已预载默认原料种子。");
@@ -98,9 +100,9 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 查询某一原料所属大类
-   * @param name 原料品名
-   * @returns 匹配的二级大品类，找不到返回 null
+   * @description 根据原料名获取对应的默认大类
+   * @param name 原料名
+   * @returns 食材二级大类
    */
   public static getCategoryForMaterial(name: string): FoodCategory | null {
     const found = this.getItems().find((item) => item.name === name);
@@ -108,9 +110,9 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 校验并获取原料对应的默认单位
-   * @param name 原料品名
-   * @returns 默认单位，找不到返回 "斤"
+   * @description 根据原料名获取对应的默认计量单位
+   * @param name 原料名
+   * @returns 计量单位字串
    */
   public static getUnitForMaterial(name: string): string {
     const found = this.getItems().find((item) => item.name === name);
@@ -122,8 +124,9 @@ export class RawMaterialsDictService {
    * @param name 原料品名
    * @param category 类别
    * @param unit 单位
+   * @param remark 备注/规格说明
    */
-  public static async addMaterial(name: string, category: FoodCategory, unit: string): Promise<void> {
+  public static async addMaterial(name: string, category: FoodCategory, unit: string, remark?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -137,22 +140,24 @@ export class RawMaterialsDictService {
       this.items.push({
         name: trimmedName,
         category,
-        unit: unit.trim() || "斤"
+        unit: unit.trim() || "斤",
+        remark: remark?.trim() || ""
       });
       this.saveToStorage();
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}）`);
+      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${remark}）`);
       resolve();
     });
   }
 
   /**
-   * @description 更新原料字典条目
+   * @description 更新原料字典条目并级联同步修改所有关联采购项与备餐项
    * @param oldName 原有名称
    * @param name 新名称
    * @param category 新大类
    * @param unit 新单位
+   * @param remark 新备注/规格说明
    */
-  public static async updateMaterial(oldName: string, name: string, category: FoodCategory, unit: string): Promise<void> {
+  public static async updateMaterial(oldName: string, name: string, category: FoodCategory, unit: string, remark?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -169,16 +174,18 @@ export class RawMaterialsDictService {
         reject(new Error(`名为 "${trimmedName}" 的原料已存在`));
         return;
       }
+      const finalRemark = remark?.trim() || "";
       this.items[index] = {
         name: trimmedName,
         category,
-        unit: unit.trim() || "斤"
+        unit: unit.trim() || "斤",
+        remark: finalRemark
       };
       this.saveToStorage();
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}）`);
-      
-      // 级联同步更新台账与备餐中的所有旧原料项目参数
-      LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤");
+      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}）`);
+       
+      // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入
+      LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤", finalRemark);
       PrepReportService.cascadeUpdateMaterial(oldName, trimmedName, category, unit.trim() || "斤");
 
       // 同步推送到服务端存盘
