@@ -322,10 +322,11 @@ export class LedgerService {
    * @description 从餐位分组同步物理删除台账
    */
   public static syncDeleteLedgerFromGroup(id: string): void {
-    const ledger = this.ledgers.find((l) => l.id === id);
+    const upperId = id.toUpperCase();
+    const ledger = this.ledgers.find((l) => l.id.toUpperCase() === upperId);
     if (ledger) {
-      this.ledgers = this.ledgers.filter((l) => l.id !== id);
-      this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId !== id);
+      this.ledgers = this.ledgers.filter((l) => l.id.toUpperCase() !== upperId);
+      this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId.toUpperCase() !== upperId);
       this.notifyListeners();
       LogBroker.publish("WARN", "LedgerService", `从备餐分组同步物理移除了台账: ${id}`);
     }

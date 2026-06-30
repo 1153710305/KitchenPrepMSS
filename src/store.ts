@@ -799,8 +799,8 @@ export class PrepReportService {
     return new Promise((resolve) => {
       setTimeout(() => {
         const upperKey = key.toUpperCase();
-        this.activeGroups = this.activeGroups.filter((g) => g.key !== upperKey);
-        this.reports = this.reports.filter((r) => r.targetGroup !== upperKey as TargetGroup);
+        this.activeGroups = this.activeGroups.filter((g) => g.key.toUpperCase() !== upperKey);
+        this.reports = this.reports.filter((r) => r.targetGroup.toUpperCase() !== upperKey as any);
         LogBroker.publish("WARN", "PrepReportService", `剔除了一级备餐人群及关联的所有报表: ${upperKey}`);
         this.saveConfigAndNotify();
         // 同步至台账服务进行对应删除
