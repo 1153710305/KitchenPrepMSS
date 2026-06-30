@@ -111,6 +111,21 @@ export function LedgerSystem() {
   /** 仅供打印使用的纯净弹出视图状态: null | "in" | "out" */
   const [printDocType, setPrintDocType] = useState<null | "in" | "out">(null);
 
+  // --- 高级打印模式相关状态 ---
+  /** 区分当前正处于何种打印预览中：null 表示关闭预览，"style1"表示总表模式预览，"style2"表示单原料流水预览 */
+  const [printPreviewStyle, setPrintPreviewStyle] = useState<null | "style1" | "style2">(null);
+  /** 二级分类勾选打印控制弹窗 */
+  const [printModalOpen, setPrintModalOpen] = useState<boolean>(false);
+  /** 总表打印预览下选中的二级食材分类（默认包含全部大类） */
+  const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>([
+    FoodCategory.VEGETABLE,
+    FoodCategory.GRAIN_OIL,
+    FoodCategory.SEASONING,
+    FoodCategory.MEAT,
+    FoodCategory.LOW_CONSUMP,
+    FoodCategory.FRUIT
+  ]);
+
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
     return RawMaterialsDictService.getItems().map((item) => ({
@@ -829,6 +844,256 @@ export function LedgerSystem() {
     );
   }
 
+  // ================= (新) 打印总表及单原料月流水覆盖层 =================
+  if (printPreviewStyle) {
+    const isPrintStyle1 = printPreviewStyle === "style1";
+    const dictItems = RawMaterialsDictService.getItems();
+
+    return (
+      <div className="fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+        {/* 顶部退出预览条 */}
+        <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
+          <span className="text-sm text-gray-600 flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-500" />
+            <span className="font-bold">【打印预览模式】确认无误后请点击右侧“立即打印”，或按 Ctrl + P / Cmd + P 唤醒设备打印。</span>
+          </span>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => window.print()}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
+            >
+              立即打印
+            </button>
+            <button 
+              onClick={() => setPrintPreviewStyle(null)}
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
+            >
+              返回系统
+            </button>
+          </div>
+        </div>
+
+        {isPrintStyle1 ? (
+          // ================= 【图一】总表打印排版 =================
+          <div>
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-black tracking-widest border-b-2 border-black pb-2 inline-block">
+                {activeLedger?.name}台账 —— 食品原料收支购销登记总表
+              </h2>
+              <div className="flex justify-between text-xs mt-4 px-1">
+                <span>台账名称：<strong className="underline">{activeLedger?.name}</strong></span>
+                <span>登记日期：<strong className="underline">{selectedDate}</strong></span>
+                <span>打印范围：<strong className="underline">已勾选分类 ({selectedPrintCategories.map(c => FOOD_CATEGORY_LABELS[c]).join("、")})</strong></span>
+              </div>
+            </div>
+
+            <table className="w-full text-left border-collapse border border-black text-[11px] mb-8 text-center">
+              <thead>
+                <tr className="bg-gray-100 font-bold">
+                  <th className="border border-black px-1.5 py-2 w-10">序号</th>
+                  <th className="border border-black px-2 py-2 text-left w-28">原材料品名</th>
+                  <th className="border border-black px-1.5 py-2 w-16">分类</th>
+                  <th className="border border-black px-1.5 py-2 w-12">单位</th>
+                  <th className="border border-black px-1.5 py-2 w-16">今日入库</th>
+                  <th className="border border-black px-1.5 py-2 w-16">单价(元)</th>
+                  <th className="border border-black px-1.5 py-2 w-16">入库总额</th>
+                  <th className="border border-black px-1.5 py-2 w-16">今日出库</th>
+                  <th className="border border-black px-1.5 py-2 w-16">当日结存</th>
+                  <th className="border border-black px-2 py-2 w-16">采购员</th>
+                  <th className="border border-black px-2 py-2 w-16">验收员</th>
+                  <th className="border border-black px-2 py-2 w-16">保管员</th>
+                  <th className="border border-black px-2 py-2 text-left">备注/去处</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  // 根据勾选的二级分类进行列表筛滤
+                  const toPrintItems = currentLedgerItems.filter((item) => {
+                    const dictItem = dictItems.find(d => d.name === item.name);
+                    return dictItem && selectedPrintCategories.includes(dictItem.category);
+                  });
+
+                  if (toPrintItems.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={13} className="border border-black py-8 text-gray-400 italic">
+                          当前选定分类下无任何明细数据记录
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  let totalInwardAmount = 0;
+                  return (
+                    <>
+                      {toPrintItems.map((item, index) => {
+                        const record = item.dailyRecords[selectedDate] || {
+                          inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
+                          buyer: "", inspector: "", keeper: "", note: ""
+                        };
+                        const dictItem = dictItems.find(d => d.name === item.name);
+                        
+                        // 计算库存结存
+                        const daysArray = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
+                        const selectedDayNum = Number(selectedDate.split("-")[2]);
+                        let runningStock = item.initialStock;
+                        for (let d = 1; d <= selectedDayNum; d++) {
+                          const dateKey = `${selectedDate.split("-")[0]}-${selectedDate.split("-")[1]}-${String(d).padStart(2, "0")}`;
+                          const rec = item.dailyRecords[dateKey];
+                          if (rec) {
+                            runningStock = runningStock + (rec.inQuantity || 0) - (rec.outQuantity || 0);
+                          }
+                        }
+                        
+                        totalInwardAmount += record.inAmount || 0;
+
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="border border-black py-1.5 font-mono">{index + 1}</td>
+                            <td className="border border-black px-2 py-1.5 text-left font-bold">{item.name}</td>
+                            <td className="border border-black py-1.5">{dictItem ? FOOD_CATEGORY_LABELS[dictItem.category] : "-"}</td>
+                            <td className="border border-black py-1.5">{dictItem ? dictItem.unit : item.unit}</td>
+                            <td className="border border-black py-1.5 font-mono">{record.inQuantity || "-"}</td>
+                            <td className="border border-black py-1.5 font-mono">{record.inPrice ? `¥${record.inPrice.toFixed(2)}` : "-"}</td>
+                            <td className="border border-black py-1.5 font-mono">{record.inAmount ? `¥${record.inAmount.toFixed(2)}` : "-"}</td>
+                            <td className="border border-black py-1.5 font-mono">{record.outQuantity || "-"}</td>
+                            <td className="border border-black py-1.5 font-mono font-bold text-slate-800 bg-slate-50/20">{runningStock}</td>
+                            <td className="border border-black py-1.5">{record.buyer || "-"}</td>
+                            <td className="border border-black py-1.5">{record.inspector || "-"}</td>
+                            <td className="border border-black py-1.5">{record.keeper || "-"}</td>
+                            <td className="border border-black px-2 py-1.5 text-left truncate max-w-[120px]">{record.note || "-"}</td>
+                          </tr>
+                        );
+                      })}
+                      {/* 合计行 */}
+                      <tr className="bg-gray-50 font-bold">
+                        <td colSpan={4} className="border border-black py-2.5 text-center">合计入库金额 (大写)：{new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(totalInwardAmount)}</td>
+                        <td colSpan={2} className="border border-black py-2.5 text-right">总额小写:</td>
+                        <td className="border border-black py-2.5 text-right font-mono font-black text-xs text-red-700">¥{totalInwardAmount.toFixed(2)}</td>
+                        <td colSpan={6} className="border border-black"></td>
+                      </tr>
+                    </>
+                  );
+                })()}
+              </tbody>
+            </table>
+
+            <div className="grid grid-cols-3 gap-4 text-xs mt-10 px-1">
+              <div><span>主管审核签名：____________________</span></div>
+              <div className="text-center"><span>库房验收签名：____________________</span></div>
+              <div className="text-right"><span>制表日期：{selectedDate}</span></div>
+            </div>
+          </div>
+        ) : (
+          // ================= 【图二】单原料流水打印排版 =================
+          (() => {
+            const activeItem = ledgerItems.find((i) => i.id === activeItemId);
+            if (!activeItem) {
+              return <div className="text-center p-12 text-slate-400">请先在系统里选择需要打印的单原料明细。</div>;
+            }
+
+            const ymd = selectedDate.split("-");
+            const filterYear = ymd[0];
+            const filterMonth = ymd[1];
+            const daysInMonth = new Date(Number(filterYear), Number(filterMonth), 0).getDate();
+            const daysArray = Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, "0"));
+
+            // 提取第一条有记录的供货商作为本单打印头部显示
+            const currentMonthStr = `${filterYear}-${filterMonth}`;
+            const sampleRecord = Object.entries(activeItem.dailyRecords).find(
+              ([d, rec]) => d.startsWith(currentMonthStr) && (rec.supplier || rec.certification)
+            )?.[1] || { supplier: "", certification: "" };
+
+            const recordForSelectedDate = activeItem.dailyRecords[selectedDate] || {};
+            const printSupplier = recordForSelectedDate.supplier || sampleRecord.supplier || "日常备货";
+            const printCert = recordForSelectedDate.certification || sampleRecord.certification || "已索证/合格";
+
+            // 累计每日结余
+            let tempStock = activeItem.initialStock;
+            const stockByDay: Record<string, number> = {};
+            daysArray.forEach((dayStr) => {
+              const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
+              const rec = activeItem.dailyRecords[dStr];
+              if (rec) {
+                tempStock = tempStock + (rec.inQuantity || 0) - (rec.outQuantity || 0);
+              }
+              stockByDay[dStr] = tempStock;
+            });
+
+            return (
+              <div>
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-black tracking-widest border-b-2 border-black pb-2 inline-block">
+                    {activeLedger?.name} —— 单一原料出入库月度流水卡片
+                  </h2>
+                  <div className="grid grid-cols-4 text-xs mt-4 px-1 gap-2 text-left border border-black p-3 bg-slate-50/50">
+                    <div><span>原材料品名：<strong className="underline text-sm">{activeItem.name}</strong></span></div>
+                    <div><span>规格描述：<strong className="underline">{activeItem.spec || "常温"}</strong></span></div>
+                    <div><span>计量单位：<strong className="underline">{activeItem.unit}</strong></span></div>
+                    <div><span>登记月份：<strong className="underline">{filterYear}年{filterMonth}月</strong></span></div>
+                    <div className="col-span-2"><span>主要供货商：<strong className="underline">{printSupplier}</strong></span></div>
+                    <div className="col-span-2"><span>索证票据状态：<strong className="underline">{printCert}</strong></span></div>
+                  </div>
+                </div>
+
+                <table className="w-full text-left border-collapse border border-black text-[10px] mb-6 text-center">
+                  <thead>
+                    <tr className="bg-gray-100 font-bold">
+                      <th className="border border-black px-1 py-1.5 w-24">日期</th>
+                      <th className="border border-black px-1 py-1.5 w-16">采购入库量</th>
+                      <th className="border border-black px-1 py-1.5 w-16">采购经办人</th>
+                      <th className="border border-black px-1 py-1.5 w-20">生产日期</th>
+                      <th className="border border-black px-1 py-1.5 w-16">保质期</th>
+                      <th className="border border-black px-1 py-1.5 w-16">感官性状</th>
+                      <th className="border border-black px-1 py-1.5 w-16">验收/检测人</th>
+                      <th className="border border-black px-1 py-1.5 w-16 font-bold bg-indigo-50/20 text-indigo-900">领料出库量</th>
+                      <th className="border border-black px-1 py-1.5 w-20 font-bold bg-slate-100/50">结存库存数</th>
+                      <th className="border border-black px-1 py-1.5 w-16">保管员签字</th>
+                      <th className="border border-black px-2 py-1.5 text-left">备注说明</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daysArray.map((dayStr) => {
+                      const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
+                      const record = activeItem.dailyRecords[dStr] || {
+                        inQuantity: 0, buyer: "", produceDate: "", shelfLife: "",
+                        sensoryProperty: "", inspector: "", outQuantity: 0, keeper: "", note: ""
+                      };
+                      const balance = stockByDay[dStr];
+
+                      // 仅有出入库活动或有结余的日期打印出来，如要打满31天则直接全量展现
+                      return (
+                        <tr key={dStr} className="hover:bg-gray-50">
+                          <td className="border border-black py-1 font-mono">{dStr}</td>
+                          <td className="border border-black py-1 font-mono font-bold text-emerald-800">{record.inQuantity || "—"}</td>
+                          <td className="border border-black py-1">{record.buyer || "—"}</td>
+                          <td className="border border-black py-1 font-mono">{record.produceDate || "—"}</td>
+                          <td className="border border-black py-1">{record.shelfLife || "—"}</td>
+                          <td className="border border-black py-1 text-emerald-700">{record.sensoryProperty || "—"}</td>
+                          <td className="border border-black py-1">{record.inspector || "—"}</td>
+                          <td className="border border-black py-1 font-mono font-bold text-indigo-800">{record.outQuantity || "—"}</td>
+                          <td className="border border-black py-1 font-mono font-extrabold bg-slate-50">{balance}</td>
+                          <td className="border border-black py-1">{record.keeper || "—"}</td>
+                          <td className="border border-black px-2 py-1 text-left truncate max-w-[120px]">{record.note || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div className="grid grid-cols-3 gap-4 text-xs mt-8 px-1">
+                  <div><span>审核负责人签字：____________________</span></div>
+                  <div className="text-center"><span>出纳稽核：____________________</span></div>
+                  <div className="text-right"><span>卡片打印时间：{selectedDate}</span></div>
+                </div>
+              </div>
+            );
+          })()
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col lg:flex-row h-full w-full bg-[#f1f5f9] text-slate-800 font-sans overflow-hidden">
       
@@ -1114,13 +1379,37 @@ export function LedgerSystem() {
 
                 {/* 录入模式控制键 */}
                 {!isRecordingMode ? (
-                  <button
-                    onClick={handleStartRecording}
-                    className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                  >
-                    <Edit3 size={13} />
-                    <span>开始录入今日采购数据</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleStartRecording}
+                      className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                    >
+                      <Edit3 size={13} />
+                      <span>开始录入今日采购数据</span>
+                    </button>
+
+                    {/* 【样式一：总表打印入口】 */}
+                    {ledgerStyle === "style1" && (
+                      <button
+                        onClick={() => setPrintModalOpen(true)}
+                        className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                      >
+                        <Printer size={13} />
+                        <span>打印登记总表</span>
+                      </button>
+                    )}
+
+                    {/* 【样式二：单原料流水打印入口】 */}
+                    {ledgerStyle === "style2" && activeItemId && (
+                      <button
+                        onClick={() => setPrintPreviewStyle("style2")}
+                        className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                      >
+                        <Printer size={13} />
+                        <span>打印月度流水</span>
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <button
@@ -2031,6 +2320,112 @@ export function LedgerSystem() {
                 确认添加
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 二级分类打印勾选模态弹框 */}
+      {printModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                <Printer size={16} className="text-slate-600" />
+                <span>选择要打印的二级分类数据</span>
+              </h3>
+              <button 
+                onClick={() => setPrintModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">二级食材分类范围</span>
+                <div className="flex gap-2 text-[10px] font-bold">
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedPrintCategories([
+                      FoodCategory.VEGETABLE, FoodCategory.GRAIN_OIL, FoodCategory.SEASONING,
+                      FoodCategory.MEAT, FoodCategory.LOW_CONSUMP, FoodCategory.FRUIT
+                    ])}
+                    className="text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                  >
+                    全选
+                  </button>
+                  <span className="text-slate-200">|</span>
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedPrintCategories([])}
+                    className="text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                  >
+                    清空
+                  </button>
+                </div>
+              </div>
+
+              {/* 多选勾选区 */}
+              <div className="grid grid-cols-2 gap-3 py-2">
+                {[
+                  { key: FoodCategory.VEGETABLE, label: FOOD_CATEGORY_LABELS[FoodCategory.VEGETABLE], color: "accent-green-600" },
+                  { key: FoodCategory.GRAIN_OIL, label: FOOD_CATEGORY_LABELS[FoodCategory.GRAIN_OIL], color: "accent-amber-600" },
+                  { key: FoodCategory.SEASONING, label: FOOD_CATEGORY_LABELS[FoodCategory.SEASONING], color: "accent-orange-600" },
+                  { key: FoodCategory.MEAT, label: FOOD_CATEGORY_LABELS[FoodCategory.MEAT], color: "accent-red-600" },
+                  { key: FoodCategory.LOW_CONSUMP, label: FOOD_CATEGORY_LABELS[FoodCategory.LOW_CONSUMP], color: "accent-slate-600" },
+                  { key: FoodCategory.FRUIT, label: FOOD_CATEGORY_LABELS[FoodCategory.FRUIT], color: "accent-pink-600" }
+                ].map((item) => {
+                  const isChecked = selectedPrintCategories.includes(item.key);
+                  return (
+                    <label 
+                      key={item.key} 
+                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
+                        isChecked 
+                          ? "bg-slate-50 border-slate-300 font-bold text-slate-800" 
+                          : "border-slate-100 text-slate-400 hover:bg-slate-50/50"
+                      }`}
+                    >
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          if (isChecked) {
+                            setSelectedPrintCategories(selectedPrintCategories.filter(c => c !== item.key));
+                          } else {
+                            setSelectedPrintCategories([...selectedPrintCategories, item.key]);
+                          }
+                        }}
+                        className={`w-3.5 h-3.5 ${item.color} cursor-pointer`}
+                      />
+                      <span className="text-xs">{item.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="text-[10px] text-slate-400 font-bold leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100/50">
+                ⚠️ 提示：系统将为您在登记总表预览中，过滤并排版展示属于以上已选定大类的台账明细，多选分类支持同时合并在一张表格中输出。
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  onClick={() => {
+                    setPrintModalOpen(false);
+                    setPrintPreviewStyle("style1");
+                  }}
+                  disabled={selectedPrintCategories.length === 0}
+                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center"
+                >
+                  预览登记总表
+                </button>
+                <button 
+                  onClick={() => setPrintModalOpen(false)}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg transition-colors cursor-pointer text-center"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
