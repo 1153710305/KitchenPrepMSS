@@ -875,39 +875,54 @@ export function LedgerSystem() {
 
         {isPrintStyle1 ? (
           // ================= 【图一】总表打印排版 =================
-          <div>
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-black tracking-widest border-b-2 border-black pb-2 inline-block">
-                {activeLedger?.name}台账 —— 食品原料收支购销登记总表
+        <div>
+            {/* ===== 大标题（与图片一致，居中，无副标题） ===== */}
+            <div className="text-center mb-0">
+              <h2 className="text-xl font-black tracking-widest py-3 border border-black border-b-0 inline-block w-full">
+                {activeLedger?.name}食堂食品原材料购销台账
               </h2>
-              <div className="flex justify-between text-xs mt-4 px-1">
-                <span>台账名称：<strong className="underline">{activeLedger?.name}</strong></span>
-                <span>登记日期：<strong className="underline">{selectedDate}</strong></span>
-                <span>打印范围：<strong className="underline">已勾选分类 ({selectedPrintCategories.map(c => FOOD_CATEGORY_LABELS[c]).join("、")})</strong></span>
-              </div>
             </div>
 
-            <table className="w-full text-left border-collapse border border-black text-[11px] mb-8 text-center">
+            {/* ===== 主表格（完全按图示列结构） ===== */}
+            <table className="w-full border-collapse border border-black text-[11px] text-center" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "14%" }} />  {/* 食品原材料名称 */}
+                <col style={{ width: "8%" }} />   {/* 数量 */}
+                <col style={{ width: "8%" }} />   {/* 食品索证 */}
+                <col style={{ width: "14%" }} />  {/* 感官性状 */}
+                <col style={{ width: "14%" }} />  {/* 供货商及地址 */}
+                <col style={{ width: "8%" }} />   {/* 采购时间 */}
+                <col style={{ width: "8%" }} />   {/* 采购员 */}
+                <col style={{ width: "8%" }} />   {/* 检验员 */}
+                <col style={{ width: "7%" }} />   {/* 出入库 - 入库 */}
+                <col style={{ width: "7%" }} />   {/* 出入库 - 出库 */}
+                <col style={{ width: "8%" }} />   {/* 保管员 */}
+              </colgroup>
+
               <thead>
-                <tr className="bg-gray-100 font-bold">
-                  <th className="border border-black px-1.5 py-2 w-10">序号</th>
-                  <th className="border border-black px-2 py-2 text-left w-28">原材料品名</th>
-                  <th className="border border-black px-1.5 py-2 w-16">分类</th>
-                  <th className="border border-black px-1.5 py-2 w-12">单位</th>
-                  <th className="border border-black px-1.5 py-2 w-16">今日入库</th>
-                  <th className="border border-black px-1.5 py-2 w-16">单价(元)</th>
-                  <th className="border border-black px-1.5 py-2 w-16">入库总额</th>
-                  <th className="border border-black px-1.5 py-2 w-16">今日出库</th>
-                  <th className="border border-black px-1.5 py-2 w-16">当日结存</th>
-                  <th className="border border-black px-2 py-2 w-16">采购员</th>
-                  <th className="border border-black px-2 py-2 w-16">验收员</th>
-                  <th className="border border-black px-2 py-2 w-16">保管员</th>
-                  <th className="border border-black px-2 py-2 text-left">备注/去处</th>
+                {/* 第一行：主列头（出入库时间跨两列） */}
+                <tr className="font-bold bg-gray-50">
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品原材料名称</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品索证</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br/>及地址</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
+                  <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
+                </tr>
+                {/* 第二行：出入库子列 */}
+                <tr className="font-bold bg-gray-50">
+                  <th className="border border-black px-1 py-1 align-middle">入库</th>
+                  <th className="border border-black px-1 py-1 align-middle">出库</th>
                 </tr>
               </thead>
+
               <tbody>
                 {(() => {
-                  // 根据勾选的二级分类进行列表筛滤
+                  // 根据用户勾选的二级分类过滤打印原料
                   const toPrintItems = currentLedgerItems.filter((item) => {
                     const dictItem = dictItems.find(d => d.name === item.name);
                     return dictItem && selectedPrintCategories.includes(dictItem.category);
@@ -916,72 +931,79 @@ export function LedgerSystem() {
                   if (toPrintItems.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={13} className="border border-black py-8 text-gray-400 italic">
-                          当前选定分类下无任何明细数据记录
+                        <td colSpan={11} className="border border-black py-10 text-gray-400 italic text-xs">
+                          当前选定分类下无任何原料明细记录
                         </td>
                       </tr>
                     );
                   }
 
-                  let totalInwardAmount = 0;
-                  return (
-                    <>
-                      {toPrintItems.map((item, index) => {
-                        const record = item.dailyRecords[selectedDate] || {
-                          inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
-                          buyer: "", inspector: "", keeper: "", note: ""
-                        };
-                        const dictItem = dictItems.find(d => d.name === item.name);
-                        
-                        // 计算库存结存
-                        const daysArray = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
-                        const selectedDayNum = Number(selectedDate.split("-")[2]);
-                        let runningStock = item.initialStock;
-                        for (let d = 1; d <= selectedDayNum; d++) {
-                          const dateKey = `${selectedDate.split("-")[0]}-${selectedDate.split("-")[1]}-${String(d).padStart(2, "0")}`;
-                          const rec = item.dailyRecords[dateKey];
-                          if (rec) {
-                            runningStock = runningStock + (rec.inQuantity || 0) - (rec.outQuantity || 0);
-                          }
-                        }
-                        
-                        totalInwardAmount += record.inAmount || 0;
+                  return toPrintItems.map((item) => {
+                    const record = item.dailyRecords[selectedDate] || {
+                      inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
+                      certification: "", sensoryProperty: "", supplier: "",
+                      purchaseDate: "", buyer: "", inspector: "", keeper: ""
+                    };
 
-                        return (
-                          <tr key={item.id} className="hover:bg-gray-50">
-                            <td className="border border-black py-1.5 font-mono">{index + 1}</td>
-                            <td className="border border-black px-2 py-1.5 text-left font-bold">{item.name}</td>
-                            <td className="border border-black py-1.5">{dictItem ? FOOD_CATEGORY_LABELS[dictItem.category] : "-"}</td>
-                            <td className="border border-black py-1.5">{dictItem ? dictItem.unit : item.unit}</td>
-                            <td className="border border-black py-1.5 font-mono">{record.inQuantity || "-"}</td>
-                            <td className="border border-black py-1.5 font-mono">{record.inPrice ? `¥${record.inPrice.toFixed(2)}` : "-"}</td>
-                            <td className="border border-black py-1.5 font-mono">{record.inAmount ? `¥${record.inAmount.toFixed(2)}` : "-"}</td>
-                            <td className="border border-black py-1.5 font-mono">{record.outQuantity || "-"}</td>
-                            <td className="border border-black py-1.5 font-mono font-bold text-slate-800 bg-slate-50/20">{runningStock}</td>
-                            <td className="border border-black py-1.5">{record.buyer || "-"}</td>
-                            <td className="border border-black py-1.5">{record.inspector || "-"}</td>
-                            <td className="border border-black py-1.5">{record.keeper || "-"}</td>
-                            <td className="border border-black px-2 py-1.5 text-left truncate max-w-[120px]">{record.note || "-"}</td>
-                          </tr>
-                        );
-                      })}
-                      {/* 合计行 */}
-                      <tr className="bg-gray-50 font-bold">
-                        <td colSpan={4} className="border border-black py-2.5 text-center">合计入库金额 (大写)：{new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(totalInwardAmount)}</td>
-                        <td colSpan={2} className="border border-black py-2.5 text-right">总额小写:</td>
-                        <td className="border border-black py-2.5 text-right font-mono font-black text-xs text-red-700">¥{totalInwardAmount.toFixed(2)}</td>
-                        <td colSpan={6} className="border border-black"></td>
+                    return (
+                      <tr key={item.id} style={{ height: "28px" }}>
+                        {/* 食品原材料名称 */}
+                        <td className="border border-black px-1 py-1 text-left font-bold">{item.name}</td>
+                        {/* 数量（入库数量） */}
+                        <td className="border border-black px-1 py-1 font-mono">
+                          {record.inQuantity > 0 ? record.inQuantity : ""}
+                        </td>
+                        {/* 食品索证 */}
+                        <td className="border border-black px-1 py-1">{record.certification || ""}</td>
+                        {/* 感官性状 */}
+                        <td className="border border-black px-1 py-1">{record.sensoryProperty || ""}</td>
+                        {/* 供货商及地址 */}
+                        <td className="border border-black px-1 py-1 text-left">{record.supplier || ""}</td>
+                        {/* 采购时间（默认使用选定日期） */}
+                        <td className="border border-black px-1 py-1 font-mono text-[10px]">
+                          {record.inQuantity > 0 ? selectedDate : ""}
+                        </td>
+                        {/* 采购员 */}
+                        <td className="border border-black px-1 py-1">{record.buyer || ""}</td>
+                        {/* 检验员 */}
+                        <td className="border border-black px-1 py-1">{record.inspector || ""}</td>
+                        {/* 出入库时间 - 入库 */}
+                        <td className="border border-black px-1 py-1 font-mono text-[10px]">
+                          {record.inQuantity > 0 ? selectedDate : ""}
+                        </td>
+                        {/* 出入库时间 - 出库 */}
+                        <td className="border border-black px-1 py-1 font-mono text-[10px]">
+                          {record.outQuantity > 0 ? selectedDate : ""}
+                        </td>
+                        {/* 保管员 */}
+                        <td className="border border-black px-1 py-1">{record.keeper || ""}</td>
                       </tr>
-                    </>
-                  );
+                    );
+                  });
+                })()}
+
+                {/* 补充空白行（确保打印时页面不空旷，最少补到 15 行） */}
+                {(() => {
+                  const filledCount = currentLedgerItems.filter(item => {
+                    const dictItem = dictItems.find(d => d.name === item.name);
+                    return dictItem && selectedPrintCategories.includes(dictItem.category);
+                  }).length;
+                  const emptyRows = Math.max(0, 15 - filledCount);
+                  return Array.from({ length: emptyRows }).map((_, i) => (
+                    <tr key={`empty-${i}`} style={{ height: "28px" }}>
+                      {Array.from({ length: 11 }).map((_, j) => (
+                        <td key={j} className="border border-black"></td>
+                      ))}
+                    </tr>
+                  ));
                 })()}
               </tbody>
             </table>
 
-            <div className="grid grid-cols-3 gap-4 text-xs mt-10 px-1">
-              <div><span>主管审核签名：____________________</span></div>
-              <div className="text-center"><span>库房验收签名：____________________</span></div>
-              <div className="text-right"><span>制表日期：{selectedDate}</span></div>
+            {/* 底部签字栏 */}
+            <div className="flex justify-between text-xs mt-4 px-1 print:mt-6">
+              <span>主管审核：____________________</span>
+              <span>打印日期：{selectedDate}</span>
             </div>
           </div>
         ) : (
