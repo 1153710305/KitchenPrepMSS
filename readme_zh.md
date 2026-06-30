@@ -455,5 +455,9 @@ pm2 startup
   - 系统已为台账样式一增加了 `min-w-[1380px]` 并外裹 `overflow-x-auto` 容器，在任何老旧显示器上均会稳定显示出底部的原生横向滚动条，可直接向右滑动查看“索证、供货商、保管员”等完整要件，彻底解决“页面显示不全”的问题。
   - **浏览器推荐**：严禁使用 Windows 7 自带的旧版 **Internet Explorer (IE)** 浏览器进行访问。推荐下载并安装 **Google Chrome** 现代浏览器（支持 Win7 的 Chrome 109 最终版本）或 **360安全浏览器（切换为极速内核模式）** 以获得最佳渲染效果。
 
-
+### 🚀 2026-07-01 - [V4.13.0] 台账系统与配置后台深度解耦及大文件拆分
+- **组件重构与瘦身**：
+  1. 对 `LedgerSystem.tsx` 进行了深度的逻辑和 UI 离析，分拆出 `LedgerStyle1Table` (样式一表格)、`LedgerStyle2Flow` (样式二流水)、`LedgerInvoiceTab` (当日出入库单)、`LedgerControlBar` (录入控制栏)、`LedgerSidebar` (侧边名录)、`LedgerAddMaterialModal` (新增弹框)、`LedgerPrintModal` (打印勾选框)、`LedgerPrintPreviewOverlay` (打印预览层) 等 8 个子组件。主文件降至 983 行。
+  2. 对 `AdminBackend.tsx` 进行了模块化提取，解耦分拆出 `AdminDictTab` (词典大底库管理)、`AdminGroupsTab` (餐位人群组标签管理) 两大子组件。清理了大量冗余 state 变量与旧 CRUD 处理方法，主文件降至 815 行。
+- **性能与维护性**：所有 TSX 组件文件的行数均降至 1000 行以内。消除了超大文件在 React 重绘与 diff 时的性能开销，代码结构更清晰，极易维护与扩展。
 

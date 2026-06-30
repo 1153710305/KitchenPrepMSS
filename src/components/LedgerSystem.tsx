@@ -12,9 +12,16 @@ import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { FoodCategory } from "../types.ts";
 import { FOOD_CATEGORY_LABELS } from "../constants.ts";
-import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
-import { LedgerPrintStyle2 } from "./LedgerPrintStyle2.tsx";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
+import { LedgerPrintPreviewOverlay } from "./LedgerPrintPreviewOverlay.tsx";
+import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";
+import { LedgerStyle2Flow } from "./LedgerStyle2Flow.tsx";
+import { LedgerInvoiceTab } from "./LedgerInvoiceTab.tsx";
+import { LedgerAddMaterialModal } from "./LedgerAddMaterialModal.tsx";
+import { LedgerPrintModal } from "./LedgerPrintModal.tsx";
+import { LedgerSidebar } from "./LedgerSidebar.tsx";
+import { LedgerControlBar } from "./LedgerControlBar.tsx";
+import { LedgerAddMaterialInlineForm } from "./LedgerAddMaterialInlineForm.tsx";
 import { 
   Plus, 
   Trash2, 
@@ -732,50 +739,17 @@ export function LedgerSystem() {
 
   // ================= (新) 打印总表及单原料月流水覆盖层 =================
   if (printPreviewStyle) {
-    const isPrintStyle1 = printPreviewStyle === "style1";
-    const dictItems = RawMaterialsDictService.getItems();
-
     return (
-      <div className="fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
-        {/* 顶部退出预览条 */}
-        <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
-          <span className="text-sm text-gray-600 flex items-center gap-2">
-            <AlertCircle size={16} className="text-amber-500" />
-            <span className="font-bold">【打印预览模式】确认无误后请点击右侧“立即打印”，或按 Ctrl + P / Cmd + P 唤醒设备打印。</span>
-          </span>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => window.print()}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
-            >
-              立即打印
-            </button>
-            <button 
-              onClick={() => setPrintPreviewStyle(null)}
-              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
-            >
-              返回系统
-            </button>
-          </div>
-        </div>
-
-        {isPrintStyle1 ? (
-          <LedgerPrintStyle1
-            activeLedger={activeLedger}
-            selectedDate={selectedDate}
-            selectedPrintCategories={selectedPrintCategories}
-            currentLedgerItems={currentLedgerItems}
-            dictItems={dictItems}
-          />
-        ) : (
-          <LedgerPrintStyle2
-            activeLedger={activeLedger}
-            activeItemId={activeItemId}
-            selectedDate={selectedDate}
-            ledgerItems={ledgerItems}
-          />
-        )}
-      </div>
+      <LedgerPrintPreviewOverlay
+        printPreviewStyle={printPreviewStyle}
+        setPrintPreviewStyle={setPrintPreviewStyle}
+        activeLedger={activeLedger}
+        selectedDate={selectedDate}
+        selectedPrintCategories={selectedPrintCategories}
+        currentLedgerItems={currentLedgerItems}
+        activeItemId={activeItemId}
+        ledgerItems={ledgerItems}
+      />
     );
   }
 
@@ -783,78 +757,19 @@ export function LedgerSystem() {
     <div className="flex flex-col lg:flex-row h-full w-full bg-[#f1f5f9] text-slate-800 font-sans overflow-hidden">
       
       {/* 左侧台账选择名录区 */}
-      <div className="w-full lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            {LEDGER_UI_TEXT.listTitle}
-          </span>
-          <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-mono font-bold">
-            {ledgers.length}个台账
-          </span>
-        </div>
-
-        {/* 台账名录列表 */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {ledgers.map((ledger) => {
-            const isSelected = activeLedgerId === ledger.id;
-            const isEditing = renameLedgerId === ledger.id;
-
-            return (
-              <div 
-                key={ledger.id}
-                className={`group flex items-center justify-between p-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                  isSelected 
-                    ? "bg-emerald-50 text-emerald-700 font-bold border-l-4 border-emerald-500" 
-                    : "text-slate-600 hover:bg-slate-50 border-l-4 border-transparent"
-                }`}
-                onClick={() => {
-                  if (!isEditing) {
-                    setActiveLedgerId(ledger.id);
-                    LogBroker.publish("INFO", "LedgerSystem", `切换至原料购销台账: ${ledger.name}`);
-                  }
-                }}
-              >
-                {isEditing ? (
-                  <form 
-                    onSubmit={handleRenameLedgerSubmit}
-                    className="flex items-center gap-1.5 w-full"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input 
-                      type="text"
-                      value={renameLedgerName}
-                      onChange={(e) => setRenameLedgerName(e.target.value)}
-                      className="flex-1 bg-white border border-emerald-400 px-1.5 py-0.5 rounded text-[11px] outline-none"
-                      autoFocus
-                      required
-                    />
-                    <button type="submit" className="p-1 text-emerald-600 hover:text-emerald-700">
-                      <Check size={12} />
-                    </button>
-                    <button type="button" onClick={() => setRenameLedgerId(null)} className="p-1 text-slate-400">
-                      <X size={12} />
-                    </button>
-                  </form>
-                ) : (
-                  <>
-                    <span className="truncate flex items-center gap-1.5">
-                      <Bookmark size={12} className={isSelected ? "text-emerald-600" : "text-slate-400"} />
-                      {ledger.name}台账
-                    </span>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 提示信息：新增/修改台账受众请前往管理后台 */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 leading-normal text-center">
-          注：如需增加、删除或重命名台账受众，请在系统登录后前往管理配置后台进行维护。
-        </div>
-      </div>
+      <LedgerSidebar
+        ledgers={ledgers}
+        activeLedgerId={activeLedgerId}
+        renameLedgerId={renameLedgerId}
+        renameLedgerName={renameLedgerName}
+        setActiveLedgerId={setActiveLedgerId}
+        setRenameLedgerName={setRenameLedgerName}
+        setRenameLedgerId={setRenameLedgerId}
+        handleRenameLedgerSubmit={handleRenameLedgerSubmit}
+      />
 
       {/* 右侧明细录入区 */}
+
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
         
         {/* 页眉日期及样式选择栏 */}
@@ -928,276 +843,42 @@ export function LedgerSystem() {
           </div>
         )}
 
-        {/* 核心操作控制导航条 */}
-        <div className="px-4 py-2.5 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab("entry")}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                activeTab === "entry" 
-                  ? "bg-slate-900 text-white shadow-sm" 
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              台账数据录入
-            </button>
-            <button
-              onClick={() => setActiveTab("invoice")}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                activeTab === "invoice" 
-                  ? "bg-slate-900 text-white shadow-sm" 
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              当日出入库单 (单据归集)
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {activeTab === "entry" ? (
-              <>
-                {/* 新增原料的下拉控制槽：不论是否开启录入模式均提供，允许随时添加原料 */}
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!newMaterialName.trim()) return;
-                    // 从大字典拉出规格、单位并调用新增接口
-                    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === newMaterialName);
-                    const unit = dictItem ? dictItem.unit : "斤";
-                    const spec = dictItem ? (dictItem.remark || "") : "";
-                    LedgerService.addLedgerItem(activeLedgerId, newMaterialName, unit, spec, 0)
-                      .then(() => {
-                        setNewMaterialName("");
-                        setAddMaterialSearchQuery("");
-                        setIsAddDropdownOpen(false);
-                        setSaveToast("成功新增台账原料行！");
-                        setTimeout(() => setSaveToast(null), 2000);
-                      })
-                      .catch((err) => triggerError(err.message));
-                  }}
-                  className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-2 md:p-3 relative add-material-search-container z-40"
-                >
-                  <span className="text-[10px] text-slate-500 font-bold shrink-0">添加原料采购项:</span>
-                  
-                  {/* 相对定位输入容器，用来精准挂载悬浮框 */}
-                  <div className="relative min-w-[200px] flex-1 max-w-xs">
-                    <input
-                      type="text"
-                      placeholder="输入拼音/汉字进行联想匹配..."
-                      value={addMaterialSearchQuery}
-                      onFocus={() => setIsAddDropdownOpen(true)}
-                      onChange={(e) => {
-                        setAddMaterialSearchQuery(e.target.value);
-                        setIsAddDropdownOpen(true);
-                        // 如果用户清空了输入，重置选中项
-                        if (!e.target.value.trim()) {
-                          setNewMaterialName("");
-                        }
-                      }}
-                      className="bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs w-full outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-bold placeholder-slate-400"
-                      required
-                    />
-
-                    {/* 实时动态检索联想浮窗，显示在输入框的正下方 */}
-                    {isAddDropdownOpen && (
-                      <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 py-1 scrollbar-thin">
-                        {(() => {
-                          const filtered = RawMaterialsDictService.getItems().filter((item) => 
-                            matchPinyin(item.name, addMaterialSearchQuery)
-                          );
-                          if (filtered.length === 0) {
-                            return <div className="p-2 text-[10px] text-slate-400 text-center font-bold">无匹配的字典原料</div>;
-                          }
-                          return filtered.map((item) => (
-                            <div
-                              key={item.name}
-                              onClick={() => {
-                                setNewMaterialName(item.name);
-                                setAddMaterialSearchQuery(item.name);
-                                setIsAddDropdownOpen(false);
-                              }}
-                              className={`p-2 text-xs font-bold cursor-pointer transition-colors flex items-center justify-between ${
-                                newMaterialName === item.name 
-                                  ? "bg-teal-50 text-teal-700" 
-                                  : "text-slate-700 hover:bg-slate-100"
-                              }`}
-                            >
-                              <span>{item.name}</span>
-                              <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded shrink-0 font-medium">
-                                {item.unit} ({item.category})
-                              </span>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {newMaterialName && (
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-extrabold">
-                      已选: {newMaterialName}
-                    </span>
-                  )}
-                  
-                  <button
-                    type="submit"
-                    disabled={!newMaterialName}
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg cursor-pointer shrink-0 transition-colors shadow-xs"
-                  >
-                    添加
-                  </button>
-                  
-                  {(addMaterialSearchQuery || newMaterialName) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddMaterialSearchQuery("");
-                        setNewMaterialName("");
-                        setIsAddDropdownOpen(false);
-                      }}
-                      className="text-[10px] text-slate-400 hover:text-slate-600 underline font-bold cursor-pointer"
-                    >
-                      清空
-                    </button>
-                  )}
-                </form>
-
-                {/* 录入模式控制键 */}
-                {!isRecordingMode ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleStartRecording}
-                      className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                    >
-                      <Edit3 size={13} />
-                      <span>开始录入今日采购数据</span>
-                    </button>
-
-                    {/* 【样式一：总表打印入口】 */}
-                    {ledgerStyle === "style1" && (
-                      <button
-                        onClick={() => setPrintModalOpen(true)}
-                        className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                      >
-                        <Printer size={13} />
-                        <span>打印登记总表</span>
-                      </button>
-                    )}
-
-                    {/* 【样式二：单原料流水打印入口】 */}
-                    {ledgerStyle === "style2" && activeItemId && (
-                      <button
-                        onClick={() => setPrintPreviewStyle("style2")}
-                        className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                      >
-                        <Printer size={13} />
-                        <span>打印月度流水</span>
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={handleConfirmRecording}
-                      className="flex items-center gap-1 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm animate-pulse"
-                    >
-                      <Check size={13} />
-                      <span>保存并同步今日采购</span>
-                    </button>
-                    <button
-                      onClick={handleCancelRecording}
-                      className="flex items-center gap-1 px-3.5 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-sm"
-                    >
-                      <Save size={13} />
-                      <span>暂存本地并退出</span>
-                    </button>
-                  </>
-                )}
-
-                {/* 样式二的原料选择下拉框 */}
-                {ledgerStyle === "style2" && currentLedgerItems.length > 0 && (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="font-bold text-slate-500">采购项目:</span>
-                    <select
-                      value={activeItemId}
-                      onChange={(e) => setActiveItemId(e.target.value)}
-                      className="bg-white border border-slate-200 px-2 py-1.5 rounded outline-none focus:border-emerald-500 text-xs"
-                    >
-                      {currentLedgerItems.map((item) => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* 批量签字填充控制栏 */}
-                <div className="flex items-center gap-1.5 border border-dashed border-emerald-300 rounded-lg p-1 bg-emerald-50/50">
-                  <input
-                    type="text"
-                    placeholder="批量填出库人"
-                    value={batchOutHandler}
-                    onChange={(e) => setBatchOutHandler(e.target.value)}
-                    className="bg-white text-[10px] px-2 py-1.5 rounded w-24 border border-slate-200 outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="批量填接收人"
-                    value={batchOutRecipient}
-                    onChange={(e) => setBatchOutRecipient(e.target.value)}
-                    className="bg-white text-[10px] px-2 py-1.5 rounded w-24 border border-slate-200 outline-none"
-                  />
-                  <button
-                    onClick={handleApplyBatchSignatures}
-                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded cursor-pointer"
-                    title="一键将输入的出库人与接收人填充到今日所有发生出入库项目的签字栏上"
-                  >
-                    一键应用
-                  </button>
-                </div>
-                
-                <div className="h-4 w-px bg-slate-200 mx-1"></div>
-
-                <button
-                  onClick={handleExportInwardCsv}
-                  disabled={dailyInwardItems.length === 0}
-                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs"
-                >
-                  <Download size={12} />
-                  <span>导出入库单</span>
-                </button>
-                <button
-                  onClick={() => triggerPrintDoc("in")}
-                  disabled={dailyInwardItems.length === 0}
-                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs"
-                >
-                  <Printer size={12} />
-                  <span>打印入库单</span>
-                </button>
-                <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                <button
-                  onClick={handleExportOutwardCsv}
-                  disabled={dailyOutwardItems.length === 0}
-                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs"
-                >
-                  <Download size={12} />
-                  <span>导出出库单</span>
-                </button>
-                <button
-                  onClick={() => triggerPrintDoc("out")}
-                  disabled={dailyOutwardItems.length === 0}
-                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs"
-                >
-                  <Printer size={12} />
-                  <span>打印出库单</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <LedgerControlBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isRecordingMode={isRecordingMode}
+          ledgerItems={ledgerItems}
+          activeItemId={activeItemId}
+          setActiveItemId={setActiveItemId}
+          currentLedgerItems={currentLedgerItems}
+          ledgerStyle={ledgerStyle}
+          dailyInwardItems={dailyInwardItems}
+          dailyOutwardItems={dailyOutwardItems}
+          batchOutHandler={batchOutHandler}
+          setBatchOutHandler={setBatchOutHandler}
+          batchOutRecipient={batchOutRecipient}
+          setBatchOutRecipient={setBatchOutRecipient}
+          newMaterialName={newMaterialName}
+          setNewMaterialName={setNewMaterialName}
+          addMaterialSearchQuery={addMaterialSearchQuery}
+          setAddMaterialSearchQuery={setAddMaterialSearchQuery}
+          isAddDropdownOpen={isAddDropdownOpen}
+          setIsAddDropdownOpen={setIsAddDropdownOpen}
+          setSaveToast={setSaveToast}
+          triggerError={triggerError}
+          handleStartRecording={handleStartRecording}
+          handleConfirmRecording={handleConfirmRecording}
+          handleCancelRecording={handleCancelRecording}
+          handleApplyBatchSignatures={handleApplyBatchSignatures}
+          handleExportInwardCsv={handleExportInwardCsv}
+          handleExportOutwardCsv={handleExportOutwardCsv}
+          triggerPrintDoc={triggerPrintDoc}
+          setPrintModalOpen={setPrintModalOpen}
+          activeLedgerId={activeLedgerId}
+        />
 
         {/* 主体工作区 */}
+
         <div className="flex-1 overflow-auto p-4 scrollbar-thin">
           
           {/* Tab 1: 台账数据录入 */}
@@ -1205,941 +886,98 @@ export function LedgerSystem() {
             <>
               {/* 样式一：食品原材料购销总表 (图一样式) */}
               {ledgerStyle === "style1" && (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  {/* ===== 多维度筛选工具栏 ===== */}
-                  <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center gap-2">
-                    {/* 名称搜索框 */}
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                      <Search size={12} className="text-slate-400 shrink-0" />
-                      <input
-                        type="text"
-                        value={filterName}
-                        onChange={(e) => setFilterName(e.target.value)}
-                        placeholder="搜索原料名称..."
-                        className="text-[11px] outline-none bg-transparent w-28 text-slate-700"
-                      />
-                    </div>
-                    {/* 品类筛选 */}
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                      <Filter size={12} className="text-violet-400 shrink-0" />
-                      <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer"
-                      >
-                        <option value="">全部品类</option>
-                        {availableCategories.map(cat => (
-                          <option key={cat} value={cat}>{FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* 采购员筛选 */}
-                    {availableBuyers.length > 0 && (
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                        <span className="text-[10px] text-slate-400 shrink-0">采购员:</span>
-                        <select value={filterBuyer} onChange={(e) => setFilterBuyer(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
-                          <option value="">不限</option>
-                          {availableBuyers.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                      </div>
-                    )}
-                    {/* 检验员筛选 */}
-                    {availableInspectors.length > 0 && (
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                        <span className="text-[10px] text-slate-400 shrink-0">检验员:</span>
-                        <select value={filterInspector} onChange={(e) => setFilterInspector(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
-                          <option value="">不限</option>
-                          {availableInspectors.map(ins => <option key={ins} value={ins}>{ins}</option>)}
-                        </select>
-                      </div>
-                    )}
-                    {/* 保管员筛选 */}
-                    {availableKeepers.length > 0 && (
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                        <span className="text-[10px] text-slate-400 shrink-0">保管员:</span>
-                        <select value={filterKeeper} onChange={(e) => setFilterKeeper(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
-                          <option value="">不限</option>
-                          {availableKeepers.map(k => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                      </div>
-                    )}
-                    {/* 清空筛选按钮 */}
-                    {hasActiveFilters && (
-                      <button
-                        onClick={() => { setFilterName(""); setFilterCategory(""); setFilterBuyer(""); setFilterInspector(""); setFilterKeeper(""); }}
-                        className="flex items-center gap-1 px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded-lg cursor-pointer transition-all border border-rose-200"
-                      >
-                        <X size={11} />清空筛选
-                      </button>
-                    )}
-                    <span className="ml-auto text-[10px] text-slate-400">
-                      显示 <span className="font-bold text-slate-600">{filteredLedgerItems.length}</span> / {currentLedgerItems.length} 条
-                      {hasActiveFilters && <span className="ml-1 text-amber-600">（已过滤）</span>}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500">【图一样式】原料购销日总表明细</span>
-                    <span className="text-[9px] text-slate-400 font-medium">修改任意格后失去焦点自动同步物理库存</span>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs min-w-[1380px]">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
-                          <th className="px-4 py-3 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
-                          <th className="px-3 py-3 text-center text-violet-700 font-bold bg-violet-50/40 w-20">二级品类</th>
-                          <th className="px-3 py-3 text-center text-slate-600 font-bold w-20">单位</th>
-                          <th className="px-3 py-3 text-emerald-800 font-bold bg-emerald-50/30 w-28">{LEDGER_HEADERS.inQuantity}</th>
-                          <th className="px-3 py-3 text-emerald-800 font-bold bg-emerald-50/30 w-24">单价(元)</th>
-                          <th className="px-3 py-3 text-indigo-800 font-bold bg-indigo-50/30 w-28">{LEDGER_HEADERS.outQuantity}</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.certification}</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.sensoryProperty}</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-48">{LEDGER_HEADERS.supplier}</th>
-                          <th className="px-3 py-3 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
-                          <th className="px-3 py-3 text-indigo-700 font-bold bg-indigo-50/20 w-36">出库时间</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.inspector}</th>
-                          <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.keeper}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {currentLedgerItems.length === 0 ? (
-                          <tr>
-                            <td colSpan={13} className="text-center py-12 text-slate-400 italic">
-                              该台账暂无采购原料。请点击右上方“新增原料采购项”进行录入填充。
-                            </td>
-                          </tr>
-                        ) : filteredLedgerItems.length === 0 ? (
-                          <tr>
-                            <td colSpan={13} className="text-center py-10 text-slate-400 italic">
-                              <div className="flex flex-col items-center gap-2 py-2">
-                                <Search size={26} className="text-slate-200" />
-                                <span>未找到符合筛选条件的原料，请调整条件后重试。</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredLedgerItems.map((item) => {
-                            const isItemEditing = editingMaterialId === item.id;
-                            const record: DailyStockRecord = item.dailyRecords[selectedDate] || {
-                              inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
-                              certification: "", sensoryProperty: "", supplier: "", buyer: "", inspector: "", keeper: ""
-                            };
-
-                            if (isItemEditing) {
-                              return (
-                                <tr key={item.id} className="bg-emerald-50/20">
-                                  <td colSpan={13} className="px-4 py-3">
-                                    <form onSubmit={handleSaveEditMaterial} className="flex flex-wrap items-center gap-3">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px] font-bold text-slate-400">原料品名:</span>
-                                        <SearchableSelect
-                                          options={dictOptions}
-                                          value={editMaterialName}
-                                          onChange={(val, opt) => {
-                                            setEditMaterialName(val);
-                                            if (opt && opt.unit) {
-                                              setEditMaterialUnit(opt.unit);
-                                            }
-                                          }}
-                                          placeholder="选择原料"
-                                          className="w-28"
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px] font-bold text-slate-400">规格:</span>
-                                        <input 
-                                          type="text" value={editMaterialSpec} onChange={(e) => setEditMaterialSpec(e.target.value)}
-                                          className="bg-white border border-slate-300 px-2 py-1 rounded text-xs w-28 outline-none"
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px] font-bold text-slate-400">单位:</span>
-                                        <input 
-                                          type="text" value={editMaterialUnit} onChange={(e) => setEditMaterialUnit(e.target.value)}
-                                          className="bg-white border border-slate-300 px-2 py-1 rounded text-xs w-16 text-center outline-none" required
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px] font-bold text-slate-400">初始库存:</span>
-                                        <input 
-                                          type="number" step="any" value={editMaterialStock} onChange={(e) => setEditMaterialStock(Number(e.target.value))}
-                                          className="bg-white border border-slate-300 px-2 py-1 rounded text-xs w-20 text-right outline-none" required
-                                        />
-                                      </div>
-                                      <button type="submit" className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold cursor-pointer">
-                                        保存原料参数
-                                      </button>
-                                      <button type="button" onClick={() => setEditingMaterialId(null)} className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer">
-                                        取消
-                                      </button>
-                                    </form>
-                                  </td>
-                                </tr>
-                              );
-                            }
-
-                            const draftRecord = draftRecords[item.id];
-                            const recordToRender = isRecordingMode ? (draftRecord || {
-                              inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
-                              certification: "", sensoryProperty: "", supplier: "", buyer: "", inspector: "", keeper: ""
-                            }) : record;
-
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50/50 group">
-                                <td className="px-4 py-2.5 font-bold text-slate-800 flex justify-between items-center min-w-[150px]">
-                                  <div>
-                                    {(() => {
-                                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                                      const displayName = dictItem ? dictItem.name : item.name;
-                                      const displayRemark = dictItem?.remark || "";
-                                      return (
-                                        <>
-                                          {displayName}
-                                          {displayRemark ? (
-                                            <div className="text-[9px] text-slate-400 font-normal mt-0.5">{displayRemark}</div>
-                                          ) : (
-                                            <div className="text-[9px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                  
-                                  {/* 悬浮删除原料采购项目按钮 */}
-                                  {!isRecordingMode && (
-                                    <button
-                                      onClick={() => handleDeleteMaterial(item.id)}
-                                      className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-2"
-                                      title="删除此台账原料采购项"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
-                                </td>
-                                {/* 二级品类标签列 */}
-                                <td className="px-3 py-2.5 text-center bg-violet-50/30">
-                                  {(() => {
-                                    const dictItem2 = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                                    const cat = dictItem2?.category;
-                                    if (!cat) return <span className="text-slate-300 text-[10px]">—</span>;
-                                    const catLabel = FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat;
-                                    const colorMap: Record<string, string> = {
-                                      VEGETABLE: "bg-green-100 text-green-700 border-green-200",
-                                      GRAIN_OIL: "bg-amber-100 text-amber-700 border-amber-200",
-                                      SEASONING: "bg-orange-100 text-orange-700 border-orange-200",
-                                      MEAT: "bg-red-100 text-red-700 border-red-200",
-                                      LOW_CONSUMP: "bg-slate-100 text-slate-600 border-slate-200",
-                                      FRUIT: "bg-pink-100 text-pink-700 border-pink-200"
-                                    };
-                                    return (
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${colorMap[cat] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                                        {catLabel}
-                                      </span>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-3 py-2.5 text-center text-slate-500">
-                                  {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit || item.unit}
-                                </td>
-                                
-                                {/* 采购数量 */}
-                                <td className="px-3 py-2 bg-emerald-50/10">
-                                  <input 
-                                    type="number" step="any"
-                                    value={recordToRender.inQuantity || ""}
-                                    placeholder={isRecordingMode ? "0" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { inQuantity: Number(e.target.value) })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                  />
-                                  {(() => {
-                                    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                                    if (dictItem && dictItem.conversionUnit && dictItem.conversionRatio) {
-                                      const qty = recordToRender.inQuantity || 0;
-                                      const converted = qty * dictItem.conversionRatio;
-                                      return (
-                                        <div className="text-[9px] text-emerald-600 font-bold text-right mt-0.5">
-                                          折合: {converted.toFixed(1)} {dictItem.conversionUnit}
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                </td>
-                                
-                                {/* 单价 */}
-                                <td className="px-3 py-2 bg-emerald-50/10">
-                                  <input 
-                                    type="number" step="any"
-                                    value={recordToRender.inPrice || ""}
-                                    placeholder={isRecordingMode ? "¥0.00" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { inPrice: Number(e.target.value) })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                  />
-                                </td>
-
-                                {/* 出库数量 */}
-                                <td className="px-3 py-2 bg-indigo-50/10">
-                                  <input 
-                                    type="number" step="any"
-                                    value={recordToRender.outQuantity || ""}
-                                    placeholder={isRecordingMode ? "0" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { outQuantity: Number(e.target.value) })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                  />
-                                </td>
-
-                                {/* 食品索证 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.certification || ""}
-                                    placeholder={isRecordingMode ? "已索证" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { certification: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
- 
-                                {/* 感官性状 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.sensoryProperty || ""}
-                                    placeholder={isRecordingMode ? "合格/合格率" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { sensoryProperty: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
- 
-                                {/* 供货商及地址 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.supplier || ""}
-                                    placeholder={isRecordingMode ? "经销商地址及名称" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
-
-                                {/* 采购/入库时间（默认选定日期，允许手动修改） */}
-                                <td className="px-3 py-2 bg-emerald-50/20">
-                                  <input 
-                                    type="date"
-                                    value={recordToRender.purchaseDate || selectedDate}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { purchaseDate: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
-                                    title="采购入库时间（默认为当日，可手动修改）"
-                                  />
-                                </td>
-
-                                {/* 出库时间（默认选定日期，允许手动修改） */}
-                                <td className="px-3 py-2 bg-indigo-50/20">
-                                  <input 
-                                    type="date"
-                                    value={recordToRender.outDate || selectedDate}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { outDate: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-indigo-400"
-                                    title="出库时间（默认为当日，可手动修改）"
-                                  />
-                                </td>
- 
-                                {/* 采购员 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.buyer || ""}
-                                    placeholder={isRecordingMode ? "采购经办" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { buyer: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
- 
-                                {/* 检验员 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.inspector || ""}
-                                    placeholder={isRecordingMode ? "检验验收" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { inspector: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
- 
-                                {/* 保管员 */}
-                                <td className="px-3 py-2">
-                                  <input 
-                                    type="text"
-                                    value={recordToRender.keeper || ""}
-                                    placeholder={isRecordingMode ? "库管签字" : "未开启录入"}
-                                    disabled={!isRecordingMode}
-                                    onChange={(e) => handleDraftCellChange(item.id, { keeper: e.target.value })}
-                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                  />
-                                </td>
-
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <LedgerStyle1Table
+                  currentLedgerItems={currentLedgerItems}
+                  filteredLedgerItems={filteredLedgerItems}
+                  selectedDate={selectedDate}
+                  isRecordingMode={isRecordingMode}
+                  draftRecords={draftRecords}
+                  editingMaterialId={editingMaterialId}
+                  editMaterialName={editMaterialName}
+                  editMaterialSpec={editMaterialSpec}
+                  editMaterialUnit={editMaterialUnit}
+                  editMaterialStock={editMaterialStock}
+                  dictOptions={dictOptions}
+                  availableCategories={availableCategories}
+                  availableBuyers={availableBuyers}
+                  availableInspectors={availableInspectors}
+                  availableKeepers={availableKeepers}
+                  filterName={filterName}
+                  filterCategory={filterCategory}
+                  filterBuyer={filterBuyer}
+                  filterInspector={filterInspector}
+                  filterKeeper={filterKeeper}
+                  hasActiveFilters={hasActiveFilters}
+                  setFilterName={setFilterName}
+                  setFilterCategory={setFilterCategory}
+                  setFilterBuyer={setFilterBuyer}
+                  setFilterInspector={setFilterInspector}
+                  setFilterKeeper={setFilterKeeper}
+                  handleSaveEditMaterial={handleSaveEditMaterial}
+                  handleDeleteMaterial={handleDeleteMaterial}
+                  handleDraftCellChange={handleDraftCellChange}
+                  setEditingMaterialId={setEditingMaterialId}
+                  setEditMaterialName={setEditMaterialName}
+                  setEditMaterialSpec={setEditMaterialSpec}
+                  setEditMaterialUnit={setEditMaterialUnit}
+                  setEditMaterialStock={setEditMaterialStock}
+                />
               )}
 
               {/* 样式二：单原料日出入库流水账 (图二样式) */}
               {ledgerStyle === "style2" && (
-                <div className="space-y-4">
-                  {activeItemId ? (
-                    (() => {
-                      const activeItem = ledgerItems.find((i) => i.id === activeItemId);
-                      if (!activeItem) return null;
-                      
-                      // 提取当月有记录的供应商与索证，做成表头绑定（默认提示词从常量文件统一管理）
-                      const currentMonthStr = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}`;
-                      const sampleRecord = Object.entries(activeItem.dailyRecords).find(
-                        ([d, rec]) => d.startsWith(currentMonthStr) && (rec.supplier || rec.certification)
-                      )?.[1] || { supplier: "", certification: "" };
-
-                      const draftRecord = draftRecords[activeItem.id];
-                      const recordForSelectedDate = activeItem.dailyRecords[selectedDate] || { supplier: "", certification: "" };
-                      const currentSupplier = isRecordingMode ? (draftRecord?.supplier ?? "") : (recordForSelectedDate.supplier ?? sampleRecord.supplier ?? "");
-                      const currentCertification = isRecordingMode ? (draftRecord?.certification ?? "") : (recordForSelectedDate.certification ?? sampleRecord.certification ?? "");
-
-                      return (
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
-                          
-                          {/* 样式二表头与经销商信息 */}
-                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-400 block uppercase">采购项目</span>
-                              <div className="text-sm font-black text-slate-800 mt-1 flex items-center gap-1.5">
-                                <Award size={15} className="text-emerald-600" />
-                                {activeItem.name} ({activeItem.unit})
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-400 block uppercase">经销商/供货商</span>
-                              <input 
-                                type="text"
-                                value={currentSupplier}
-                                placeholder={isRecordingMode ? LEDGER_UI_TEXT.defaultSupplierPlaceholder : "未开启录入"}
-                                disabled={!isRecordingMode}
-                                onChange={(e) => {
-                                  handleDraftCellChange(activeItem.id, { supplier: e.target.value });
-                                }}
-                                className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
-                              />
-                            </div>
-
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-400 block uppercase">索证索票情况</span>
-                              <input 
-                                type="text"
-                                value={currentCertification}
-                                placeholder={isRecordingMode ? LEDGER_UI_TEXT.defaultCertificationPlaceholder : "未开启录入"}
-                                disabled={!isRecordingMode}
-                                onChange={(e) => {
-                                  handleDraftCellChange(activeItem.id, { certification: e.target.value });
-                                }}
-                                className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2.5 py-1 mt-1 rounded text-xs outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                          </div>
-
-                          {/* 月度流水网格 */}
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-xs min-w-[1000px]">
-                              <thead>
-                                <tr className="bg-slate-100/50 text-slate-500 border-b border-slate-200 text-center font-bold">
-                                  <th className="px-4 py-2.5 font-bold w-28">日期</th>
-                                  <th className="px-3 py-2.5 font-bold bg-emerald-50/20 w-24">采购数量</th>
-                                  <th className="px-3 py-2.5 font-bold w-24">采购员</th>
-                                  <th className="px-3 py-2.5 font-bold w-28">生产日期</th>
-                                  <th className="px-3 py-2.5 font-bold w-24">保质期</th>
-                                  <th className="px-3 py-2.5 font-bold w-24">感官性状</th>
-                                  <th className="px-3 py-2.5 font-bold w-24">检验员</th>
-                                  <th className="px-3 py-2.5 font-bold bg-indigo-50/10 w-24">出库数量</th>
-                                  <th className="px-3 py-2.5 font-bold bg-slate-100/80 w-28">当日库存</th>
-                                  <th className="px-3 py-2.5 font-bold w-24">保管员</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 text-center">
-                                 {daysArray.map((dayStr) => {
-                                  const dayDateStr = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}-${dayStr}`;
-                                  const record = activeItem.dailyRecords[dayDateStr] || {
-                                    inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
-                                    produceDate: "", shelfLife: "", sensoryProperty: ""
-                                  };
-                                  const balance = dailyStockBalances[dayDateStr] ?? activeItem.initialStock;
-
-                                  const isRowEditable = isRecordingMode && dayDateStr === selectedDate;
-                                  const draftRecord = draftRecords[activeItem.id];
-                                  const recordToRender = isRowEditable ? (draftRecord || {
-                                    inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
-                                    produceDate: "", shelfLife: "", sensoryProperty: ""
-                                  }) : record;
-
-                                  return (
-                                    <tr key={dayDateStr} className={`hover:bg-slate-50/50 ${dayDateStr === selectedDate ? "bg-amber-50/20" : ""}`}>
-                                      <td className="px-4 py-2 font-mono text-slate-500 font-bold flex items-center justify-center gap-1">
-                                        <span>{dayDateStr}</span>
-                                        {dayDateStr === selectedDate && (
-                                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" title="当前选中同步日"></span>
-                                        )}
-                                      </td>
-                                      
-                                      {/* 采购数量 */}
-                                      <td className="px-2 py-1.5 bg-emerald-50/10">
-                                        <input 
-                                          type="number" step="any"
-                                          value={recordToRender.inQuantity || ""}
-                                          placeholder={isRowEditable ? "0" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { inQuantity: Number(e.target.value) })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                        />
-                                      </td>
-                                      
-                                      {/* 采购员 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.buyer || ""}
-                                          placeholder={isRowEditable ? "填采购员" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { buyer: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                        />
-                                      </td>
-
-                                      {/* 生产日期 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.produceDate || ""}
-                                          placeholder={isRowEditable ? "生产日期" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { produceDate: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none font-mono"
-                                        />
-                                      </td>
-
-                                      {/* 保质期 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.shelfLife || ""}
-                                          placeholder={isRowEditable ? "如: 12个月" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { shelfLife: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                        />
-                                      </td>
-
-                                      {/* 感官性状 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.sensoryProperty || ""}
-                                          placeholder={isRowEditable ? "合格" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { sensoryProperty: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                        />
-                                      </td>
-
-                                      {/* 检验员 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.inspector || ""}
-                                          placeholder={isRowEditable ? "填检验员" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { inspector: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                        />
-                                      </td>
-
-                                      {/* 出库数量 */}
-                                      <td className="px-2 py-1.5 bg-indigo-50/5">
-                                        <input 
-                                          type="number" step="any"
-                                          value={recordToRender.outQuantity || ""}
-                                          placeholder={isRowEditable ? "0" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { outQuantity: Number(e.target.value) })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
-                                        />
-                                      </td>
-
-                                      {/* 当日库存/结余 (公式累算) */}
-                                      <td className="px-3 py-1.5 bg-slate-100/50 font-mono font-black text-slate-800 text-right">
-                                        {balance}
-                                      </td>
-
-                                      {/* 保管员 */}
-                                      <td className="px-2 py-1.5">
-                                        <input 
-                                          type="text"
-                                          value={recordToRender.keeper || ""}
-                                          placeholder={isRowEditable ? "保管签字" : "锁定"}
-                                          disabled={!isRowEditable}
-                                          onChange={(e) => handleDraftCellChange(activeItem.id, { keeper: e.target.value })}
-                                          className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                                        />
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="text-center py-12 bg-white border border-slate-200 rounded-xl text-slate-400 italic">
-                      该台账暂无采购原料项目。请点击右上方“新增原料采购项”添加原料以开启流水台账。
-                    </div>
-                  )}
-                </div>
+                <LedgerStyle2Flow
+                  activeItemId={activeItemId}
+                  ledgerItems={ledgerItems}
+                  dateParts={dateParts}
+                  selectedDate={selectedDate}
+                  isRecordingMode={isRecordingMode}
+                  draftRecords={draftRecords}
+                  daysArray={daysArray}
+                  dailyStockBalances={dailyStockBalances}
+                  handleDraftCellChange={handleDraftCellChange}
+                />
               )}
             </>
           )}
 
           {/* Tab 2: 当日出入库单 (明细归集) */}
           {activeTab === "invoice" && (
-            <div className="space-y-6">
-              
-              {/* 今日入库单 */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                <div className="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                    当日入库明细单 (有入库行为)
-                  </h3>
-                  <span className="text-[11px] font-mono text-slate-500 font-bold">
-                    入库金额合计：<span className="text-xs text-red-600 font-black">¥{dailyInTotalAmount.toFixed(2)}</span>
-                  </span>
-                </div>
-
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-bold text-center">
-                      <th className="px-3 py-2 w-12 font-bold">序号</th>
-                      <th className="px-3 py-2 text-left font-bold">原料名称</th>
-                      <th className="px-3 py-2 text-left font-bold">规格描述</th>
-                      <th className="px-2 py-2 w-16 font-bold">单位</th>
-                      <th className="px-3 py-2 w-24 font-bold">今日入库数</th>
-                      <th className="px-3 py-2 w-24 font-bold">入库单价</th>
-                      <th className="px-3 py-2 w-28 font-bold">入库总金额</th>
-                      <th className="px-3 py-2 w-24 font-bold">出库发料人</th>
-                      <th className="px-3 py-2 w-24 font-bold">接收领料人</th>
-                      <th className="px-3 py-2 w-20 font-bold">食品索证</th>
-                      <th className="px-3 py-2 w-20 font-bold">感官性状</th>
-                      <th className="px-3 py-2 text-left">备注说明</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 text-center">
-                    {dailyInwardItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={12} className="text-center py-6 text-slate-400 italic">
-                          今日该台账暂无任何原料入库记录数据。
-                        </td>
-                      </tr>
-                    ) : (
-                      dailyInwardItems.map((item, index) => (
-                        <tr key={item.id} className="hover:bg-slate-50/30">
-                          <td className="px-3 py-2 font-mono text-slate-400">{index + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800 text-left">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return dictItem ? dictItem.name : item.name;
-                            })()}
-                          </td>
-                          <td className="px-3 py-2 text-slate-500 text-left">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return (dictItem?.remark) || item.spec || "-";
-                            })()}
-                          </td>
-                          <td className="px-2 py-2 text-slate-500">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return dictItem ? dictItem.unit : item.unit;
-                            })()}
-                          </td>
-                          <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.inQuantity}</td>
-                          <td className="px-3 py-2 font-mono text-slate-600">¥{item.record.inPrice.toFixed(2)}</td>
-                          <td className="px-3 py-2 font-mono font-bold text-emerald-800">¥{item.record.inAmount.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.outHandler || item.record.buyer || "-"}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || item.record.inspector || "-"}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.certification || "-"}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || "-"}</td>
-                          <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || "-"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 今日出库单 */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                <div className="border-b border-slate-100 pb-3 mb-4">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
-                    当日出库明细单 (有领用出库行为)
-                  </h3>
-                </div>
-
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-bold text-center">
-                      <th className="px-3 py-2 w-12 font-bold">序号</th>
-                      <th className="px-3 py-2 text-left font-bold">原料名称</th>
-                      <th className="px-3 py-2 text-left font-bold">规格描述</th>
-                      <th className="px-2 py-2 w-16 font-bold">单位</th>
-                      <th className="px-3 py-2 w-24 font-bold">今日出库数</th>
-                      <th className="px-3 py-2 w-28 font-bold">发料出库人</th>
-                      <th className="px-3 py-2 w-28 font-bold">领用接收人</th>
-                      <th className="px-3 py-2 w-20 font-bold">食品索证</th>
-                      <th className="px-3 py-2 w-20 font-bold">感官性状</th>
-                      <th className="px-3 py-2 text-left">领用去处/备注</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 text-center">
-                    {dailyOutwardItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="text-center py-6 text-slate-400 italic">
-                          今日该台账暂无任何原料领用出库记录。
-                        </td>
-                      </tr>
-                    ) : (
-                      dailyOutwardItems.map((item, index) => (
-                        <tr key={item.id} className="hover:bg-slate-50/30">
-                          <td className="px-3 py-2 font-mono text-slate-400">{index + 1}</td>
-                          <td className="px-3 py-2 font-bold text-slate-800 text-left">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return dictItem ? dictItem.name : item.name;
-                            })()}
-                          </td>
-                          <td className="px-3 py-2 text-slate-500 text-left">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return (dictItem?.remark) || item.spec || "-";
-                            })()}
-                          </td>
-                          <td className="px-2 py-2 text-slate-500">
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              return dictItem ? dictItem.unit : item.unit;
-                            })()}
-                          </td>
-                          <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.outQuantity}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.outHandler || ""}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || ""}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.certification || "-"}</td>
-                          <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || "-"}</td>
-                          <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || "-"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-            </div>
+            <LedgerInvoiceTab
+              dailyInwardItems={dailyInwardItems}
+              dailyOutwardItems={dailyOutwardItems}
+              dailyInTotalAmount={dailyInTotalAmount}
+            />
           )}
 
         </div>
-
       </div>
 
       {/* 新增原料明细模态弹框 */}
-      {isAddMaterialOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[999]">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-sm w-full p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-800">
-                新增「{activeLedger?.name}」台账原料采购项
-              </h3>
-              <button onClick={() => setIsAddMaterialOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={16} />
-              </button>
-            </div>
+      <LedgerAddMaterialModal
+        isOpen={isAddMaterialOpen}
+        activeLedgerName={activeLedger?.name || ""}
+        newMaterialName={newMaterialName}
+        newMaterialUnit={newMaterialUnit}
+        newMaterialSpec={newMaterialSpec}
+        newMaterialStock={newMaterialStock}
+        dictOptions={dictOptions}
+        setNewMaterialName={setNewMaterialName}
+        setNewMaterialUnit={setNewMaterialUnit}
+        setNewMaterialSpec={setNewMaterialSpec}
+        setNewMaterialStock={setNewMaterialStock}
+        onClose={() => setIsAddMaterialOpen(false)}
+        onSubmit={handleAddMaterialSubmit}
+      />
 
-            <form onSubmit={handleAddMaterialSubmit} className="space-y-3.5">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 block uppercase">原料名称 (必填)</label>
-                <SearchableSelect
-                  options={dictOptions}
-                  value={newMaterialName}
-                  onChange={(val, opt) => {
-                    setNewMaterialName(val);
-                    if (opt && opt.unit) {
-                      setNewMaterialUnit(opt.unit);
-                    }
-                  }}
-                  placeholder="请输入或选择原料，如: 土豆"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 block uppercase">计量单位</label>
-                <input 
-                  type="text" placeholder="如: 斤 / 袋 / 箱" value={newMaterialUnit} onChange={(e) => setNewMaterialUnit(e.target.value)}
-                  className="w-full bg-slate-50 text-xs p-2.5 border border-slate-200 rounded outline-none focus:border-emerald-500 focus:bg-white" required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 block uppercase">规格描述</label>
-                <input 
-                  type="text" placeholder="如: 25kg/袋" value={newMaterialSpec} onChange={(e) => setNewMaterialSpec(e.target.value)}
-                  className="w-full bg-slate-50 text-xs p-2.5 border border-slate-200 rounded outline-none focus:border-emerald-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 block uppercase">初始库存</label>
-                <input 
-                  type="number" step="any" value={newMaterialStock} onChange={(e) => setNewMaterialStock(Number(e.target.value))}
-                  className="w-full bg-slate-50 text-xs p-2.5 border border-slate-200 rounded outline-none focus:border-emerald-500 focus:bg-white" required
-                />
-              </div>
-
-              <button 
-                type="submit"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
-              >
-                确认添加
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
       {/* 二级分类打印勾选模态弹框 */}
-      {printModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[999] p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
-                <Printer size={16} className="text-slate-600" />
-                <span>选择要打印的二级分类数据</span>
-              </h3>
-              <button 
-                onClick={() => setPrintModalOpen(false)} 
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">二级食材分类范围</span>
-                <div className="flex gap-2 text-[10px] font-bold">
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedPrintCategories([
-                      FoodCategory.VEGETABLE, FoodCategory.GRAIN_OIL, FoodCategory.SEASONING,
-                      FoodCategory.MEAT, FoodCategory.LOW_CONSUMP, FoodCategory.FRUIT
-                    ])}
-                    className="text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
-                  >
-                    全选
-                  </button>
-                  <span className="text-slate-200">|</span>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedPrintCategories([])}
-                    className="text-rose-600 hover:text-rose-700 underline cursor-pointer"
-                  >
-                    清空
-                  </button>
-                </div>
-              </div>
-
-              {/* 多选勾选区 */}
-              <div className="grid grid-cols-2 gap-3 py-2">
-                {[
-                  { key: FoodCategory.VEGETABLE, label: FOOD_CATEGORY_LABELS[FoodCategory.VEGETABLE], color: "accent-green-600" },
-                  { key: FoodCategory.GRAIN_OIL, label: FOOD_CATEGORY_LABELS[FoodCategory.GRAIN_OIL], color: "accent-amber-600" },
-                  { key: FoodCategory.SEASONING, label: FOOD_CATEGORY_LABELS[FoodCategory.SEASONING], color: "accent-orange-600" },
-                  { key: FoodCategory.MEAT, label: FOOD_CATEGORY_LABELS[FoodCategory.MEAT], color: "accent-red-600" },
-                  { key: FoodCategory.LOW_CONSUMP, label: FOOD_CATEGORY_LABELS[FoodCategory.LOW_CONSUMP], color: "accent-slate-600" },
-                  { key: FoodCategory.FRUIT, label: FOOD_CATEGORY_LABELS[FoodCategory.FRUIT], color: "accent-pink-600" }
-                ].map((item) => {
-                  const isChecked = selectedPrintCategories.includes(item.key);
-                  return (
-                    <label 
-                      key={item.key} 
-                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
-                        isChecked 
-                          ? "bg-slate-50 border-slate-300 font-bold text-slate-800" 
-                          : "border-slate-100 text-slate-400 hover:bg-slate-50/50"
-                      }`}
-                    >
-                      <input 
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedPrintCategories(selectedPrintCategories.filter(c => c !== item.key));
-                          } else {
-                            setSelectedPrintCategories([...selectedPrintCategories, item.key]);
-                          }
-                        }}
-                        className={`w-3.5 h-3.5 ${item.color} cursor-pointer`}
-                      />
-                      <span className="text-xs">{item.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div className="text-[10px] text-slate-400 font-bold leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100/50">
-                ⚠️ 提示：系统将为您在登记总表预览中，过滤并排版展示属于以上已选定大类的台账明细，多选分类支持同时合并在一张表格中输出。
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button 
-                  onClick={() => {
-                    setPrintModalOpen(false);
-                    setPrintPreviewStyle("style1");
-                  }}
-                  disabled={selectedPrintCategories.length === 0}
-                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  预览登记总表
-                </button>
-                <button 
-                  onClick={() => setPrintModalOpen(false)}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <LedgerPrintModal
+        isOpen={printModalOpen}
+        selectedPrintCategories={selectedPrintCategories}
+        setSelectedPrintCategories={setSelectedPrintCategories}
+        setPrintPreviewStyle={setPrintPreviewStyle}
+        onClose={() => setPrintModalOpen(false)}
+      />
 
     </div>
   );
