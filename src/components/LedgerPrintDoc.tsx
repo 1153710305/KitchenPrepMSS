@@ -215,16 +215,8 @@ function PrintOutDoc({
   const supplierToItemsMap = new Map<string, string[]>();
 
   dailyOutwardItems.forEach(item => {
-    // 优先使用当日记录中的供货商，如果没有则扫描历史记录中有供货商的条目并回落
-    let supplier: string = item.record.supplier || "";
-
-    if (!supplier && item.dailyRecords) {
-      const historicalSupplier = Object.values(item.dailyRecords as Record<string, any>)
-        .find((r: any) => r && r.supplier);
-      if (historicalSupplier) {
-        supplier = (historicalSupplier as any).supplier;
-      }
-    }
+    // 仅读取当日出库记录中的供货商字段，不回落扫描历史记录
+    const supplier: string = item.record.supplier || "";
 
     // 没有供货商信息的条目跳过
     if (!supplier) return;
