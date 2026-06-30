@@ -178,6 +178,8 @@ export function LedgerStyle1Table({
               <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.certification}</th>
               <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.sensoryProperty}</th>
               <th className="px-3 py-3 text-slate-600 font-bold w-48">{LEDGER_HEADERS.supplier}</th>
+              <th className="px-3 py-3 text-slate-600 font-bold w-36">生产日期</th>
+              <th className="px-3 py-3 text-slate-600 font-bold w-36">保质期</th>
               <th className="px-3 py-3 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
               <th className="px-3 py-3 text-indigo-700 font-bold bg-indigo-50/20 w-36">出库时间</th>
               <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
@@ -188,13 +190,13 @@ export function LedgerStyle1Table({
           <tbody className="divide-y divide-slate-100">
             {currentLedgerItems.length === 0 ? (
               <tr>
-                <td colSpan={13} className="text-center py-12 text-slate-400 italic">
+                <td colSpan={16} className="text-center py-12 text-slate-400 italic">
                   该台账暂无采购原料。请点击右上方“新增原料采购项”进行录入填充。
                 </td>
               </tr>
             ) : filteredLedgerItems.length === 0 ? (
               <tr>
-                <td colSpan={13} className="text-center py-10 text-slate-400 italic">
+                <td colSpan={16} className="text-center py-10 text-slate-400 italic">
                   <div className="flex flex-col items-center gap-2 py-2">
                     <Search size={26} className="text-slate-200" />
                     <span>未找到符合筛选条件的原料，请调整条件后重试。</span>
@@ -212,7 +214,7 @@ export function LedgerStyle1Table({
                 if (isItemEditing) {
                   return (
                     <tr key={item.id} className="bg-emerald-50/20">
-                      <td colSpan={13} className="px-4 py-3">
+                      <td colSpan={16} className="px-4 py-3">
                         <form onSubmit={handleSaveEditMaterial} className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[11px] font-bold text-slate-400">原料品名:</span>
@@ -408,6 +410,31 @@ export function LedgerStyle1Table({
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
                         className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      />
+                    </td>
+
+                    {/* 生产日期 */}
+                    <td className="px-3 py-2">
+                      <input 
+                        type="date"
+                        value={recordToRender.produceDate || ""}
+                        disabled={!isRecordingMode}
+                        onChange={(e) => handleDraftCellChange(item.id, { produceDate: e.target.value })}
+                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                        title="生产日期 (选填)"
+                      />
+                    </td>
+
+                    {/* 保质期 */}
+                    <td className="px-3 py-2">
+                      <input 
+                        type="text"
+                        value={recordToRender.shelfLife || ""}
+                        placeholder={isRecordingMode ? "如: 6个月" : "未开启录入"}
+                        disabled={!isRecordingMode}
+                        onChange={(e) => handleDraftCellChange(item.id, { shelfLife: e.target.value })}
+                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        title="保质期 (选填)"
                       />
                     </td>
 

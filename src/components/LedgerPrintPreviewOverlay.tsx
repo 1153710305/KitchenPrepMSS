@@ -18,6 +18,9 @@ interface LedgerPrintPreviewOverlayProps {
   currentLedgerItems: LedgerItem[];
   activeItemId: string;
   ledgerItems: LedgerItem[];
+  style2StartDate: string;
+  style2EndDate: string;
+  style2DatesArray: string[];
 }
 
 export function LedgerPrintPreviewOverlay({
@@ -28,7 +31,10 @@ export function LedgerPrintPreviewOverlay({
   selectedPrintCategories,
   currentLedgerItems,
   activeItemId,
-  ledgerItems
+  ledgerItems,
+  style2StartDate,
+  style2EndDate,
+  style2DatesArray
 }: LedgerPrintPreviewOverlayProps) {
   const isPrintStyle1 = printPreviewStyle === "style1";
   const dictItems = RawMaterialsDictService.getItems();
@@ -71,6 +77,9 @@ export function LedgerPrintPreviewOverlay({
           activeItemId={activeItemId}
           selectedDate={selectedDate}
           ledgerItems={ledgerItems}
+          style2StartDate={style2StartDate}
+          style2EndDate={style2EndDate}
+          style2DatesArray={style2DatesArray}
         />
       )}
     </div>

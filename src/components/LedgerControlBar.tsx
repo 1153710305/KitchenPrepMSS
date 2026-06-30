@@ -45,6 +45,7 @@ interface LedgerControlBarProps {
   handleExportOutwardCsv: () => void;
   triggerPrintDoc: (type: "in" | "out") => void;
   setPrintModalOpen: (val: boolean) => void;
+  setPrintPreviewStyle: (style: "style1" | "style2" | null) => void;
   activeLedgerId: string;
 }
 
@@ -79,6 +80,7 @@ export function LedgerControlBar({
   handleExportOutwardCsv,
   triggerPrintDoc,
   setPrintModalOpen,
+  setPrintPreviewStyle,
   activeLedgerId
 }: LedgerControlBarProps) {
   return (
@@ -137,7 +139,13 @@ export function LedgerControlBar({
                 </button>
 
                 <button 
-                  onClick={() => setPrintModalOpen(true)}
+                  onClick={() => {
+                    if (ledgerStyle === "style2") {
+                      setPrintPreviewStyle("style2");
+                    } else {
+                      setPrintModalOpen(true);
+                    }
+                  }}
                   disabled={ledgerItems.length === 0}
                   className="flex items-center gap-1 px-3.5 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs"
                 >

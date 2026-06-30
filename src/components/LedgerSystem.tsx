@@ -7,7 +7,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Ledger, LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../ledgerConstants.ts";
-import { LogBroker, matchPinyin } from "../utils.ts";
+import { LogBroker, matchPinyin, getDatesBetween } from "../utils.ts";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { FoodCategory } from "../types.ts";
@@ -65,6 +65,11 @@ export function LedgerSystem() {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   });
+
+  /** 样式二（单原料日流水）自定义时间段 - 开始日期 */
+  const [style2StartDate, setStyle2StartDate] = useState<string>("");
+  /** 样式二（单原料日流水）自定义时间段 - 结束日期 */
+  const [style2EndDate, setStyle2EndDate] = useState<string>("");
   
   /** 界面操作的当前选项卡: "entry" | "invoice" */
   const [activeTab, setActiveTab] = useState<"entry" | "invoice">("entry");
@@ -290,6 +295,20 @@ export function LedgerSystem() {
     setDraftRecords({});
   }, [activeLedgerId, selectedDate]);
 
+  // 当 selectedDate 改变时，默认重置样式二的时间段为当前整月
+  useEffect(() => {
+    const parts = selectedDate.split("-");
+    const year = parseInt(parts[0] || "2026");
+    const month = parseInt(parts[1] || "06");
+    
+    const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
+    const lastDayNum = new Date(year, month, 0).getDate();
+    const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayNum).padStart(2, "0")}`;
+    
+    setStyle2StartDate(firstDay);
+    setStyle2EndDate(lastDay);
+  }, [selectedDate]);
+
   /** 解析选定日期的年份与月份 */
   const dateParts = useMemo(() => {
     const p = selectedDate.split("-");
@@ -310,34 +329,37 @@ export function LedgerSystem() {
     return arr;
   }, [dateParts]);
 
-  /** 样式二下单个原料当月每天的历史库存结余计算映射表 */
+  /** 样式二（单原料日流水）自定义时间段内的所有日期列表 */
+  const style2DatesArray = useMemo(() => {
+    return getDatesBetween(style2StartDate, style2EndDate);
+  }, [style2StartDate, style2EndDate]);
+
+  /** 样式二下单个原料自定义时间段内每天的历史库存结余计算映射表 */
   const dailyStockBalances = useMemo(() => {
     if (!activeItemId) return {};
     const item = ledgerItems.find((i) => i.id === activeItemId);
     if (!item) return {};
     
     const balances: Record<string, number> = {};
-    const currentMonthPrefix = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}`;
     
-    // 计算当月之前的历史期初库存（从初始库存出发，加减所有早于本月的出入库记录）
-    let monthStartBalance = item.initialStock || 0;
+    // 计算开始日期之前的历史期初库存（从初始库存出发，加减所有早于 style2StartDate 的出入库记录）
+    let startBalance = item.initialStock || 0;
     Object.entries(item.dailyRecords).forEach(([dateKey, record]) => {
-      if (dateKey < currentMonthPrefix) {
-        monthStartBalance += (record.inQuantity || 0) - (record.outQuantity || 0);
+      if (dateKey < style2StartDate) {
+        startBalance += (record.inQuantity || 0) - (record.outQuantity || 0);
       }
     });
     
-    // 从当月期初库存开始，逐日正向累计出入库变动，推算每天结余
-    let accum = Math.round(monthStartBalance * 100) / 100;
-    daysArray.forEach((dayStr) => {
-      const dayDateStr = `${currentMonthPrefix}-${dayStr}`;
-      const record = item.dailyRecords[dayDateStr] || { inQuantity: 0, outQuantity: 0 };
+    // 从期初库存开始，逐日正向累计出入库变动，推算每天结余
+    let accum = Math.round(startBalance * 100) / 100;
+    style2DatesArray.forEach((dateStr) => {
+      const record = item.dailyRecords[dateStr] || { inQuantity: 0, outQuantity: 0 };
       accum = accum + (record.inQuantity || 0) - (record.outQuantity || 0);
-      balances[dayDateStr] = Math.round(accum * 100) / 100;
+      balances[dateStr] = Math.round(accum * 100) / 100;
     });
     
     return balances;
-  }, [activeItemId, ledgerItems, daysArray, dateParts]);
+  }, [activeItemId, ledgerItems, style2StartDate, style2EndDate, style2DatesArray]);
 
   /** 当日有入库行为的项目列表 (用于生成入库单) */
   const dailyInwardItems = useMemo(() => {
@@ -749,6 +771,9 @@ export function LedgerSystem() {
         currentLedgerItems={currentLedgerItems}
         activeItemId={activeItemId}
         ledgerItems={ledgerItems}
+        style2StartDate={style2StartDate}
+        style2EndDate={style2EndDate}
+        style2DatesArray={style2DatesArray}
       />
     );
   }
@@ -872,8 +897,9 @@ export function LedgerSystem() {
           handleApplyBatchSignatures={handleApplyBatchSignatures}
           handleExportInwardCsv={handleExportInwardCsv}
           handleExportOutwardCsv={handleExportOutwardCsv}
-          triggerPrintDoc={triggerPrintDoc}
           setPrintModalOpen={setPrintModalOpen}
+          setPrintPreviewStyle={setPrintPreviewStyle}
+          triggerPrintDoc={triggerPrintDoc}
           activeLedgerId={activeLedgerId}
         />
 
@@ -933,9 +959,13 @@ export function LedgerSystem() {
                   selectedDate={selectedDate}
                   isRecordingMode={isRecordingMode}
                   draftRecords={draftRecords}
-                  daysArray={daysArray}
+                  style2DatesArray={style2DatesArray}
                   dailyStockBalances={dailyStockBalances}
                   handleDraftCellChange={handleDraftCellChange}
+                  style2StartDate={style2StartDate}
+                  style2EndDate={style2EndDate}
+                  setStyle2StartDate={setStyle2StartDate}
+                  setStyle2EndDate={setStyle2EndDate}
                 />
               )}
             </>

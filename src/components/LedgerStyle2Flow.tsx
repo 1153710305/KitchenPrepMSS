@@ -7,16 +7,36 @@ import { Award } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../ledgerConstants.ts";
 
+/**
+ * @description 单原料日出入库流水账组件入参接口
+ */
 interface LedgerStyle2FlowProps {
+  /** 处于激活状态的原料项目 ID */
   activeItemId: string | null;
+  /** 台账所有的原料项目 */
   ledgerItems: LedgerItem[];
+  /** 日期解析的年、月结构 */
   dateParts: { year: number; month: number };
+  /** 选中的单日期 */
   selectedDate: string;
+  /** 系统是否处于录入状态 */
   isRecordingMode: boolean;
+  /** 草稿数据映射表 */
   draftRecords: Record<string, DailyStockRecord>;
-  daysArray: string[];
+  /** 样式二自定义范围内的全量日期列表 */
+  style2DatesArray: string[];
+  /** 每日库存结余计算结果 */
   dailyStockBalances: Record<string, number>;
+  /** 编辑草稿的回调函数 */
   handleDraftCellChange: (itemId: string, fields: Partial<DailyStockRecord>) => void;
+  /** 采购时间段 - 开始日期 */
+  style2StartDate: string;
+  /** 采购时间段 - 结束日期 */
+  style2EndDate: string;
+  /** 设置开始日期的回调 */
+  setStyle2StartDate: (val: string) => void;
+  /** 设置结束日期的回调 */
+  setStyle2EndDate: (val: string) => void;
 }
 
 export function LedgerStyle2Flow({
@@ -26,9 +46,13 @@ export function LedgerStyle2Flow({
   selectedDate,
   isRecordingMode,
   draftRecords,
-  daysArray,
+  style2DatesArray,
   dailyStockBalances,
-  handleDraftCellChange
+  handleDraftCellChange,
+  style2StartDate,
+  style2EndDate,
+  setStyle2StartDate,
+  setStyle2EndDate
 }: LedgerStyle2FlowProps) {
   if (!activeItemId) {
     return (
@@ -54,6 +78,28 @@ export function LedgerStyle2Flow({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+      
+      {/* 采购时间段筛选栏 */}
+      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-wrap items-center gap-3 text-xs">
+        <span className="font-bold text-slate-500">采购流水时间段筛选:</span>
+        <div className="flex items-center gap-2">
+          <input 
+            type="date"
+            value={style2StartDate}
+            onChange={(e) => setStyle2StartDate(e.target.value)}
+            className="bg-white border border-slate-200 px-2 py-1 rounded outline-none focus:border-emerald-500 font-mono"
+          />
+          <span className="text-slate-400">至</span>
+          <input 
+            type="date"
+            value={style2EndDate}
+            onChange={(e) => setStyle2EndDate(e.target.value)}
+            className="bg-white border border-slate-200 px-2 py-1 rounded outline-none focus:border-emerald-500 font-mono"
+          />
+        </div>
+        <span className="text-[10px] text-slate-400 font-medium">（默认当前月，可手动修改任意时间段范围进行流水过滤及打印）</span>
+      </div>
+
       {/* 样式二表头与经销商信息 */}
       <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -111,8 +157,7 @@ export function LedgerStyle2Flow({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-center">
-            {daysArray.map((dayStr) => {
-              const dayDateStr = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}-${dayStr}`;
+            {style2DatesArray.map((dayDateStr) => {
               const record = activeItem.dailyRecords[dayDateStr] || {
                 inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
                 produceDate: "", shelfLife: "", sensoryProperty: ""
@@ -162,12 +207,11 @@ export function LedgerStyle2Flow({
                   {/* 生产日期 */}
                   <td className="px-2 py-1.5">
                     <input 
-                      type="text"
+                      type="date"
                       value={recordToRender.produceDate || ""}
-                      placeholder={isRowEditable ? "生产日期" : "锁定"}
                       disabled={!isRowEditable}
                       onChange={(e) => handleDraftCellChange(activeItem.id, { produceDate: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none font-mono"
+                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded outline-none font-mono text-xs focus:border-emerald-500"
                     />
                   </td>
 

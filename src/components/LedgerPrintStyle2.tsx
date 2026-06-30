@@ -5,6 +5,9 @@
 
 import { Ledger, LedgerItem } from "../ledgerTypes.ts";
 
+/**
+ * @description 单原料日流水打印入参接口
+ */
 interface LedgerPrintStyle2Props {
   /** 当前选中的台账 */
   activeLedger: Ledger | null;
@@ -14,48 +17,55 @@ interface LedgerPrintStyle2Props {
   selectedDate: string;
   /** 全量原料列表数据 */
   ledgerItems: LedgerItem[];
+  /** 采购时间段 - 开始日期 */
+  style2StartDate: string;
+  /** 采购时间段 - 结束日期 */
+  style2EndDate: string;
+  /** 样式二时间段内的全量日期列表 */
+  style2DatesArray: string[];
 }
 
 /**
- * @description 【图二】单原料月流水卡片打印预览模板组件
+ * @description 【图二】单原料自定义日期段流水卡片打印预览模板组件
  */
 export function LedgerPrintStyle2({
   activeLedger,
   activeItemId,
   selectedDate,
-  ledgerItems
+  ledgerItems,
+  style2StartDate,
+  style2EndDate,
+  style2DatesArray
 }: LedgerPrintStyle2Props) {
   const activeItem = ledgerItems.find((i) => i.id === activeItemId);
   if (!activeItem) {
     return <div className="text-center p-12 text-slate-400">请先在系统里选择需要打印的单原料明细。</div>;
   }
 
-  const ymd = selectedDate.split("-");
-  const filterYear = ymd[0];
-  const filterMonth = ymd[1];
-  const daysInMonth = new Date(Number(filterYear), Number(filterMonth), 0).getDate();
-  const daysArray = Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, "0"));
-
-  // 提取第一条有记录的供货商作为本单打印头部显示
-  const currentMonthStr = `${filterYear}-${filterMonth}`;
+  // 提取有记录的供货商作为本单打印头部显示
   const sampleRecord = Object.entries(activeItem.dailyRecords).find(
-    ([d, rec]) => d.startsWith(currentMonthStr) && (rec.supplier || rec.certification)
+    ([d, rec]) => rec.supplier || rec.certification
   )?.[1] || { supplier: "", certification: "" };
 
   const recordForSelectedDate = activeItem.dailyRecords[selectedDate] || {};
   const printSupplier = recordForSelectedDate.supplier || sampleRecord.supplier || "宾县鑫百达百货超市";
   const printCert = recordForSelectedDate.certification || sampleRecord.certification || "";
 
-  // 累计每日结余
-  let tempStock = activeItem.initialStock;
+  // 累计每日结余，起初结余为早于 style2StartDate 的所有累计量
+  let tempStock = activeItem.initialStock || 0;
+  Object.entries(activeItem.dailyRecords).forEach(([dateKey, record]) => {
+    if (dateKey < style2StartDate) {
+      tempStock += (record.inQuantity || 0) - (record.outQuantity || 0);
+    }
+  });
+
   const stockByDay: Record<string, number> = {};
-  daysArray.forEach((dayStr) => {
-    const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
+  style2DatesArray.forEach((dStr) => {
     const rec = activeItem.dailyRecords[dStr];
     if (rec) {
       tempStock = tempStock + (rec.inQuantity || 0) - (rec.outQuantity || 0);
     }
-    stockByDay[dStr] = tempStock;
+    stockByDay[dStr] = Math.round(tempStock * 100) / 100;
   });
 
   return (
@@ -68,13 +78,13 @@ export function LedgerPrintStyle2({
       </div>
 
       {/* 2. 日期部分居中 */}
-      <div className="text-center text-xs mb-3">
-        <span>日期：（ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ）</span>
+      <div className="text-center text-xs mb-3 font-bold">
+        <span>日期：（  {style2StartDate} 至 {style2EndDate}  ）</span>
       </div>
 
       <table className="w-full text-center border-collapse border border-black text-[11px] mb-6" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "9%" }} />
+          <col style={{ width: "12%" }} />
           <col style={{ width: "9%" }} />
           <col style={{ width: "9%" }} />
           <col style={{ width: "11%" }} />
@@ -120,20 +130,19 @@ export function LedgerPrintStyle2({
 
         <tbody>
           {(() => {
-            const activeDays = daysArray.map((dayStr) => {
-              const dStr = `${filterYear}-${filterMonth}-${dayStr}`;
+            const activeDays = style2DatesArray.map((dStr) => {
               const record = activeItem.dailyRecords[dStr];
               const hasActivity = record && ((record.inQuantity || 0) > 0 || (record.outQuantity || 0) > 0);
-              return { dStr, dayStr, record, hasActivity };
+              return { dStr, record, hasActivity };
             });
 
-            const renderedRows = activeDays.map(({ dStr, dayStr, record, hasActivity }) => {
+            const renderedRows = activeDays.map(({ dStr, record, hasActivity }) => {
               const balance = stockByDay[dStr];
-              if (!hasActivity) return null;
+              if (!hasActivity || !record) return null;
 
               return (
                 <tr key={dStr} style={{ height: "28px" }}>
-                  <td className="border border-black font-mono">{dayStr}</td>
+                  <td className="border border-black font-mono text-[10px]">{dStr}</td>
                   <td className="border border-black font-mono">{record.inQuantity || ""}</td>
                   <td className="border border-black">{record.buyer || ""}</td>
                   <td className="border border-black font-mono text-[10px]">{record.produceDate || ""}</td>

@@ -21,6 +21,30 @@ export function getDaysInMonth(year: number, month: number): string[] {
   return days;
 }
 
+/**
+ * @description 获取两个日期之间的所有日期字符串数组 (格式: YYYY-MM-DD)
+ * @param startDate 开始日期 (YYYY-MM-DD)
+ * @param endDate 结束日期 (YYYY-MM-DD)
+ * @returns 包含这区间所有日期的数组
+ */
+export function getDatesBetween(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  if (!startDate || !endDate) return dates;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return dates;
+  
+  const current = new Date(start);
+  while (current <= end) {
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, "0");
+    const d = String(current.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
 import { pinyin } from "pinyin-pro";
 
 /**
