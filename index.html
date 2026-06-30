@@ -4,8 +4,71 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>后厨备菜管理和统计系统</title>
+    <!-- 引入用于 Windows 7 兼容的字体与图标方案 -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap" />
+    <style>
+      /* 全局回退字体，防止Windows 7渲染点阵宋体 */
+      body, input, select, textarea, button {
+        font-family: "Outfit", "Noto Sans SC", "Microsoft YaHei", "微软雅黑", -apple-system, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* 针对 Windows 7 及旧系统的 emoji 图片样式兼容 */
+      img.emoji {
+        height: 1.15em;
+        width: 1.15em;
+        margin: 0 .05em 0 .1em;
+        vertical-align: -0.1em;
+        display: inline-block;
+      }
+      /* 针对 Windows 7 滚动条显示不全或遮挡内容进行优化 */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+    <!-- 引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片 -->
+    <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <script>
+      // 开启全局静默监听，DOM 渲染完毕后自动解析替换所有 Emoji 图标
+      document.addEventListener("DOMContentLoaded", function() {
+        if (typeof twemoji !== "undefined") {
+          twemoji.parse(document.body, {
+            folder: 'svg',
+            ext: '.svg'
+          });
+          // 使用 MutationObserver 监听动态生成的 DOM（如 React 局部重新渲染的区域）
+          var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+              if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                for (var i = 0; i < mutation.addedNodes.length; i++) {
+                  var node = mutation.addedNodes[i];
+                  if (node.nodeType === 1) { // ELEMENT_NODE
+                    twemoji.parse(node, { folder: 'svg', ext: '.svg' });
+                  }
+                }
+              }
+            });
+          });
+          observer.observe(document.getElementById("root"), {
+            childList: true,
+            subtree: true
+          });
+        }
+      });
+    </script>
   </head>
-  <body>
+  <body class="bg-slate-50 text-slate-800 antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
