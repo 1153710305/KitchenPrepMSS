@@ -166,3 +166,29 @@ export const LEDGER_UI_TEXT: LedgerUiTextType = {
   defaultSupplierPlaceholder: "如: 宾县鑫百达百货超市",
   defaultCertificationPlaceholder: "已索要检验报告与发票"
 };
+
+/**
+ * @description 出库单打印样式专属配置常量
+ * （供货商信息、默认学校名称等硬编码内容，统一放此处方便修改）
+ */
+export const LEDGER_PRINT_OUT_CONFIG = {
+  /**
+   * 出库单标题固定前缀
+   */
+  outDocTitle: "出库单",
+  
+  /**
+   * 出库单打印底部展示的供货商信息列表
+   * 修改此处即可同步更新所有打印的供货商说明文字
+   */
+  suppliers: [
+    "供货商：宾县金文粮油销售部（米面油）",
+    "供货商：宾县鑫百达百货超市（蔬菜、肉蛋、水果、调料、低耗品等）"
+  ],
+  
+  /**
+   * 出库单表格至少要保证的最少行数（不足时以空行填充）
+   */
+  minPrintRows: 25
+};
+
