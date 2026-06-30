@@ -67,6 +67,8 @@ export interface DailyStockRecord {
   // ================= 换算关系扩展字段 =================
   /** 换算后单位的数量数值，例如袋数*换算比例 */
   conversionUnitQuantity?: number;
+  /** 出库时间 (格式 YYYY-MM-DD，默认为数据记录日期，允许手动修改) */
+  outDate?: string;
 }
 
 /**

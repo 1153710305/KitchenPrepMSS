@@ -959,21 +959,21 @@ export function LedgerSystem() {
                         <td className="border border-black px-1 py-1">{record.sensoryProperty || ""}</td>
                         {/* 供货商及地址 */}
                         <td className="border border-black px-1 py-1 text-left">{record.supplier || ""}</td>
-                        {/* 采购时间（默认使用选定日期） */}
+                        {/* 采购时间（默认选定日期，优先使用用户手动录入的 purchaseDate） */}
                         <td className="border border-black px-1 py-1 font-mono text-[10px]">
-                          {record.inQuantity > 0 ? selectedDate : ""}
+                          {record.inQuantity > 0 ? (record.purchaseDate || selectedDate) : ""}
                         </td>
                         {/* 采购员 */}
                         <td className="border border-black px-1 py-1">{record.buyer || ""}</td>
                         {/* 检验员 */}
                         <td className="border border-black px-1 py-1">{record.inspector || ""}</td>
-                        {/* 出入库时间 - 入库 */}
+                        {/* 出入库时间 - 入库（优先使用 purchaseDate） */}
                         <td className="border border-black px-1 py-1 font-mono text-[10px]">
-                          {record.inQuantity > 0 ? selectedDate : ""}
+                          {record.inQuantity > 0 ? (record.purchaseDate || selectedDate) : ""}
                         </td>
-                        {/* 出入库时间 - 出库 */}
+                        {/* 出入库时间 - 出库（优先使用 outDate） */}
                         <td className="border border-black px-1 py-1 font-mono text-[10px]">
-                          {record.outQuantity > 0 ? selectedDate : ""}
+                          {record.outQuantity > 0 ? (record.outDate || selectedDate) : ""}
                         </td>
                         {/* 保管员 */}
                         <td className="border border-black px-1 py-1">{record.keeper || ""}</td>
@@ -1632,6 +1632,8 @@ export function LedgerSystem() {
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.certification}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.sensoryProperty}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-48">{LEDGER_HEADERS.supplier}</th>
+                          <th className="px-3 py-3 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
+                          <th className="px-3 py-3 text-indigo-700 font-bold bg-indigo-50/20 w-36">出库时间</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.inspector}</th>
                           <th className="px-3 py-3 text-slate-600 font-bold w-28">{LEDGER_HEADERS.keeper}</th>
@@ -1860,6 +1862,30 @@ export function LedgerSystem() {
                                     disabled={!isRecordingMode}
                                     onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
                                     className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                                  />
+                                </td>
+
+                                {/* 采购/入库时间（默认选定日期，允许手动修改） */}
+                                <td className="px-3 py-2 bg-emerald-50/20">
+                                  <input 
+                                    type="date"
+                                    value={recordToRender.purchaseDate || selectedDate}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { purchaseDate: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                                    title="采购入库时间（默认为当日，可手动修改）"
+                                  />
+                                </td>
+
+                                {/* 出库时间（默认选定日期，允许手动修改） */}
+                                <td className="px-3 py-2 bg-indigo-50/20">
+                                  <input 
+                                    type="date"
+                                    value={recordToRender.outDate || selectedDate}
+                                    disabled={!isRecordingMode}
+                                    onChange={(e) => handleDraftCellChange(item.id, { outDate: e.target.value })}
+                                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-indigo-400"
+                                    title="出库时间（默认为当日，可手动修改）"
                                   />
                                 </td>
  
