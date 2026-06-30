@@ -753,29 +753,6 @@ export function LedgerSystem() {
                       <Bookmark size={12} className={isSelected ? "text-emerald-600" : "text-slate-400"} />
                       {ledger.name}台账
                     </span>
-                    <div className="hidden group-hover:flex items-center gap-1">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameLedgerId(ledger.id);
-                          setRenameLedgerName(ledger.name);
-                        }}
-                        className="p-1 text-slate-400 hover:text-emerald-600"
-                        title="重命名台账"
-                      >
-                        <Edit3 size={11} />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteLedger(ledger.id);
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600"
-                        title="物理删除台账"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
                   </>
                 )}
               </div>
@@ -783,24 +760,10 @@ export function LedgerSystem() {
           })}
         </div>
 
-        {/* 新增台账表单 */}
-        <form onSubmit={handleAddLedgerSubmit} className="p-3 border-t border-slate-100 bg-slate-50 flex gap-1.5">
-          <input 
-            type="text"
-            placeholder={LEDGER_UI_TEXT.newLedgerPlaceholder}
-            value={newLedgerName}
-            onChange={(e) => setNewLedgerName(e.target.value)}
-            className="flex-1 bg-white text-[11px] p-2 border border-slate-200 rounded outline-none focus:border-emerald-500"
-            required
-          />
-          <button 
-            type="submit" 
-            className="p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded cursor-pointer transition-colors"
-            title="增加新台账"
-          >
-            <Plus size={14} />
-          </button>
-        </form>
+        {/* 提示信息：新增/修改台账受众请前往管理后台 */}
+        <div className="p-3 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 leading-normal text-center">
+          注：如需增加、删除或重命名台账受众，请在系统登录后前往管理配置后台进行维护。
+        </div>
       </div>
 
       {/* 右侧明细录入区 */}
