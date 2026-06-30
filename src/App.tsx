@@ -151,6 +151,7 @@ export default function App() {
         const catKeys = cats.map((c) => c.key);
 
         setActiveGroup((prev) => {
+          if (prev === "LEDGER" || prev === "ANALYTICS") return prev;
           if (groupKeys.includes(prev)) return prev;
           return groupKeys[0] || "TEACHER";
         });
