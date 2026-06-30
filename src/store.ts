@@ -480,34 +480,51 @@ export class PrepReportService {
           return;
         }
 
-        const dailyData: Record<string, DailyEntry> = {};
-        for (let d = 1; d <= 31; d++) {
-          dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
-        }
 
+
+        // 采用不可变方式克隆更新，确保 React 感知到 report.items 数组变化
+        const report = this.reports[reportIndex];
         const newItem: PreparedItem = {
           id: `item_${targetGroup.toLowerCase()}_${category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           name: name.trim(),
           category,
           targetGroup,
-          unit: unit.trim() || CATEGORY_DEFAULT_UNITS[category] || "斤",
-          dailyData
+          unit: unit.trim() || CATEGORY_DEFAULT_UNITS[category] || "斤"
         };
 
-        // 采用不可变方式克隆更新，确保 React 感知到 report.items 数组变化
-        const report = this.reports[reportIndex];
-        const updatedReport = {
-          ...report,
-          items: [...report.items, newItem]
-        };
+        // 同步确保台账系统也存在该原料项目
+        LedgerService.addLedgerItem(
+          targetGroup,
+          newItem.name,
+          newItem.unit,
+          "",
+          0
+        ).then(() => {
+          const updatedReport = {
+            ...report,
+            items: [...report.items, newItem]
+          };
 
-        const updatedReports = [...this.reports];
-        updatedReports[reportIndex] = updatedReport;
-        this.reports = updatedReports;
+          const updatedReports = [...this.reports];
+          updatedReports[reportIndex] = updatedReport;
+          this.reports = updatedReports;
 
-        this.saveToStorage();
-        LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
-        resolve(newItem);
+          this.saveToStorage();
+          LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
+          resolve(newItem);
+        }).catch((err) => {
+          // 如果台账内该原料已存在，依然追加至备餐明细
+          const updatedReport = {
+            ...report,
+            items: [...report.items, newItem]
+          };
+          const updatedReports = [...this.reports];
+          updatedReports[reportIndex] = updatedReport;
+          this.reports = updatedReports;
+
+          this.saveToStorage();
+          resolve(newItem);
+        });
       }, MOCK_API_LATENCY);
     });
   }
@@ -572,13 +589,13 @@ export class PrepReportService {
         // 物理存盘并实时派发通知，实现微秒级完美热更新
         this.saveToStorage();
 
-        // 【同步反向改写台账】当备餐单元格被编辑时，自动反向推送到台账数据集中，保证一一对应
+        // 获取当前报表客群，更新台账的采购数据
         if (matchedReport && matchedItem) {
           const monthStr = String(matchedReport.month).padStart(2, "0");
           const dayStr = String(day).padStart(2, "0");
           const targetDateKey = `${matchedReport.year}-${monthStr}-${dayStr}`;
           
-          // 查询字典，看是否具有换算单位
+          // 查询字典，获取换算单位
           const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === matchedItem!.name);
           const conversionQty = (dictItem && dictItem.conversionRatio) 
             ? Number((quantity * dictItem.conversionRatio).toFixed(2)) 
@@ -594,10 +611,14 @@ export class PrepReportService {
 
           // 物理写入台账中此原料在指定日期下的入库数据
           LedgerService.updateDailyRecordByKey(matchedReport.targetGroup, matchedItem.name, targetDateKey, ledgerRecordFields)
-            .then(() => resolve())
+            .then(() => {
+              // 触发一次全局变动通知
+              this.notifyListeners();
+              resolve();
+            })
             .catch((err) => {
-              LogBroker.publish("WARN", "PrepReportService", `反向同步至台账失败 (可能需要先在台账里创建该原料): ${err.message}`);
-              resolve(); // 备餐修改完成，不影响体验，平稳解脱
+              LogBroker.publish("WARN", "PrepReportService", `反向同步至台账失败: ${err.message}`);
+              resolve();
             });
         } else {
           resolve();
