@@ -147,6 +147,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   const [editingDictName, setEditingDictName] = useState<string | null>(null);
   const [dictError, setDictError] = useState<string | null>(null);
 
+  // 原料字典搜索过滤条件状态
+  const [dictSearchQuery, setDictSearchQuery] = useState<string>("");
+  const [dictSearchCategory, setDictSearchCategory] = useState<string>("ALL");
+
   // ================= 核心工具函数 =================
 
   /**
@@ -957,61 +961,109 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                   </span>
                 </div>
 
+                {/* 原料字典检索查找面板 */}
+                <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg mb-4 text-xs">
+                  <div className="flex items-center gap-1.5 min-w-[200px]">
+                    <span className="font-bold text-slate-500 shrink-0">原料名称查找:</span>
+                    <input
+                      type="text"
+                      placeholder="输入原料品名，如：大米"
+                      value={dictSearchQuery}
+                      onChange={(e) => setDictSearchQuery(e.target.value)}
+                      className="bg-white border border-slate-300 rounded px-2.5 py-1.5 w-full outline-none focus:border-teal-500 font-medium"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-500 shrink-0">按食材品类筛选:</span>
+                    <select
+                      value={dictSearchCategory}
+                      onChange={(e) => setDictSearchCategory(e.target.value)}
+                      className="bg-white border border-slate-300 rounded px-2.5 py-1.5 outline-none focus:border-teal-500 font-bold"
+                    >
+                      <option value="ALL">-- 全部品类 --</option>
+                      {activeCategoriesList.map((cat) => (
+                        <option key={cat.key} value={cat.key}>
+                          {cat.label} ({cat.key})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {(dictSearchQuery || dictSearchCategory !== "ALL") && (
+                    <button
+                      onClick={() => {
+                        setDictSearchQuery("");
+                        setDictSearchCategory("ALL");
+                      }}
+                      className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded cursor-pointer transition-colors"
+                    >
+                      重置搜索
+                    </button>
+                  )}
+                </div>
+
                 {/* 原料卡片列表 */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 max-h-96 overflow-y-auto pr-1 scrollbar-thin">
-                  {dictItems.map((item) => {
-                    const isUnderEdit = editingDictName === item.name;
-                    return (
-                      <div 
-                        key={item.name}
-                        className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                          isUnderEdit 
-                            ? "bg-teal-50/50 border-teal-300 shadow-xs" 
-                            : "bg-slate-50 border-slate-150 hover:bg-slate-100"
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-slate-800 truncate block">{item.name}</span>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
-                              {item.unit}
-                            </span>
-                            <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded font-medium">
-                              {item.category}
-                            </span>
-                            {item.remark && (
-                              <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.2 rounded font-bold border border-amber-200 max-w-[120px] truncate" title={item.remark}>
-                                {item.remark}
+                  {dictItems
+                    .filter((item) => {
+                      const matchSearch = item.name.toLowerCase().includes(dictSearchQuery.trim().toLowerCase());
+                      const matchCat = dictSearchCategory === "ALL" ? true : item.category === dictSearchCategory;
+                      return matchSearch && matchCat;
+                    })
+                    .map((item) => {
+                      const isUnderEdit = editingDictName === item.name;
+                      return (
+                        <div 
+                          key={item.name}
+                          className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
+                            isUnderEdit 
+                              ? "bg-teal-50/50 border-teal-300 shadow-xs" 
+                              : "bg-slate-50 border-slate-150 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-slate-800 truncate block">{item.name}</span>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
+                                {item.unit}
                               </span>
-                            )}
-                            {item.conversionUnit && item.conversionRatio && (
-                              <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.2 rounded font-bold border border-emerald-200">
-                                换算: {item.conversionRatio}{item.conversionUnit}/{item.unit}
+                              <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded font-medium">
+                                {item.category}
                               </span>
-                            )}
+                              {item.remark && (
+                                <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.2 rounded font-bold border border-amber-200 max-w-[120px] truncate" title={item.remark}>
+                                  {item.remark}
+                                </span>
+                              )}
+                              {item.conversionUnit && item.conversionRatio && (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.2 rounded font-bold border border-emerald-200">
+                                  换算: {item.conversionRatio}{item.conversionUnit}/{item.unit}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button
+                              onClick={() => handleStartEditDict(item)}
+                              className="p-1 text-slate-500 hover:text-teal-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                              title="编辑原料"
+                              disabled={isUnderEdit}
+                            >
+                              <Edit2 size={11} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDict(item.name)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                              title="删除原料"
+                            >
+                              <Trash2 size={11} />
+                            </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center space-x-1 shrink-0">
-                          <button
-                            onClick={() => handleStartEditDict(item)}
-                            className="p-1 text-slate-500 hover:text-teal-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
-                            title="编辑原料"
-                            disabled={isUnderEdit}
-                          >
-                            <Edit2 size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteDict(item.name)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
-                            title="删除原料"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
 
                 {/* 新增/编辑原料表单 */}
