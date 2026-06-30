@@ -76,6 +76,17 @@ export default function App() {
   /** 订阅的购销台账原料列表 */
   const [ledgerItemsList, setLedgerItemsList] = useState<any[]>([]);
 
+  // ================= 2026-06-30 新增：餐位分组折叠及子功能按需控制状态 =================
+  /** 活动餐位分组用户是否手动折叠（左侧侧边栏折叠状态） */
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  /** 餐位分组页面下的子功能可见性状态，包括 "TREND"（日开支走势）, "PIE"（品类资金占比）, "MONITOR"（重点监控）, "AI"（AI规划分析）。默认全隐藏（以空Set或者状态管理形式） */
+  const [activeSubTools, setActiveSubTools] = useState<Record<string, boolean>>({
+    TREND: false,
+    PIE: false,
+    MONITOR: false,
+    AI: false
+  });
+
   // ================= 动态配置计算属性 =================
 
   /**
@@ -558,14 +569,26 @@ export default function App() {
         {/* 左侧侧边栏 Sidebar: 受众人群分组与多维分析决策顶级菜单栏 */}
         <aside className={`
           bg-white border-r border-slate-200 flex flex-col shrink-0 justify-between
-          transition-transform duration-300 ease-in-out
-          fixed lg:static inset-y-0 left-0 z-40 w-52 h-full lg:h-auto
+          transition-all duration-300 ease-in-out
+          fixed lg:static inset-y-0 left-0 z-40 h-full lg:h-auto
+          ${isSidebarCollapsed ? "w-14" : "w-52"}
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}>
           <div className="flex flex-col flex-1 min-h-0 font-sans">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">活动餐位分组</span>
-              <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-extrabold">{activeGroupsList.length}群目</span>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between overflow-hidden">
+              {!isSidebarCollapsed && (
+                <>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans truncate">活动餐位分组</span>
+                  <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-extrabold shrink-0">{activeGroupsList.length}群</span>
+                </>
+              )}
+              <button 
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors mx-auto cursor-pointer font-bold"
+                title={isSidebarCollapsed ? "展开" : "折叠"}
+              >
+                {isSidebarCollapsed ? "▶" : "◀"}
+              </button>
             </div>
             
             <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto scrollbar-thin flex flex-col">
@@ -580,14 +603,15 @@ export default function App() {
                         setIsSidebarOpen(false); // 点击后折叠侧边栏
                         LogBroker.publish("INFO", "App", `切换聚焦后厨受众人群: ${g.label}`);
                       }}
+                      title={g.label}
                       className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all ${
                         isSelected
                           ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-bold"
                           : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                      }`}
+                      } ${isSidebarCollapsed ? "justify-center" : ""}`}
                     >
-                      <span className="mr-3 text-base">{g.emoji}</span>
-                      <span>{g.label}</span>
+                      <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>{g.emoji}</span>
+                      {!isSidebarCollapsed && <span>{g.label}</span>}
                     </button>
                   );
                 })}
@@ -596,44 +620,50 @@ export default function App() {
               {/* 多维分析决策顶级独立入口，隔离至独立菜单项中 */}
               <div className="border-t border-slate-100 pt-2 mt-auto space-y-1">
                 <div>
-                  <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    多维统计决策
-                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                      多维统计决策
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setActiveGroup("ANALYTICS");
                       setIsSidebarOpen(false); // 点击后折叠侧边栏
                       LogBroker.publish("INFO", "App", "激活宏观决策:「每日就餐人数与人均餐费多维度分析」入口页。");
                     }}
+                    title="人数与餐费分析"
                     className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
                       activeGroup === "ANALYTICS"
                         ? "bg-sky-50 border-r-4 border-sky-500 text-sky-700 font-black"
                         : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                    }`}
+                    } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
-                    <span className="mr-3 text-base">📊</span>
-                    <span>人数与餐费分析</span>
+                    <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>📊</span>
+                    {!isSidebarCollapsed && <span>人数与餐费分析</span>}
                   </button>
                 </div>
 
                 <div>
-                  <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    仓库与库存台账
-                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                      仓库与库存台账
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setActiveGroup("LEDGER");
                       setIsSidebarOpen(false); // 点击后折叠侧边栏
                       LogBroker.publish("INFO", "App", "激活原料购销台账及仓储库存模块。");
                     }}
+                    title="原料购销台账"
                     className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
                       activeGroup === "LEDGER"
                         ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-black"
                         : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                    }`}
+                    } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
-                    <span className="mr-3 text-base">📋</span>
-                    <span>原料购销台账</span>
+                    <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>📋</span>
+                    {!isSidebarCollapsed && <span>原料购销台账</span>}
                   </button>
                 </div>
               </div>
@@ -643,20 +673,28 @@ export default function App() {
           {/* 备餐底栏：实时滚动费用指示牌 */}
           <div className="p-4 border-t border-slate-100">
             <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-              <div className="text-[10px] text-slate-500 mb-1 font-bold font-sans">
-                {activeGroup === "ANALYTICS" 
-                  ? "全客群月度采购支出" 
-                  : activeGroup === "LEDGER"
-                    ? "台账原料累计入库"
-                    : "当前受众全月采购支出"}
-              </div>
-              <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight">
-                ¥{(activeGroup === "ANALYTICS" 
-                  ? allGroupsReportTotal 
-                  : activeGroup === "LEDGER"
-                    ? allLedgersTotalAmount
-                    : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
-              </div>
+              {!isSidebarCollapsed ? (
+                <>
+                  <div className="text-[10px] text-slate-500 mb-1 font-bold font-sans">
+                    {activeGroup === "ANALYTICS" 
+                      ? "全客群月度采购支出" 
+                      : activeGroup === "LEDGER"
+                        ? "台账原料累计入库"
+                        : "当前受众全月采购支出"}
+                  </div>
+                  <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight truncate">
+                    ¥{(activeGroup === "ANALYTICS" 
+                      ? allGroupsReportTotal 
+                      : activeGroup === "LEDGER"
+                        ? allLedgersTotalAmount
+                        : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center font-bold text-slate-500 text-xs" title="支出">
+                  ¥
+                </div>
+              )}
             </div>
           </div>
         </aside>
@@ -754,15 +792,67 @@ export default function App() {
             ) : (
               /* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */
               <>
-                {/* 1. 顶部流动预算占比与高消耗统计折线趋势看板 */}
-                {currentReport && (
+                {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
+                <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200/60 shrink-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">辅助工具栏:</span>
+                  <button 
+                    onClick={() => setActiveSubTools(prev => ({ ...prev, TREND: !prev.TREND }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      activeSubTools.TREND 
+                        ? "bg-sky-500 border-sky-600 text-white font-bold shadow-xs" 
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    📈 日开支走势 {activeSubTools.TREND ? "已开启" : "已隐藏"}
+                  </button>
+                  <button 
+                    onClick={() => setActiveSubTools(prev => ({ ...prev, PIE: !prev.PIE }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      activeSubTools.PIE 
+                        ? "bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs" 
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    📊 品类资金占比 {activeSubTools.PIE ? "已开启" : "已隐藏"}
+                  </button>
+                  <button 
+                    onClick={() => setActiveSubTools(prev => ({ ...prev, MONITOR: !prev.MONITOR }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      activeSubTools.MONITOR 
+                        ? "bg-amber-500 border-amber-600 text-white font-bold shadow-xs" 
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    🎖️ 重点监控 Top5 {activeSubTools.MONITOR ? "已开启" : "已隐藏"}
+                  </button>
+                  <button 
+                    onClick={() => setActiveSubTools(prev => ({ ...prev, AI: !prev.AI }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      activeSubTools.AI 
+                        ? "bg-violet-600 border-violet-700 text-white font-bold shadow-xs" 
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    🧠 AI膳食配餐分析 {activeSubTools.AI ? "已开启" : "已隐藏"}
+                  </button>
+                  
+                  <span className="ml-auto text-[10px] text-slate-400 font-medium px-2">
+                    📄 每日采购细表默认展示中
+                  </span>
+                </div>
+
+                {/* 1. 顶部流动预算占比与高消耗统计折线趋势看板 (按需控制各版块显示) */}
+                {currentReport && (activeSubTools.TREND || activeSubTools.PIE || activeSubTools.MONITOR) && (
                   <StatisticsPanel
                     report={currentReport}
                     selectedCategory={activeCategory as FoodCategory | null}
+                    showTrend={activeSubTools.TREND}
+                    showPie={activeSubTools.PIE}
+                    showMonitor={activeSubTools.MONITOR}
                   />
                 )}
 
-                {/* 2. 核心日金额/录选数字表格单元 */}
+                {/* 2. 核心日金额/录选数字表格单元 (默认始终显示每日采购细表) */}
                 {currentReport && (
                   <TableGrid
                     report={currentReport}
@@ -776,8 +866,8 @@ export default function App() {
                   />
                 )}
 
-                {/* 3. AI双脑深度配搭控本专家机器人 */}
-                {currentReport && (
+                {/* 3. AI双脑深度配搭控本专家机器人 (按需控制显示) */}
+                {currentReport && activeSubTools.AI && (
                   <AiAssistant
                     activeGroupReport={currentReport}
                   />
