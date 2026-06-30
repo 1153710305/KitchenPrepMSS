@@ -113,7 +113,7 @@ export class LedgerService {
   }
 
   private static generateSeeds(): void {
-    LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账和预设采购项...");
+    LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账...");
     
     const alignedGroups = [
       { key: "KID", name: "幼儿备餐" },
@@ -127,30 +127,13 @@ export class LedgerService {
       createdAt: new Date().toISOString()
     }));
 
+    // 首次启动时，清空台账的初始原料数据，设为空，不自动载入大米、盐等默认记录，满足“清空首次启动时的台账的初始数据”
     const initialItems: LedgerItem[] = [];
-
-    initialLedgers.forEach((ledger) => {
-      PRESET_LEDGER_MATERIALS.forEach((material, matIndex) => {
-        // 创建该采购项默认的空记录明细
-        const dailyRecords: Record<string, DailyStockRecord> = {};
-        
-        initialItems.push({
-          id: `ledger_item_${ledger.id}_${matIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          ledgerId: ledger.id,
-          name: material.name,
-          unit: material.unit,
-          spec: material.spec,
-          initialStock: material.initialStock,
-          currentStock: material.initialStock, // 初始化时当前库存等于初始库存
-          dailyRecords
-        });
-      });
-    });
 
     this.ledgers = initialLedgers;
     this.ledgerItems = initialItems;
     this.saveToStorage();
-    LogBroker.publish("INFO", "LedgerService", `成功对齐合成四大默认台账「教师备餐、幼儿备餐、低年级备餐、高年级备餐」，每个台账下预载 ${PRESET_LEDGER_MATERIALS.length} 项初始原料。`);
+    LogBroker.publish("INFO", "LedgerService", "成功合成三大初始空模板台账（幼儿备餐、在校生备餐、教师备餐），等待管理员于后台添加并录入原料数据。");
   }
 
   /**

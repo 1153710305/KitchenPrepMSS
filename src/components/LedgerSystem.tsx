@@ -151,9 +151,14 @@ export function LedgerSystem() {
     return ledgers.find((l) => l.id === activeLedgerId) || null;
   }, [ledgers, activeLedgerId]);
 
-  /** 过滤出属于当前选中台账的采购原料项目（全量，供录入操作使用）*/
+  /** 过滤出属于当前选中台账的采购原料项目（全量，供录入操作使用，且校验必须存在于大字典中）*/
   const currentLedgerItems = useMemo(() => {
-    return ledgerItems.filter((item) => item.ledgerId === activeLedgerId);
+    const dictItems = RawMaterialsDictService.getItems();
+    return ledgerItems.filter((item) => {
+      // 安全校验：原料项目必须在原料大底库中存在，防止已注销的原料脏数据影响出入库录入
+      const exists = dictItems.some((d) => d.name === item.name);
+      return item.ledgerId === activeLedgerId && exists;
+    });
   }, [ledgerItems, activeLedgerId]);
 
   /**
@@ -163,12 +168,15 @@ export function LedgerSystem() {
   const filteredLedgerItems = useMemo(() => {
     const dictItems = RawMaterialsDictService.getItems();
     return currentLedgerItems.filter((item) => {
+      // 安全防呆校验：当前显示的台账原料必须存在于后台设置的原料字典大底库中，避免后台不存在的品类出现
+      const dictItem = dictItems.find(d => d.name === item.name);
+      if (!dictItem) return false;
+
       if (filterName.trim()) {
         if (!matchPinyin(item.name, filterName)) return false;
       }
       if (filterCategory) {
-        const dictItem = dictItems.find(d => d.name === item.name);
-        if (!dictItem || dictItem.category !== filterCategory) return false;
+        if (dictItem.category !== filterCategory) return false;
       }
       if (filterBuyer.trim()) {
         const rec = item.dailyRecords[selectedDate];

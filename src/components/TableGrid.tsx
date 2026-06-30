@@ -88,7 +88,11 @@ export const TableGrid: React.FC<TableGridProps> = ({
       .filter((item) => {
         // 解析该台账原料在字典里的所属品类大类
         const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
-        const cat = dictItem ? dictItem.category : FoodCategory.VEGETABLE;
+        
+        // 安全防呆校验：必须确保台账明细原料存在于后台原料字典大底库中，避免后台不存在的品类出现
+        if (!dictItem) return false;
+
+        const cat = dictItem.category;
         const matchCat = selectedCategory === null ? true : cat === selectedCategory;
         const matchSearch = matchPinyin(item.name, searchQuery);
         return matchCat && matchSearch;

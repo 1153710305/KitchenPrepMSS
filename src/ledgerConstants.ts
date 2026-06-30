@@ -32,14 +32,13 @@ export interface PresetMaterial {
 export const PRESET_LEDGER_MATERIALS: PresetMaterial[] = [
   { name: "大米", unit: "袋", spec: "25kg/袋", initialStock: 10 },
   { name: "面粉", unit: "袋", spec: "25kg/袋", initialStock: 5 },
-  { name: "大豆油", unit: "箱", spec: "5L*4瓶/箱", initialStock: 8 },
+  { name: "豆油", unit: "箱", spec: "20L/箱", initialStock: 8 },
   { name: "猪肉", unit: "斤", spec: "新鲜后腿肉", initialStock: 20 },
   { name: "鸡蛋", unit: "箱", spec: "360枚/箱", initialStock: 2 },
   { name: "大豆腐", unit: "斤", spec: "嫩豆腐", initialStock: 15 },
   { name: "土豆", unit: "斤", spec: "黄沙土豆", initialStock: 50 },
   { name: "西红柿", unit: "斤", spec: "沙地西红柿", initialStock: 40 },
-  { name: "食用盐", unit: "包", spec: "400g/包", initialStock: 30 },
-  { name: "洗洁精", unit: "瓶", spec: "1.5L/瓶", initialStock: 6 }
+  { name: "盐", unit: "包", spec: "500g/包", initialStock: 30 }
 ];
 
 /**
