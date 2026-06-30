@@ -331,7 +331,8 @@ const app = express();
 const PORT = 3000;
 
 // 配置 JSON 解析器
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 记录请求日志中转器
 app.use((req, res, next) => {

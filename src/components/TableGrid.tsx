@@ -295,35 +295,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
             />
           </div>
 
-          {/* 新增菜品表单 */}
-          <form onSubmit={handleAddSubmit} className="flex items-center gap-2">
-            <SearchableSelect
-              options={dictOptions}
-              value={newItemName}
-              onChange={(val, opt) => {
-                setNewItemName(val);
-                if (opt && opt.unit) {
-                  setNewItemUnit(opt.unit);
-                }
-              }}
-              placeholder={UI_TEXT.itemNamePlaceholder}
-              className="w-36"
-            />
-            <input
-              type="text"
-              placeholder="单位"
-              value={newItemUnit}
-              onChange={(e) => setNewItemUnit(e.target.value)}
-              className="px-2 py-1.5 w-12 bg-white border border-gray-100 rounded-xl text-xs text-center text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-mono"
-            />
-            <button
-              type="submit"
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-xs"
-            >
-              <Plus size={13} />
-              <span>{UI_TEXT.itemAddBtn}</span>
-            </button>
-          </form>
         </div>
 
         {/* 辅视图控制切换 */}
@@ -370,20 +341,12 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           colSpan={3}
                           className="px-2 py-1.5 text-center border-b border-r border-gray-100 bg-sky-50/50 text-sky-700"
                         >
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center">
                             <span>{day}号</span>
-                            <button
-                              onClick={() => triggerBatchPrice(day)}
-                              className="text-[9px] text-sky-500 hover:text-sky-700 bg-sky-100/50 px-1 py-0.5 rounded-xs font-mono cursor-pointer transition-all"
-                              title={UI_TEXT.batchPriceBtn}
-                            >
-                              调价
-                            </button>
                           </div>
                         </th>
                       ))}
                       <th colSpan={2} className="p-3 text-center border-b border-gray-100 bg-indigo-50/50 text-indigo-800">全月累加</th>
-                      <th className="p-3 text-center border-b border-gray-100 bg-gray-50 min-w-[70px]">操作</th>
                     </tr>
                     
                     {/* 二级头: [数量/单价/金额] 三胞胎 */}
@@ -398,7 +361,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       ))}
                       <th className="p-2 text-center border-b border-r border-gray-100 font-normal">月总用量</th>
                       <th className="p-2 text-center border-b font-medium text-indigo-700 bg-indigo-50/10">月总开销</th>
-                      <th className="p-2 border-b text-center">清空控</th>
                     </tr>
                   </thead>
 
@@ -421,31 +383,11 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
                             return (
                               <React.Fragment key={`cell-${item.id}-${day}`}>
-                                <td className="p-1 border-b">
-                                  <input
-                                    type="number"
-                                    value={entry.quantity || ""}
-                                    placeholder="0"
-                                    min="0"
-                                    step="any"
-                                    onChange={(e) => handleInputChange(item.id, day, "quantity", e.target.value)}
-                                    onFocus={() => handleInputFocus(item.id, day, "quantity", entry.quantity || 0)}
-                                    onBlur={() => handleInputBlur(item.id, day, "quantity", entry.quantity || 0, item)}
-                                    className="w-12 px-1 py-0.5 bg-transparent border-0 text-center font-mono focus:bg-white focus:ring-1 focus:ring-sky-500 rounded-md focus:outline-none text-[11px] text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
+                                <td className="p-1 border-b text-center font-mono text-[11px] text-gray-500 bg-slate-50/5">
+                                  {entry.quantity || 0}
                                 </td>
-                                <td className="p-1 border-b">
-                                  <input
-                                    type="number"
-                                    value={entry.price || ""}
-                                    placeholder="0"
-                                    min="0"
-                                    step="any"
-                                    onChange={(e) => handleInputChange(item.id, day, "price", e.target.value)}
-                                    onFocus={() => handleInputFocus(item.id, day, "price", entry.price || 0)}
-                                    onBlur={() => handleInputBlur(item.id, day, "price", entry.price || 0, item)}
-                                    className="w-12 px-1 py-0.5 bg-transparent border-0 text-center font-mono focus:bg-white focus:ring-1 focus:ring-sky-500 rounded-md focus:outline-none text-[11px] text-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
+                                <td className="p-1 border-b text-center font-mono text-[11px] text-gray-500 bg-slate-50/5">
+                                  ¥{entry.price || 0}
                                 </td>
                                 <td className="p-1 border-b border-r border-gray-100 text-center text-[10px] font-semibold text-gray-700 font-mono bg-sky-50/5">
                                   {entry.amount > 0 ? `¥${entry.amount}` : "0"}
@@ -460,17 +402,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           </td>
                           <td className="p-2 text-center font-bold font-mono text-indigo-700 bg-indigo-50/10">
                             ¥{monthlySummary.totalCost}
-                          </td>
-
-                          {/* 行移除行 */}
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => onDeleteItem(item.id)}
-                              className="p-1 text-gray-300 hover:text-red-500 rounded-xs transition-colors hover:bg-red-50 cursor-pointer"
-                              title={UI_TEXT.deleteTitle}
-                            >
-                              <Trash size={12} />
-                            </button>
                           </td>
 
                         </tr>
@@ -490,10 +421,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           </td>
                         </React.Fragment>
                       ))}
-                      <td colSpan={2} className="p-3 text-center text-indigo-800 bg-indigo-100/30">
+                      <th colSpan={2} className="p-3 text-center text-indigo-800 bg-indigo-100/30">
                         ¥{Math.round(Object.values(dayTotals).reduce((s,v)=>s+v,0)*100)/100}
-                      </td>
-                      <td className="p-3 bg-gray-100"></td>
+                      </th>
                     </tr>
                   </tbody>
                 </table>
@@ -575,39 +505,17 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             <span className="text-[10px] text-gray-400 font-mono tracking-wider block">原料项 / 单位：{item.unit}</span>
                             <h5 className="font-bold text-gray-800 text-sm">{item.name}</h5>
                           </div>
-                          <button
-                            onClick={() => onDeleteItem(item.id)}
-                            className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all cursor-pointer"
-                          >
-                            <Trash size={12} />
-                          </button>
                         </div>
 
                         {/* 修改区 */}
-                        <div className="grid grid-cols-2 gap-3 mt-4">
-                          <div>
-                            <label className="text-[10px] text-gray-400 block mb-1 font-semibold">备载数量 ({item.unit})</label>
-                            <input
-                              type="number"
-                              placeholder="0"
-                              value={entry.quantity || ""}
-                              onChange={(e) => handleInputChange(item.id, focusDay, "quantity", e.target.value)}
-                              onFocus={() => handleInputFocus(item.id, focusDay, "quantity", entry.quantity || 0)}
-                              onBlur={() => handleInputBlur(item.id, focusDay, "quantity", entry.quantity || 0, item)}
-                              className="px-3 py-1.5 w-full bg-gray-50 border border-gray-100 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded-lg text-xs font-mono text-gray-700 focus:outline-none"
-                            />
+                        <div className="grid grid-cols-2 gap-3 mt-4 text-center">
+                          <div className="bg-slate-50 p-2 rounded-lg">
+                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">备载数量 ({item.unit})</label>
+                            <span className="text-xs font-mono font-bold text-slate-700">{entry.quantity || 0}</span>
                           </div>
-                          <div>
-                            <label className="text-[10px] text-gray-400 block mb-1 font-semibold">单价 (元)</label>
-                            <input
-                              type="number"
-                              placeholder="0"
-                              value={entry.price || ""}
-                              onChange={(e) => handleInputChange(item.id, focusDay, "price", e.target.value)}
-                              onFocus={() => handleInputFocus(item.id, focusDay, "price", entry.price || 0)}
-                              onBlur={() => handleInputBlur(item.id, focusDay, "price", entry.price || 0, item)}
-                              className="px-3 py-1.5 w-full bg-gray-50 border border-gray-100 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded-lg text-xs font-mono text-gray-700 focus:outline-none"
-                            />
+                          <div className="bg-slate-50 p-2 rounded-lg">
+                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">单价 (元)</label>
+                            <span className="text-xs font-mono font-bold text-slate-700">¥{entry.price || 0}</span>
                           </div>
                         </div>
 
