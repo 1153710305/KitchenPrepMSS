@@ -415,17 +415,17 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     </tr>
                     
                     {/* 二级头: [数量/单价/金额] 三胞胎 */}
-                    <tr className="bg-gray-50/40 text-[10px] text-gray-400">
-                      <th className="p-2.5 border-b border-r border-gray-100 sticky left-0 bg-gray-50 z-20">食材细分项目</th>
+                    <tr className="bg-gray-50/40 text-[10px] text-gray-500">
+                      <th className="p-2.5 border-b border-r border-slate-300 sticky left-0 bg-gray-50 z-20">食材细分项目</th>
                       {days.map((day) => (
                         <React.Fragment key={`sub-dt-${day}`}>
-                          <th className="px-1 py-1 text-center border-b font-normal">数量</th>
-                          <th className="px-1 py-1 text-center border-b font-normal">单价</th>
-                          <th className="px-1 py-1 text-center border-b border-r border-gray-100 text-sky-600/70 font-semibold bg-sky-50/10">金额</th>
+                          <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/50">数量</th>
+                          <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/30">单价</th>
+                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 text-sky-700 font-semibold bg-sky-50/50">金额</th>
                         </React.Fragment>
                       ))}
-                      <th className="p-2 text-center border-b border-r border-gray-100 font-normal">月总用量</th>
-                      <th className="p-2 text-center border-b font-medium text-indigo-700 bg-indigo-50/10">月总开销</th>
+                      <th className="p-2 text-center border-b border-r border-slate-300 font-normal bg-slate-100">月总用量</th>
+                      <th className="p-2 text-center border-b border-r border-slate-300 font-semibold text-indigo-700 bg-indigo-50/50">月总开销</th>
                     </tr>
                   </thead>
 
@@ -469,13 +469,13 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
                             return (
                               <React.Fragment key={`cell-${item.id}-${day}`}>
-                                <td className="p-2 border-b border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/20">
+                                <td className="p-2 border-b border-r border-slate-200 text-center font-mono text-xs text-slate-800 bg-white">
                                   {entry.quantity || 0}
                                 </td>
-                                <td className="p-2 border-b border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/20">
+                                <td className="p-2 border-b border-r border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/40">
                                   ¥{entry.price || 0}
                                 </td>
-                                <td className="p-2 border-b border-r border-slate-300 text-center text-xs font-bold text-sky-700 font-mono bg-sky-50/30">
+                                <td className="p-2 border-b border-r border-slate-300 text-center text-xs font-bold text-sky-700 font-mono bg-sky-50/40">
                                   {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                                 </td>
                               </React.Fragment>
