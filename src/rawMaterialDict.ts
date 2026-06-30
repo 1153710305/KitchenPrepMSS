@@ -58,22 +58,81 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 生成预置的默认推荐原料种子数据
+   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量后厨底库重装）
    */
   private static generateDefaultSeeds(): void {
     this.items = [
+      // 蔬菜类 (VEGETABLE)
+      { name: "酵母", category: FoodCategory.VEGETABLE, unit: "袋", remark: "500g/袋", conversionUnit: "克", conversionRatio: 500 },
+      { name: "豆沙", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "白菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "木耳", category: FoodCategory.VEGETABLE, unit: "斤", remark: "干货" },
+      { name: "菠菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "圆葱", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "香其酱", category: FoodCategory.VEGETABLE, unit: "袋", remark: "90g/袋" },
+      { name: "烧烤料", category: FoodCategory.VEGETABLE, unit: "袋", remark: "散装" },
+      { name: "甘蓝", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "香菇", category: FoodCategory.VEGETABLE, unit: "斤", remark: "鲜香菇" },
+      { name: "粉丝", category: FoodCategory.VEGETABLE, unit: "袋", remark: "袋装" },
+      { name: "茄子", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "虾皮", category: FoodCategory.VEGETABLE, unit: "斤", remark: "袋装" },
+      { name: "山药", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "大豆腐", category: FoodCategory.VEGETABLE, unit: "斤", remark: "盒装" },
+      { name: "芹菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "油菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "菜花", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "干豆腐", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "冬瓜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+
+      // 粮油类 (GRAIN_OIL)
       { name: "大米", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋", conversionUnit: "斤", conversionRatio: 50 },
+      { name: "豆油", category: FoodCategory.GRAIN_OIL, unit: "箱", remark: "20L/箱", conversionUnit: "升", conversionRatio: 20 },
       { name: "面粉", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋", conversionUnit: "斤", conversionRatio: 50 },
-      { name: "大豆油", category: FoodCategory.GRAIN_OIL, unit: "箱", remark: "20L/箱", conversionUnit: "升", conversionRatio: 20 },
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
-      { name: "西红柿", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
-      { name: "猪肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
-      { name: "鸡肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷冻" },
+      { name: "黑米", category: FoodCategory.GRAIN_OIL, unit: "斤", remark: "散装" },
+      { name: "黄米", category: FoodCategory.GRAIN_OIL, unit: "斤", remark: "散装" },
+      { name: "燕麦", category: FoodCategory.GRAIN_OIL, unit: "斤", remark: "袋装" },
+      { name: "小碴子", category: FoodCategory.GRAIN_OIL, unit: "斤", remark: "散装" },
+      { name: "小米", category: FoodCategory.GRAIN_OIL, unit: "斤", remark: "散装" },
+      { name: "挂面", category: FoodCategory.GRAIN_OIL, unit: "包", remark: "袋装" },
+
+      // 调料类 (SEASONING)
       { name: "盐", category: FoodCategory.SEASONING, unit: "袋", remark: "500g/袋", conversionUnit: "克", conversionRatio: 500 },
+      { name: "味素", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
+      { name: "鸡精", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
+      { name: "淀粉", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
       { name: "酱油", category: FoodCategory.SEASONING, unit: "瓶", remark: "1.28L/瓶", conversionUnit: "升", conversionRatio: 1.28 },
-      { name: "洗洁精", category: FoodCategory.LOW_CONSUMP, unit: "桶", remark: "5kg/桶", conversionUnit: "斤", conversionRatio: 10 },
-      { name: "垃圾袋", category: FoodCategory.LOW_CONSUMP, unit: "包", remark: "100只/包" },
+      { name: "老抽", category: FoodCategory.SEASONING, unit: "瓶", remark: "1.28L/瓶", conversionUnit: "升", conversionRatio: 1.28 },
+      { name: "白糖", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
+      { name: "十三香", category: FoodCategory.SEASONING, unit: "盒", remark: "盒装" },
+      { name: "花椒", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
+      { name: "大料", category: FoodCategory.SEASONING, unit: "袋", remark: "袋装" },
+
+      // 肉类 (MEAT)
+      { name: "精肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
+      { name: "牛肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
+      { name: "鸡腿肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷冻" },
+      { name: "鸡翅根", category: FoodCategory.MEAT, unit: "袋", remark: "袋装" },
+      { name: "精五花", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
+      { name: "羊肉片", category: FoodCategory.MEAT, unit: "盒", remark: "盒装" },
+      { name: "鸡蛋", category: FoodCategory.MEAT, unit: "箱", remark: "360枚/箱", conversionUnit: "枚", conversionRatio: 360 },
+      { name: "火腿肠", category: FoodCategory.MEAT, unit: "包", remark: "袋装" },
+      { name: "排骨", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
+      { name: "鸡丸", category: FoodCategory.MEAT, unit: "袋", remark: "袋装" },
+      { name: "大虾", category: FoodCategory.MEAT, unit: "箱", remark: "盒装" },
+      { name: "鱼丸", category: FoodCategory.MEAT, unit: "袋", remark: "袋装" },
+      { name: "巴沙鱼", category: FoodCategory.MEAT, unit: "袋", remark: "冷冻" },
+
+      // 低耗品 (LOW_CONSUMP)
+      { name: "中袋", category: FoodCategory.LOW_CONSUMP, unit: "包", remark: "100个/包" },
+      { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "包", remark: "50个/包" },
+      { name: "一次性手套", category: FoodCategory.LOW_CONSUMP, unit: "盒", remark: "100只/盒" },
+
+      // 水果 (FRUIT)
+      { name: "沃柑", category: FoodCategory.FRUIT, unit: "箱", remark: "10kg/箱", conversionUnit: "斤", conversionRatio: 20 },
+      { name: "香梨", category: FoodCategory.FRUIT, unit: "箱", remark: "10kg/箱", conversionUnit: "斤", conversionRatio: 20 },
+      { name: "西瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "苹果", category: FoodCategory.FRUIT, unit: "箱", remark: "10kg/箱", conversionUnit: "斤", conversionRatio: 20 },
+      { name: "沙白瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "香蕉", category: FoodCategory.FRUIT, unit: "箱", remark: "9kg/箱", conversionUnit: "斤", conversionRatio: 18 }
     ];
     this.saveToStorage();
