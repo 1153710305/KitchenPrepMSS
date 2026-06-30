@@ -200,6 +200,57 @@ function PrintOutDoc({
   const totalDataRows = globalIndex - 1;
   const emptyRowsCount = Math.max(0, LEDGER_PRINT_OUT_CONFIG.minPrintRows - totalDataRows);
 
+  // ==== 日期解析：自动填入完整年月日 ====
+  const dateParts = selectedDate.split("-");
+  const printYear = dateParts[0] || "";
+  /** 去掉前缀零的月份，如 "06" → "6" */
+  const printMonth = dateParts[1] ? String(parseInt(dateParts[1])) : "";
+  /** 去掉前缀零的日期，如 "01" → "1" */
+  const printDay = dateParts[2] ? String(parseInt(dateParts[2])) : "";
+
+  // ==== 动态供货商提取：将每个出库条目对应的供货商按名称分组，并汇汇每个供货商负责的商品品名 ====
+  /**
+   * @description supplierToItemsMap: key=供货商名称, value=该供货商对应的所有出库品名列表
+   */
+  const supplierToItemsMap = new Map<string, string[]>();
+
+  dailyOutwardItems.forEach(item => {
+    // 优先使用当日记录中的供货商，如果没有则扫描历史记录中有供货商的条目并回落
+    let supplier: string = item.record.supplier || "";
+
+    if (!supplier && item.dailyRecords) {
+      const historicalSupplier = Object.values(item.dailyRecords as Record<string, any>)
+        .find((r: any) => r && r.supplier);
+      if (historicalSupplier) {
+        supplier = (historicalSupplier as any).supplier;
+      }
+    }
+
+    // 没有供货商信息的条目跳过
+    if (!supplier) return;
+
+    // 供货商相同则合并，不重复添加同一品名
+    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+    const displayName = dictItem?.name ?? item.name;
+
+    if (!supplierToItemsMap.has(supplier)) {
+      supplierToItemsMap.set(supplier, []);
+    }
+    const existingItems = supplierToItemsMap.get(supplier)!;
+    if (!existingItems.includes(displayName)) {
+      existingItems.push(displayName);
+    }
+  });
+
+  /**
+   * @description 将供货商映射表转换为打印行文本数组
+   * 格式： 供货商：【供货商名称】（品名1、品名2…）
+   */
+  const dynamicSupplierLines: string[] = [];
+  supplierToItemsMap.forEach((itemNames, supplierName) => {
+    dynamicSupplierLines.push(`供货商：${supplierName}（${itemNames.join("、")}）`);
+  });
+
   return (
     <>
       {/* 出库单标题行（模仿图片中带绿色边框的单行标题） */}
@@ -219,7 +270,7 @@ function PrintOutDoc({
               className="py-2 px-4 font-bold text-sm"
               style={{ width: "50%" }}
             >
-              {yearStr}年&emsp;月&emsp;日
+              {printYear}年{printMonth}月{printDay}日
             </td>
           </tr>
         </tbody>
@@ -315,11 +366,18 @@ function PrintOutDoc({
         </tbody>
       </table>
 
-      {/* 底部供货商信息（与图片一致，在表格外独立显示） */}
+      {/* 底部供货商信息：动态提取当日实际出库记录里的真实供货商，按供货商分组列出其对应品名 */}
       <div className="mt-2 text-[11px] text-black leading-6">
-        {LEDGER_PRINT_OUT_CONFIG.suppliers.map((line, i) => (
-          <div key={i}>{line}</div>
-        ))}
+        {dynamicSupplierLines.length > 0 ? (
+          dynamicSupplierLines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))
+        ) : (
+          // 当出库记录均无供货商信息时展示占位提示
+          LEDGER_PRINT_OUT_CONFIG.suppliers.map((line, i) => (
+            <div key={i} className="text-gray-400">{line}（请在出库记录中填写对应供货商）</div>
+          ))
+        )}
       </div>
     </>
   );
