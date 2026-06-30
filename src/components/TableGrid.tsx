@@ -275,10 +275,41 @@ export const TableGrid: React.FC<TableGridProps> = ({
               placeholder="快速检索当前页食材..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-4 py-1.5 w-48 sm:w-60 bg-white border border-gray-100 rounded-xl text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-sans"
+              className="pl-8 pr-4 py-1.5 w-44 bg-white border border-gray-100 rounded-xl text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-sans"
             />
           </div>
 
+          {/* 新增原料采购项下拉框 (只允许从原料大字典已存在的原料中挑选新增) */}
+          <form onSubmit={handleAddSubmit} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-1">
+            <span className="text-[10px] text-gray-400 font-bold shrink-0">添加原料:</span>
+            <select
+              value={newItemName}
+              onChange={(e) => {
+                const name = e.target.value;
+                setNewItemName(name);
+                const matched = dictOptions.find(opt => opt.value === name);
+                if (matched) {
+                  setNewItemUnit(matched.unit);
+                }
+              }}
+              className="text-xs text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
+              required
+            >
+              <option value="">-- 选择原料 --</option>
+              {dictOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} ({opt.unit})
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={!newItemName}
+              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+            >
+              新增
+            </button>
+          </form>
         </div>
 
         {/* 辅视图控制切换 */}
@@ -355,7 +386,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         <tr key={item.id} className="hover:bg-gray-50/35 transition-colors">
                           
                           {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                          <td className="p-2.5 sticky left-0 bg-white border-r border-gray-100 z-10 font-bold text-gray-700 flex justify-between items-center group/cell">
+                          <td className="p-2.5 sticky left-0 bg-white border-r border-gray-200 z-10 font-bold text-gray-700 flex justify-between items-center group/cell min-w-[140px]">
                             <span className="truncate max-w-[110px]" title={item.name}>
                               {(() => {
                                 const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
@@ -372,6 +403,15 @@ export const TableGrid: React.FC<TableGridProps> = ({
                                 );
                               })()}
                             </span>
+                            
+                            {/* 悬浮删除原料项按钮（鼠标移入当前行时展示，防止误触且干净美观） */}
+                            <button
+                              onClick={() => onDeleteItem(item.id)}
+                              className="opacity-0 group-hover/cell:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-1.5"
+                              title="删除此原料行"
+                            >
+                              <Trash size={12} />
+                            </button>
                           </td>
 
                           {/* 渲染31天每日录入小卡格 */}
@@ -505,6 +545,15 @@ export const TableGrid: React.FC<TableGridProps> = ({
                               );
                             })()}
                           </div>
+                          
+                          {/* 垃圾桶删除行按钮 */}
+                          <button
+                            onClick={() => onDeleteItem(item.id)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg cursor-pointer transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                            title="从备餐细表中移除该原料项目"
+                          >
+                            <Trash size={13} />
+                          </button>
                         </div>
 
                         {/* 修改区 */}

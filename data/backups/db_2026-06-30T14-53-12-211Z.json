@@ -1,0 +1,519 @@
+{
+  "reports": [
+    {
+      "targetGroup": "TEACHER",
+      "year": 2026,
+      "month": 6,
+      "items": [],
+      "dailyHeadcount": {
+        "1": 50,
+        "2": 50,
+        "3": 50,
+        "4": 50,
+        "5": 50,
+        "6": 50,
+        "7": 50,
+        "8": 50,
+        "9": 50,
+        "10": 50,
+        "11": 50,
+        "12": 50,
+        "13": 50,
+        "14": 50,
+        "15": 50,
+        "16": 50,
+        "17": 50,
+        "18": 50,
+        "19": 50,
+        "20": 50,
+        "21": 50,
+        "22": 50,
+        "23": 50,
+        "24": 50,
+        "25": 50,
+        "26": 50,
+        "27": 50,
+        "28": 50,
+        "29": 50,
+        "30": 50,
+        "31": 50
+      }
+    }
+  ],
+  "activeGroups": [
+    {
+      "key": "KID",
+      "label": "幼儿备餐",
+      "emoji": "👶"
+    },
+    {
+      "key": "STUDENT",
+      "label": "在校生备餐",
+      "emoji": "🎒"
+    },
+    {
+      "key": "TEACHER",
+      "label": "教师备餐",
+      "emoji": "👩‍🏫"
+    }
+  ],
+  "activeCategories": [
+    {
+      "key": "VEGETABLE",
+      "label": "蔬菜"
+    },
+    {
+      "key": "GRAIN_OIL",
+      "label": "粮油"
+    },
+    {
+      "key": "SEASONING",
+      "label": "调料"
+    },
+    {
+      "key": "MEAT",
+      "label": "肉类"
+    },
+    {
+      "key": "LOW_CONSUMP",
+      "label": "低耗品"
+    },
+    {
+      "key": "FRUIT",
+      "label": "水果"
+    }
+  ],
+  "ledgers": [
+    {
+      "id": "KID",
+      "name": "幼儿备餐",
+      "createdAt": "2026-06-30T11:52:48.455Z"
+    },
+    {
+      "id": "STUDENT",
+      "name": "在校生备餐",
+      "createdAt": "2026-06-30T11:52:48.455Z"
+    },
+    {
+      "id": "TEACHER",
+      "name": "教师备餐",
+      "createdAt": "2026-06-30T11:52:48.455Z"
+    }
+  ],
+  "ledgerItems": [
+    {
+      "id": "ledger_item_KID_0_1782820368455_pfa3",
+      "ledgerId": "KID",
+      "name": "大米",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 10,
+      "currentStock": 20,
+      "dailyRecords": {
+        "2026-06-30": {
+          "inQuantity": 11,
+          "inPrice": 111,
+          "inAmount": 1221,
+          "outQuantity": 1,
+          "note": "",
+          "certification": "1",
+          "sensoryProperty": "1",
+          "supplier": "1",
+          "buyer": "1",
+          "inspector": "1",
+          "keeper": "1"
+        }
+      }
+    },
+    {
+      "id": "ledger_item_KID_1_1782820368455_t9a9",
+      "ledgerId": "KID",
+      "name": "面粉",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 5,
+      "currentStock": 10,
+      "dailyRecords": {
+        "2026-06-30": {
+          "inQuantity": 5,
+          "inPrice": 1,
+          "inAmount": 5,
+          "outQuantity": 0,
+          "note": "",
+          "certification": "2",
+          "sensoryProperty": "2",
+          "supplier": "2",
+          "buyer": "2",
+          "inspector": "2",
+          "keeper": "2"
+        }
+      }
+    },
+    {
+      "id": "ledger_item_KID_2_1782820368455_jk6f",
+      "ledgerId": "KID",
+      "name": "大豆油",
+      "unit": "箱",
+      "spec": "5L*4瓶/箱",
+      "initialStock": 8,
+      "currentStock": 8,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_3_1782820368455_ykbq",
+      "ledgerId": "KID",
+      "name": "猪肉",
+      "unit": "斤",
+      "spec": "新鲜后腿肉",
+      "initialStock": 20,
+      "currentStock": 20,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_4_1782820368455_qtrk",
+      "ledgerId": "KID",
+      "name": "鸡蛋",
+      "unit": "箱",
+      "spec": "360枚/箱",
+      "initialStock": 2,
+      "currentStock": 2,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_5_1782820368455_84b1",
+      "ledgerId": "KID",
+      "name": "大豆腐",
+      "unit": "斤",
+      "spec": "嫩豆腐",
+      "initialStock": 15,
+      "currentStock": 15,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_6_1782820368455_ndoz",
+      "ledgerId": "KID",
+      "name": "土豆",
+      "unit": "斤",
+      "spec": "黄沙土豆",
+      "initialStock": 50,
+      "currentStock": 50,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_7_1782820368455_1x6k",
+      "ledgerId": "KID",
+      "name": "西红柿",
+      "unit": "斤",
+      "spec": "沙地西红柿",
+      "initialStock": 40,
+      "currentStock": 40,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_8_1782820368455_ikr1",
+      "ledgerId": "KID",
+      "name": "食用盐",
+      "unit": "包",
+      "spec": "400g/包",
+      "initialStock": 30,
+      "currentStock": 30,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_KID_9_1782820368455_d604",
+      "ledgerId": "KID",
+      "name": "洗洁精",
+      "unit": "瓶",
+      "spec": "1.5L/瓶",
+      "initialStock": 6,
+      "currentStock": 6,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_0_1782820368455_lbzb",
+      "ledgerId": "STUDENT",
+      "name": "大米",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 10,
+      "currentStock": 10,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_1_1782820368455_qcvc",
+      "ledgerId": "STUDENT",
+      "name": "面粉",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 5,
+      "currentStock": 5,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_2_1782820368455_2exw",
+      "ledgerId": "STUDENT",
+      "name": "大豆油",
+      "unit": "箱",
+      "spec": "5L*4瓶/箱",
+      "initialStock": 8,
+      "currentStock": 8,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_3_1782820368455_f0ai",
+      "ledgerId": "STUDENT",
+      "name": "猪肉",
+      "unit": "斤",
+      "spec": "新鲜后腿肉",
+      "initialStock": 20,
+      "currentStock": 20,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_4_1782820368455_est6",
+      "ledgerId": "STUDENT",
+      "name": "鸡蛋",
+      "unit": "箱",
+      "spec": "360枚/箱",
+      "initialStock": 2,
+      "currentStock": 2,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_5_1782820368455_r3dj",
+      "ledgerId": "STUDENT",
+      "name": "大豆腐",
+      "unit": "斤",
+      "spec": "嫩豆腐",
+      "initialStock": 15,
+      "currentStock": 15,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_6_1782820368455_upko",
+      "ledgerId": "STUDENT",
+      "name": "土豆",
+      "unit": "斤",
+      "spec": "黄沙土豆",
+      "initialStock": 50,
+      "currentStock": 50,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_7_1782820368455_kd1o",
+      "ledgerId": "STUDENT",
+      "name": "西红柿",
+      "unit": "斤",
+      "spec": "沙地西红柿",
+      "initialStock": 40,
+      "currentStock": 40,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_8_1782820368455_6e7g",
+      "ledgerId": "STUDENT",
+      "name": "食用盐",
+      "unit": "包",
+      "spec": "400g/包",
+      "initialStock": 30,
+      "currentStock": 30,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_STUDENT_9_1782820368455_cgfb",
+      "ledgerId": "STUDENT",
+      "name": "洗洁精",
+      "unit": "瓶",
+      "spec": "1.5L/瓶",
+      "initialStock": 6,
+      "currentStock": 6,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_0_1782820368455_pb8k",
+      "ledgerId": "TEACHER",
+      "name": "大米",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 10,
+      "currentStock": 10,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_1_1782820368455_841s",
+      "ledgerId": "TEACHER",
+      "name": "面粉",
+      "unit": "袋",
+      "spec": "25kg/袋",
+      "initialStock": 5,
+      "currentStock": 5,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_2_1782820368455_282w",
+      "ledgerId": "TEACHER",
+      "name": "大豆油",
+      "unit": "箱",
+      "spec": "5L*4瓶/箱",
+      "initialStock": 8,
+      "currentStock": 8,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_3_1782820368455_4wo5",
+      "ledgerId": "TEACHER",
+      "name": "猪肉",
+      "unit": "斤",
+      "spec": "新鲜后腿肉",
+      "initialStock": 20,
+      "currentStock": 20,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_4_1782820368455_j8cl",
+      "ledgerId": "TEACHER",
+      "name": "鸡蛋",
+      "unit": "箱",
+      "spec": "360枚/箱",
+      "initialStock": 2,
+      "currentStock": 2,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_5_1782820368455_tjz1",
+      "ledgerId": "TEACHER",
+      "name": "大豆腐",
+      "unit": "斤",
+      "spec": "嫩豆腐",
+      "initialStock": 15,
+      "currentStock": 15,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_6_1782820368455_u5qn",
+      "ledgerId": "TEACHER",
+      "name": "土豆",
+      "unit": "斤",
+      "spec": "黄沙土豆",
+      "initialStock": 50,
+      "currentStock": 50,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_7_1782820368455_n0nr",
+      "ledgerId": "TEACHER",
+      "name": "西红柿",
+      "unit": "斤",
+      "spec": "沙地西红柿",
+      "initialStock": 40,
+      "currentStock": 40,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_8_1782820368455_2isk",
+      "ledgerId": "TEACHER",
+      "name": "食用盐",
+      "unit": "包",
+      "spec": "400g/包",
+      "initialStock": 30,
+      "currentStock": 30,
+      "dailyRecords": {}
+    },
+    {
+      "id": "ledger_item_TEACHER_9_1782820368455_83ta",
+      "ledgerId": "TEACHER",
+      "name": "洗洁精",
+      "unit": "瓶",
+      "spec": "1.5L/瓶",
+      "initialStock": 6,
+      "currentStock": 6,
+      "dailyRecords": {}
+    }
+  ],
+  "rawMaterialsDict": [
+    {
+      "name": "大米",
+      "category": "GRAIN_OIL",
+      "unit": "袋",
+      "remark": "25kg/袋"
+    },
+    {
+      "name": "面粉",
+      "category": "GRAIN_OIL",
+      "unit": "袋",
+      "remark": "25kg/袋"
+    },
+    {
+      "name": "大豆油",
+      "category": "GRAIN_OIL",
+      "unit": "箱",
+      "remark": "20L/箱"
+    },
+    {
+      "name": "猪肉",
+      "category": "MEAT",
+      "unit": "斤",
+      "remark": "新鲜冷鲜"
+    },
+    {
+      "name": "牛肉",
+      "category": "MEAT",
+      "unit": "斤",
+      "remark": "新鲜冷鲜"
+    },
+    {
+      "name": "鸡蛋",
+      "category": "MEAT",
+      "unit": "箱",
+      "remark": "360枚/箱"
+    },
+    {
+      "name": "大豆腐",
+      "category": "VEGETABLE",
+      "unit": "斤",
+      "remark": "盒装"
+    },
+    {
+      "name": "土豆",
+      "category": "VEGETABLE",
+      "unit": "斤",
+      "remark": "红土豆"
+    },
+    {
+      "name": "西红柿",
+      "category": "VEGETABLE",
+      "unit": "斤",
+      "remark": "红熟"
+    },
+    {
+      "name": "菠菜",
+      "category": "VEGETABLE",
+      "unit": "斤",
+      "remark": "带根"
+    },
+    {
+      "name": "食用盐",
+      "category": "SEASONING",
+      "unit": "包",
+      "remark": "500g/包"
+    },
+    {
+      "name": "洗洁精",
+      "category": "LOW_CONSUMP",
+      "unit": "瓶",
+      "remark": "1.5L/瓶"
+    },
+    {
+      "name": "苹果",
+      "category": "FRUIT",
+      "unit": "斤",
+      "remark": "红富士"
+    },
+    {
+      "name": "香蕉",
+      "category": "FRUIT",
+      "unit": "斤",
+      "remark": "进口"
+    }
+  ]
+}

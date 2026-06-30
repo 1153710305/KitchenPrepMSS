@@ -970,6 +970,50 @@ export function LedgerSystem() {
           <div className="flex items-center gap-2 flex-wrap">
             {activeTab === "entry" ? (
               <>
+                {/* 仅在未开启录入模式时提供“新增原料”的下拉控制槽 */}
+                {!isRecordingMode && (
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!newMaterialName.trim()) return;
+                      // 从大字典拉出规格、单位并调用新增接口
+                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === newMaterialName);
+                      const unit = dictItem ? dictItem.unit : "斤";
+                      const spec = dictItem ? (dictItem.remark || "") : "";
+                      LedgerService.addLedgerItem(activeLedgerId, newMaterialName, unit, spec, 0)
+                        .then(() => {
+                          setNewMaterialName("");
+                          setSaveToast("成功新增台账原料行！");
+                          setTimeout(() => setSaveToast(null), 2000);
+                        })
+                        .catch((err) => triggerError(err.message));
+                    }}
+                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5"
+                  >
+                    <span className="text-[10px] text-slate-500 font-bold shrink-0">添加原料采购项:</span>
+                    <select
+                      value={newMaterialName}
+                      onChange={(e) => setNewMaterialName(e.target.value)}
+                      className="text-[11px] text-slate-700 bg-transparent outline-none cursor-pointer max-w-[130px] font-bold"
+                      required
+                    >
+                      <option value="">-- 选择字典原料 --</option>
+                      {RawMaterialsDictService.getItems().map((item) => (
+                        <option key={item.name} value={item.name}>
+                          {item.name} ({item.unit})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={!newMaterialName}
+                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0 transition-colors"
+                    >
+                      添加
+                    </button>
+                  </form>
+                )}
+
                 {/* 录入模式控制键 */}
                 {!isRecordingMode ? (
                   <button
@@ -1268,23 +1312,36 @@ export function LedgerSystem() {
                             }) : record;
 
                             return (
-                              <tr key={item.id} className="hover:bg-slate-50/50">
-                                <td className="px-4 py-2.5 font-bold text-slate-800">
-                                  {(() => {
-                                    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                                    const displayName = dictItem ? dictItem.name : item.name;
-                                    const displayRemark = dictItem?.remark || "";
-                                    return (
-                                      <>
-                                        {displayName}
-                                        {displayRemark ? (
-                                          <div className="text-[9px] text-slate-400 font-normal mt-0.5">{displayRemark}</div>
-                                        ) : (
-                                          <div className="text-[9px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
+                              <tr key={item.id} className="hover:bg-slate-50/50 group">
+                                <td className="px-4 py-2.5 font-bold text-slate-800 flex justify-between items-center min-w-[150px]">
+                                  <div>
+                                    {(() => {
+                                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                                      const displayName = dictItem ? dictItem.name : item.name;
+                                      const displayRemark = dictItem?.remark || "";
+                                      return (
+                                        <>
+                                          {displayName}
+                                          {displayRemark ? (
+                                            <div className="text-[9px] text-slate-400 font-normal mt-0.5">{displayRemark}</div>
+                                          ) : (
+                                            <div className="text-[9px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                  
+                                  {/* 悬浮删除原料采购项目按钮 */}
+                                  {!isRecordingMode && (
+                                    <button
+                                      onClick={() => handleDeleteMaterial(item.id)}
+                                      className="opacity-0 group-hover:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-2"
+                                      title="删除此台账原料采购项"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
                                 </td>
                                 {/* 二级品类标签列 */}
                                 <td className="px-3 py-2.5 text-center bg-violet-50/30">
