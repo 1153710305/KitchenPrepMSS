@@ -10,6 +10,8 @@ import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../ledgerConstants.ts";
 import { LogBroker } from "../utils.ts";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { FoodCategory } from "../types.ts";
+import { FOOD_CATEGORY_LABELS } from "../constants.ts";
 import { 
   Plus, 
   Trash2, 
@@ -26,7 +28,9 @@ import {
   LayoutGrid,
   TrendingUp,
   Award,
-  Save
+  Save,
+  Search,
+  Filter
 } from "lucide-react";
 
 /**
@@ -79,18 +83,30 @@ export function LedgerSystem() {
   const [editMaterialSpec, setEditMaterialSpec] = useState<string>("");
   const [editMaterialStock, setEditMaterialStock] = useState<number>(0);
   
+  // --- 批量确认录入模式相关状态 ---
+  /** 当前选定台账与日期是否正处于"录入中"状态 */
+  const [isRecordingMode, setIsRecordingMode] = useState<boolean>(false);
+  /** 处于录入模式时，存储的当前日采购及出库草稿数据 */
+  const [draftRecords, setDraftRecords] = useState<Record<string, DailyStockRecord>>({});
+
+  // --- 台账多维度筛选状态（样式一主表格专用）---
+  /** 原料名称搜索关键字（支持模糊匹配） */
+  const [filterName, setFilterName] = useState<string>("");
+  /** 筛选品类（空字符串表示全部不限）*/
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  /** 筛选采购员（空字符串表示全部不限）*/
+  const [filterBuyer, setFilterBuyer] = useState<string>("");
+  /** 筛选检验员（空字符串表示全部不限）*/
+  const [filterInspector, setFilterInspector] = useState<string>("");
+  /** 筛选保管员（空字符串表示全部不限）*/
+  const [filterKeeper, setFilterKeeper] = useState<string>("");
+  
   /** 自动同步成功小气泡的文字 */
   const [saveToast, setSaveToast] = useState<string | null>(null);
   /** 系统交互时的报错提示 */
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   /** 仅供打印使用的纯净弹出视图状态: null | "in" | "out" */
   const [printDocType, setPrintDocType] = useState<null | "in" | "out">(null);
-
-  // --- 批量确认录入模式相关状态 ---
-  /** 当前选定台账与日期是否正处于“录入中”状态 */
-  const [isRecordingMode, setIsRecordingMode] = useState<boolean>(false);
-  /** 处于录入模式时，存储的当前日采购及出库草稿数据 */
-  const [draftRecords, setDraftRecords] = useState<Record<string, DailyStockRecord>>({});
 
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
@@ -135,10 +151,81 @@ export function LedgerSystem() {
     return ledgers.find((l) => l.id === activeLedgerId) || null;
   }, [ledgers, activeLedgerId]);
 
-  /** 过滤出属于当前选中台账的采购原料项目 */
+  /** 过滤出属于当前选中台账的采购原料项目（全量，供录入操作使用）*/
   const currentLedgerItems = useMemo(() => {
     return ledgerItems.filter((item) => item.ledgerId === activeLedgerId);
   }, [ledgerItems, activeLedgerId]);
+
+  /**
+   * 叠加所有筛选条件后的展示项目列表（仅供样式一渲染，不参与录入逻辑）
+   * 依赖：名称搜索词、品类、采购员、检验员、保管员、选定日期
+   */
+  const filteredLedgerItems = useMemo(() => {
+    const dictItems = RawMaterialsDictService.getItems();
+    return currentLedgerItems.filter((item) => {
+      if (filterName.trim()) {
+        if (!item.name.toLowerCase().includes(filterName.trim().toLowerCase())) return false;
+      }
+      if (filterCategory) {
+        const dictItem = dictItems.find(d => d.name === item.name);
+        if (!dictItem || dictItem.category !== filterCategory) return false;
+      }
+      if (filterBuyer.trim()) {
+        const rec = item.dailyRecords[selectedDate];
+        if (!((rec?.buyer || "").toLowerCase().includes(filterBuyer.trim().toLowerCase()))) return false;
+      }
+      if (filterInspector.trim()) {
+        const rec = item.dailyRecords[selectedDate];
+        if (!((rec?.inspector || "").toLowerCase().includes(filterInspector.trim().toLowerCase()))) return false;
+      }
+      if (filterKeeper.trim()) {
+        const rec = item.dailyRecords[selectedDate];
+        if (!((rec?.keeper || "").toLowerCase().includes(filterKeeper.trim().toLowerCase()))) return false;
+      }
+      return true;
+    });
+  }, [currentLedgerItems, filterName, filterCategory, filterBuyer, filterInspector, filterKeeper, selectedDate]);
+
+  /** 当前台账存在的品类集合（动态），用于品类筛选下拉 */
+  const availableCategories = useMemo(() => {
+    const dictItems = RawMaterialsDictService.getItems();
+    const catSet = new Set<string>();
+    currentLedgerItems.forEach(item => {
+      const dictItem = dictItems.find(d => d.name === item.name);
+      if (dictItem?.category) catSet.add(dictItem.category);
+    });
+    return Array.from(catSet);
+  }, [currentLedgerItems]);
+
+  /** 采购员候选列表（当前台账所有历史记录中出现过的） */
+  const availableBuyers = useMemo(() => {
+    const set = new Set<string>();
+    currentLedgerItems.forEach(item => {
+      Object.values(item.dailyRecords).forEach(rec => { if (rec.buyer?.trim()) set.add(rec.buyer.trim()); });
+    });
+    return Array.from(set);
+  }, [currentLedgerItems]);
+
+  /** 检验员候选列表 */
+  const availableInspectors = useMemo(() => {
+    const set = new Set<string>();
+    currentLedgerItems.forEach(item => {
+      Object.values(item.dailyRecords).forEach(rec => { if (rec.inspector?.trim()) set.add(rec.inspector.trim()); });
+    });
+    return Array.from(set);
+  }, [currentLedgerItems]);
+
+  /** 保管员候选列表 */
+  const availableKeepers = useMemo(() => {
+    const set = new Set<string>();
+    currentLedgerItems.forEach(item => {
+      Object.values(item.dailyRecords).forEach(rec => { if (rec.keeper?.trim()) set.add(rec.keeper.trim()); });
+    });
+    return Array.from(set);
+  }, [currentLedgerItems]);
+
+  /** 是否有任何筛选条件正处于激活状态 */
+  const hasActiveFilters = !!(filterName.trim() || filterCategory || filterBuyer.trim() || filterInspector.trim() || filterKeeper.trim());
 
   // 当切换台账时，自动把样式二的聚焦原料设为该台账的第一个原料项目
   useEffect(() => {
@@ -1003,16 +1090,88 @@ export function LedgerSystem() {
               {/* 样式一：食品原材料购销总表 (图一样式) */}
               {ledgerStyle === "style1" && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  {/* ===== 多维度筛选工具栏 ===== */}
+                  <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center gap-2">
+                    {/* 名称搜索框 */}
+                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                      <Search size={12} className="text-slate-400 shrink-0" />
+                      <input
+                        type="text"
+                        value={filterName}
+                        onChange={(e) => setFilterName(e.target.value)}
+                        placeholder="搜索原料名称..."
+                        className="text-[11px] outline-none bg-transparent w-28 text-slate-700"
+                      />
+                    </div>
+                    {/* 品类筛选 */}
+                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                      <Filter size={12} className="text-violet-400 shrink-0" />
+                      <select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer"
+                      >
+                        <option value="">全部品类</option>
+                        {availableCategories.map(cat => (
+                          <option key={cat} value={cat}>{FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* 采购员筛选 */}
+                    {availableBuyers.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="text-[10px] text-slate-400 shrink-0">采购员:</span>
+                        <select value={filterBuyer} onChange={(e) => setFilterBuyer(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
+                          <option value="">不限</option>
+                          {availableBuyers.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {/* 检验员筛选 */}
+                    {availableInspectors.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="text-[10px] text-slate-400 shrink-0">检验员:</span>
+                        <select value={filterInspector} onChange={(e) => setFilterInspector(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
+                          <option value="">不限</option>
+                          {availableInspectors.map(ins => <option key={ins} value={ins}>{ins}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {/* 保管员筛选 */}
+                    {availableKeepers.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="text-[10px] text-slate-400 shrink-0">保管员:</span>
+                        <select value={filterKeeper} onChange={(e) => setFilterKeeper(e.target.value)} className="text-[11px] outline-none bg-transparent text-slate-700 cursor-pointer">
+                          <option value="">不限</option>
+                          {availableKeepers.map(k => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {/* 清空筛选按钮 */}
+                    {hasActiveFilters && (
+                      <button
+                        onClick={() => { setFilterName(""); setFilterCategory(""); setFilterBuyer(""); setFilterInspector(""); setFilterKeeper(""); }}
+                        className="flex items-center gap-1 px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded-lg cursor-pointer transition-all border border-rose-200"
+                      >
+                        <X size={11} />清空筛选
+                      </button>
+                    )}
+                    <span className="ml-auto text-[10px] text-slate-400">
+                      显示 <span className="font-bold text-slate-600">{filteredLedgerItems.length}</span> / {currentLedgerItems.length} 条
+                      {hasActiveFilters && <span className="ml-1 text-amber-600">（已过滤）</span>}
+                    </span>
+                  </div>
                   <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-500">【图一样式】原料购销日总表明细</span>
                     <span className="text-[9px] text-slate-400 font-medium">修改任意格后失去焦点自动同步物理库存</span>
                   </div>
                   
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs min-w-[1200px]">
+                    <table className="w-full text-left border-collapse text-xs min-w-[1380px]">
                       <thead>
                         <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
-                          <th className="px-4 py-3 text-slate-600 font-bold w-40">{LEDGER_HEADERS.materialName}</th>
+                          <th className="px-4 py-3 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
+                          <th className="px-3 py-3 text-center text-violet-700 font-bold bg-violet-50/40 w-20">二级品类</th>
                           <th className="px-3 py-3 text-center text-slate-600 font-bold w-20">单位</th>
                           <th className="px-3 py-3 text-emerald-800 font-bold bg-emerald-50/30 w-28">{LEDGER_HEADERS.inQuantity}</th>
                           <th className="px-3 py-3 text-emerald-800 font-bold bg-emerald-50/30 w-24">单价(元)</th>
@@ -1028,12 +1187,21 @@ export function LedgerSystem() {
                       <tbody className="divide-y divide-slate-100">
                         {currentLedgerItems.length === 0 ? (
                           <tr>
-                            <td colSpan={12} className="text-center py-12 text-slate-400 italic">
+                            <td colSpan={13} className="text-center py-12 text-slate-400 italic">
                               该台账暂无采购原料。请点击右上方“新增原料采购项”进行录入填充。
                             </td>
                           </tr>
+                        ) : filteredLedgerItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={13} className="text-center py-10 text-slate-400 italic">
+                              <div className="flex flex-col items-center gap-2 py-2">
+                                <Search size={26} className="text-slate-200" />
+                                <span>未找到符合筛选条件的原料，请调整条件后重试。</span>
+                              </div>
+                            </td>
+                          </tr>
                         ) : (
-                          currentLedgerItems.map((item) => {
+                          filteredLedgerItems.map((item) => {
                             const isItemEditing = editingMaterialId === item.id;
                             const record: DailyStockRecord = item.dailyRecords[selectedDate] || {
                               inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
@@ -1043,7 +1211,7 @@ export function LedgerSystem() {
                             if (isItemEditing) {
                               return (
                                 <tr key={item.id} className="bg-emerald-50/20">
-                                  <td colSpan={12} className="px-4 py-3">
+                                  <td colSpan={13} className="px-4 py-3">
                                     <form onSubmit={handleSaveEditMaterial} className="flex flex-wrap items-center gap-3">
                                       <div className="flex items-center gap-1.5">
                                         <span className="text-[11px] font-bold text-slate-400">原料品名:</span>
@@ -1115,6 +1283,28 @@ export function LedgerSystem() {
                                           <div className="text-[9px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
                                         )}
                                       </>
+                                    );
+                                  })()}
+                                </td>
+                                {/* 二级品类标签列 */}
+                                <td className="px-3 py-2.5 text-center bg-violet-50/30">
+                                  {(() => {
+                                    const dictItem2 = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                                    const cat = dictItem2?.category;
+                                    if (!cat) return <span className="text-slate-300 text-[10px]">—</span>;
+                                    const catLabel = FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat;
+                                    const colorMap: Record<string, string> = {
+                                      VEGETABLE: "bg-green-100 text-green-700 border-green-200",
+                                      GRAIN_OIL: "bg-amber-100 text-amber-700 border-amber-200",
+                                      SEASONING: "bg-orange-100 text-orange-700 border-orange-200",
+                                      MEAT: "bg-red-100 text-red-700 border-red-200",
+                                      LOW_CONSUMP: "bg-slate-100 text-slate-600 border-slate-200",
+                                      FRUIT: "bg-pink-100 text-pink-700 border-pink-200"
+                                    };
+                                    return (
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${colorMap[cat] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                                        {catLabel}
+                                      </span>
                                     );
                                   })()}
                                 </td>
