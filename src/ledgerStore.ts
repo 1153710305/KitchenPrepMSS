@@ -6,6 +6,7 @@
 import { Ledger, LedgerItem, DailyStockRecord } from "./ledgerTypes.ts";
 import { DEFAULT_LEDGER_NAMES, PRESET_LEDGER_MATERIALS } from "./ledgerConstants.ts";
 import { LogBroker } from "./utils.ts";
+import { SyncHelper } from "./syncHelper.ts";
 
 /** 本地 LocalStorage 缓存台账列表的 Key */
 const LEDGERS_LIST_KEY = "KITCHEN_LEDGERS_LIST_V2";
@@ -65,6 +66,8 @@ export class LedgerService {
     try {
       localStorage.setItem(LEDGERS_LIST_KEY, JSON.stringify(this.ledgers));
       localStorage.setItem(LEDGER_ITEMS_KEY, JSON.stringify(this.ledgerItems));
+      // 异步同步至后端存储
+      SyncHelper.triggerSyncToServer();
     } catch (err) {
       LogBroker.publish("ERROR", "LedgerService", "数据落盘LocalStorage遇到异常，请检查物理存储空间。", String(err));
     }
@@ -74,6 +77,13 @@ export class LedgerService {
    * @description 启动并自检缓存。若没有，则自动生成四个默认种子台账，并导入默认采购原料项目
    */
   public static async initLedgerStore(): Promise<{ ledgers: Ledger[]; items: LedgerItem[] }> {
+    try {
+      // 优先从后端拉取最新同步数据落盘
+      await SyncHelper.loadFromServer();
+    } catch (err) {
+      LogBroker.publish("WARN", "LedgerService", "同步服务器数据失败，降级使用本地缓存: " + String(err));
+    }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         try {

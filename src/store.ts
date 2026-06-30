@@ -6,6 +6,7 @@
 import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "./constants.ts";
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "./types.ts";
 import { calculateEntryAmount, LogBroker } from "./utils.ts";
+import { SyncHelper } from "./syncHelper.ts";
 
 /** 
  * @description 本地 LocalStorage 物理缓存 Key 
@@ -85,6 +86,13 @@ export class PrepReportService {
    * @description 启动并自检缓存。若无，自动使用 constants 中提取的种子填充库
    */
   public static async initStore(): Promise<GroupMonthlyReport[]> {
+    try {
+      // 优先从后端拉取最新同步数据落盘
+      await SyncHelper.loadFromServer();
+    } catch (err) {
+      LogBroker.publish("WARN", "PrepReportService", "同步服务器数据失败，降级使用本地缓存: " + String(err));
+    }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         try {
@@ -228,6 +236,8 @@ export class PrepReportService {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.reports));
       this.notifyListeners();
+      // 异步同步到后端存储
+      SyncHelper.triggerSyncToServer();
     } catch (err) {
       LogBroker.publish("ERROR", "PrepReportService", "数据落盘LocalStorage发生溢出或权限阻碍错误", String(err));
     }
@@ -663,6 +673,8 @@ export class PrepReportService {
       localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.activeCategories));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.reports));
       this.notifyListeners();
+      // 异步同步到后端存储
+      SyncHelper.triggerSyncToServer();
     } catch (err) {
       LogBroker.publish("ERROR", "PrepReportService", "数据和配置落盘LocalStorage发生严重异常:", String(err));
     }
