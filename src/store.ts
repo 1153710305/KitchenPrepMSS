@@ -524,12 +524,16 @@ export class PrepReportService {
     return new Promise((resolve, reject) => {
       try {
         let found = false;
+        let matchedReport: GroupMonthlyReport | undefined;
+        let matchedItem: PreparedItem | undefined;
         
         const updatedReports = this.reports.map((report) => {
           const itemIndex = report.items.findIndex((i) => i.id === itemId);
           if (itemIndex > -1) {
             found = true;
             const item = report.items[itemIndex];
+            matchedReport = report;
+            matchedItem = item;
             
             // 复制 dailyData 深度属性，更新指定一天的指标数值并重新计算子金额
             const updatedDailyData = { ...item.dailyData };
@@ -567,7 +571,37 @@ export class PrepReportService {
         
         // 物理存盘并实时派发通知，实现微秒级完美热更新
         this.saveToStorage();
-        resolve();
+
+        // 【同步反向改写台账】当备餐单元格被编辑时，自动反向推送到台账数据集中，保证一一对应
+        if (matchedReport && matchedItem) {
+          const monthStr = String(matchedReport.month).padStart(2, "0");
+          const dayStr = String(day).padStart(2, "0");
+          const targetDateKey = `${matchedReport.year}-${monthStr}-${dayStr}`;
+          
+          // 查询字典，看是否具有换算单位
+          const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === matchedItem!.name);
+          const conversionQty = (dictItem && dictItem.conversionRatio) 
+            ? Number((quantity * dictItem.conversionRatio).toFixed(2)) 
+            : undefined;
+
+          // 构造 DailyStockRecord
+          const ledgerRecordFields = {
+            inQuantity: quantity,
+            inPrice: price,
+            inAmount: Number((quantity * price).toFixed(2)),
+            conversionUnitQuantity: conversionQty
+          };
+
+          // 物理写入台账中此原料在指定日期下的入库数据
+          LedgerService.updateDailyRecordByKey(matchedReport.targetGroup, matchedItem.name, targetDateKey, ledgerRecordFields)
+            .then(() => resolve())
+            .catch((err) => {
+              LogBroker.publish("WARN", "PrepReportService", `反向同步至台账失败 (可能需要先在台账里创建该原料): ${err.message}`);
+              resolve(); // 备餐修改完成，不影响体验，平稳解脱
+            });
+        } else {
+          resolve();
+        }
       } catch (err) {
         reject(err);
       }

@@ -11,6 +11,7 @@ import { getDaysInMonth, getItemMonthlySummary, LogBroker } from "../utils.ts";
 import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { LedgerService } from "../ledgerStore.ts";
 
 /**
  * @description 备菜网格组件的输入参数协议
@@ -75,14 +76,53 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 当月包含的日期数组 (["1", "2", ..., "31"])
   const days = useMemo(() => getDaysInMonth(report.year, report.month), [report.year, report.month]);
 
-  // 1. 过滤：按选定主类和搜索关键字过滤条目
+  // 1. 过滤与台账每日采购明细无缝对齐：按选定主类和搜索关键字过滤条目，并将 dailyData 数据完全拦截重定向至对应台账采购数量与单价上
   const filteredItems = useMemo(() => {
-    return report.items.filter((item) => {
-      const matchCat = selectedCategory === null ? true : item.category === selectedCategory;
-      const matchSearch = item.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
-      return matchCat && matchSearch;
-    });
-  }, [report.items, selectedCategory, searchQuery]);
+    // 拉取台账所有原料项目
+    const allLedgerItems = LedgerService.getLedgerItems();
+    
+    // 找出与当前备餐报表所属客群（targetGroup）相匹配的台账集合
+    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === report.targetGroup);
+
+    return report.items
+      .filter((item) => {
+        const matchCat = selectedCategory === null ? true : item.category === selectedCategory;
+        const matchSearch = item.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+        return matchCat && matchSearch;
+      })
+      .map((item) => {
+        // 寻找此人群此食材在台账中对应的采购项
+        const matchedLedgerItem = groupLedgerItems.find((li) => li.name === item.name);
+        
+        // 构造克隆条目，重定向其每日数据为台账当日入库数据
+        const alignedDailyData: Record<string, any> = {};
+        
+        days.forEach((day) => {
+          // 台账的日期索引是 YYYY-MM-DD
+          const monthStr = String(report.month).padStart(2, "0");
+          const dayStr = String(day).padStart(2, "0");
+          const targetDateKey = `${report.year}-${monthStr}-${dayStr}`;
+          
+          const ledgerRecord = matchedLedgerItem?.dailyRecords?.[targetDateKey];
+          
+          if (ledgerRecord && ledgerRecord.inQuantity > 0) {
+            alignedDailyData[day] = {
+              quantity: ledgerRecord.inQuantity,
+              price: ledgerRecord.inPrice,
+              amount: Number((ledgerRecord.inQuantity * ledgerRecord.inPrice).toFixed(2))
+            };
+          } else {
+            // 台账内某日采购无对应记录，则细表中不对应显示任何值，置为 0
+            alignedDailyData[day] = { quantity: 0, price: 0, amount: 0 };
+          }
+        });
+
+        return {
+          ...item,
+          dailyData: alignedDailyData
+        };
+      });
+  }, [report.items, report.targetGroup, report.year, report.month, selectedCategory, searchQuery, days]);
 
   // 2. 统计计算：每个日期(1-31号)在该类目下的总开销汇总
   const dayTotals = useMemo(() => {
