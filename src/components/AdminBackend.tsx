@@ -141,6 +141,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   const [dictCategoryInput, setDictCategoryInput] = useState<FoodCategory>(FoodCategory.VEGETABLE);
   const [dictUnitInput, setDictUnitInput] = useState<string>("斤");
   const [dictRemarkInput, setDictRemarkInput] = useState<string>("");
+  // 换算单位与换算比例配置
+  const [dictConversionUnitInput, setDictConversionUnitInput] = useState<string>("");
+  const [dictConversionRatioInput, setDictConversionRatioInput] = useState<string>("");
   const [editingDictName, setEditingDictName] = useState<string | null>(null);
   const [dictError, setDictError] = useState<string | null>(null);
 
@@ -267,16 +270,41 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       return;
     }
 
+    const conversionUnit = dictConversionUnitInput.trim() || undefined;
+    const conversionRatio = dictConversionRatioInput.trim() ? Number(dictConversionRatioInput) : undefined;
+
+    if (conversionRatio !== undefined && isNaN(conversionRatio)) {
+      setDictError("换算比例必须是有效的数值！");
+      return;
+    }
+
     try {
       if (editingDictName) {
-        await RawMaterialsDictService.updateMaterial(editingDictName, name, dictCategoryInput, dictUnitInput, dictRemarkInput);
+        await RawMaterialsDictService.updateMaterial(
+          editingDictName, 
+          name, 
+          dictCategoryInput, 
+          dictUnitInput, 
+          dictRemarkInput,
+          conversionUnit,
+          conversionRatio
+        );
       } else {
-        await RawMaterialsDictService.addMaterial(name, dictCategoryInput, dictUnitInput, dictRemarkInput);
+        await RawMaterialsDictService.addMaterial(
+          name, 
+          dictCategoryInput, 
+          dictUnitInput, 
+          dictRemarkInput,
+          conversionUnit,
+          conversionRatio
+        );
       }
       setDictItems([...RawMaterialsDictService.getItems()]);
       setDictNameInput("");
       setDictUnitInput("斤");
       setDictRemarkInput("");
+      setDictConversionUnitInput("");
+      setDictConversionRatioInput("");
       setDictCategoryInput(FoodCategory.VEGETABLE);
       setEditingDictName(null);
     } catch (err: any) {
@@ -294,6 +322,8 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     setDictCategoryInput(item.category);
     setDictUnitInput(item.unit);
     setDictRemarkInput(item.remark || "");
+    setDictConversionUnitInput(item.conversionUnit || "");
+    setDictConversionRatioInput(item.conversionRatio !== undefined ? String(item.conversionRatio) : "");
   };
 
   /**
@@ -310,6 +340,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           setEditingDictName(null);
           setDictNameInput("");
           setDictUnitInput("斤");
+          setDictRemarkInput("");
+          setDictConversionUnitInput("");
+          setDictConversionRatioInput("");
           setDictCategoryInput(FoodCategory.VEGETABLE);
         }
       },
@@ -951,6 +984,11 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                                 {item.remark}
                               </span>
                             )}
+                            {item.conversionUnit && item.conversionRatio && (
+                              <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.2 rounded font-bold border border-emerald-200">
+                                换算: {item.conversionRatio}{item.conversionUnit}/{item.unit}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -990,9 +1028,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">原料品名(如: 土豆)</label>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">原料品名(如: 大米)</label>
                       <input
                         type="text"
                         placeholder="如: 西蓝花"
@@ -1019,10 +1057,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">默认单位(如: 斤/箱/袋)</label>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">默认单位(如: 袋/箱/瓶)</label>
                       <input
                         type="text"
-                        placeholder="如: 斤"
+                        placeholder="如: 袋"
                         value={dictUnitInput}
                         onChange={(e) => setDictUnitInput(e.target.value)}
                         className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
@@ -1040,6 +1078,29 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                         className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">换算单位(选填，如: 斤)</label>
+                      <input
+                        type="text"
+                        placeholder="如: 斤"
+                        value={dictConversionUnitInput}
+                        onChange={(e) => setDictConversionUnitInput(e.target.value)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">换算比例(袋/箱折合数，如: 50)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="如: 50"
+                        value={dictConversionRatioInput}
+                        onChange={(e) => setDictConversionRatioInput(e.target.value)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex justify-end items-center mt-3.5 space-x-2">
@@ -1050,6 +1111,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                           setEditingDictName(null);
                           setDictNameInput("");
                           setDictUnitInput("斤");
+                          setDictRemarkInput("");
+                          setDictConversionUnitInput("");
+                          setDictConversionRatioInput("");
                           setDictCategoryInput(FoodCategory.VEGETABLE);
                         }}
                         className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer font-bold transition-all"

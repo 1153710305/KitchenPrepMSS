@@ -21,6 +21,10 @@ export interface RawMaterialDictItem {
   unit: string;
   /** 原料备注（规格等），如 "25kg/袋" */
   remark?: string;
+  /** 换算单位，如 "斤" */
+  conversionUnit?: string;
+  /** 换算比例，如 50 */
+  conversionRatio?: number;
 }
 
 /** 本地 LocalStorage 缓存原料库的 Key */
@@ -58,39 +62,32 @@ export class RawMaterialsDictService {
    */
   private static generateDefaultSeeds(): void {
     this.items = [
-      { name: "大米", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋" },
-      { name: "面粉", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋" },
-      { name: "大豆油", category: FoodCategory.GRAIN_OIL, unit: "箱", remark: "20L/箱" },
-      { name: "猪肉", category: FoodCategory.MEAT, unit: "斤", remark: "新鲜冷鲜" },
-      { name: "牛肉", category: FoodCategory.MEAT, unit: "斤", remark: "新鲜冷鲜" },
-      { name: "鸡蛋", category: FoodCategory.MEAT, unit: "箱", remark: "360枚/箱" },
-      { name: "大豆腐", category: FoodCategory.VEGETABLE, unit: "斤", remark: "盒装" },
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "红土豆" },
-      { name: "西红柿", category: FoodCategory.VEGETABLE, unit: "斤", remark: "红熟" },
-      { name: "菠菜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "带根" },
-      { name: "食用盐", category: FoodCategory.SEASONING, unit: "包", remark: "500g/包" },
-      { name: "洗洁精", category: FoodCategory.LOW_CONSUMP, unit: "瓶", remark: "1.5L/瓶" },
-      { name: "苹果", category: FoodCategory.FRUIT, unit: "斤", remark: "红富士" },
-      { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "进口" }
+      { name: "大米", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋", conversionUnit: "斤", conversionRatio: 50 },
+      { name: "面粉", category: FoodCategory.GRAIN_OIL, unit: "袋", remark: "25kg/袋", conversionUnit: "斤", conversionRatio: 50 },
+      { name: "大豆油", category: FoodCategory.GRAIN_OIL, unit: "箱", remark: "20L/箱", conversionUnit: "升", conversionRatio: 20 },
+      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "西红柿", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
+      { name: "猪肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷鲜" },
+      { name: "鸡肉", category: FoodCategory.MEAT, unit: "斤", remark: "冷冻" },
+      { name: "盐", category: FoodCategory.SEASONING, unit: "袋", remark: "500g/袋", conversionUnit: "克", conversionRatio: 500 },
+      { name: "酱油", category: FoodCategory.SEASONING, unit: "瓶", remark: "1.28L/瓶", conversionUnit: "升", conversionRatio: 1.28 },
+      { name: "洗洁精", category: FoodCategory.LOW_CONSUMP, unit: "桶", remark: "5kg/桶", conversionUnit: "斤", conversionRatio: 10 },
+      { name: "垃圾袋", category: FoodCategory.LOW_CONSUMP, unit: "包", remark: "100只/包" },
+      { name: "苹果", category: FoodCategory.FRUIT, unit: "箱", remark: "10kg/箱", conversionUnit: "斤", conversionRatio: 20 },
+      { name: "香蕉", category: FoodCategory.FRUIT, unit: "箱", remark: "9kg/箱", conversionUnit: "斤", conversionRatio: 18 }
     ];
     this.saveToStorage();
-    LogBroker.publish("INFO", "RawMaterialsDictService", "原料字典物理缓存缺失，已预载默认原料种子。");
   }
 
   /**
-   * @description 将原料字典物理落盘保存到 LocalStorage 中
+   * @description 物理持久化保存到 LocalStorage
    */
   private static saveToStorage(): void {
-    try {
-      localStorage.setItem(RAW_MATERIALS_DICT_KEY, JSON.stringify(this.items));
-    } catch (err) {
-      LogBroker.publish("ERROR", "RawMaterialsDictService", "原料字典落盘失败:", String(err));
-    }
+    localStorage.setItem(RAW_MATERIALS_DICT_KEY, JSON.stringify(this.items));
   }
 
   /**
-   * @description 获取当前所有的原料字典条目列表
-   * @returns 原料条目数组
+   * @description 获取当前原料字典的所有条目数组
    */
   public static getItems(): RawMaterialDictItem[] {
     if (this.items.length === 0) {
@@ -125,8 +122,17 @@ export class RawMaterialsDictService {
    * @param category 类别
    * @param unit 单位
    * @param remark 备注/规格说明
+   * @param conversionUnit 换算单位
+   * @param conversionRatio 换算比例
    */
-  public static async addMaterial(name: string, category: FoodCategory, unit: string, remark?: string): Promise<void> {
+  public static async addMaterial(
+    name: string, 
+    category: FoodCategory, 
+    unit: string, 
+    remark?: string, 
+    conversionUnit?: string, 
+    conversionRatio?: number
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -141,10 +147,12 @@ export class RawMaterialsDictService {
         name: trimmedName,
         category,
         unit: unit.trim() || "斤",
-        remark: remark?.trim() || ""
+        remark: remark?.trim() || "",
+        conversionUnit: conversionUnit?.trim() || undefined,
+        conversionRatio: conversionRatio || undefined
       });
       this.saveToStorage();
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${remark}）`);
+      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
       resolve();
     });
   }
@@ -156,8 +164,18 @@ export class RawMaterialsDictService {
    * @param category 新大类
    * @param unit 新单位
    * @param remark 新备注/规格说明
+   * @param conversionUnit 新换算单位
+   * @param conversionRatio 新换算比例
    */
-  public static async updateMaterial(oldName: string, name: string, category: FoodCategory, unit: string, remark?: string): Promise<void> {
+  public static async updateMaterial(
+    oldName: string, 
+    name: string, 
+    category: FoodCategory, 
+    unit: string, 
+    remark?: string, 
+    conversionUnit?: string, 
+    conversionRatio?: number
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -179,10 +197,12 @@ export class RawMaterialsDictService {
         name: trimmedName,
         category,
         unit: unit.trim() || "斤",
-        remark: finalRemark
+        remark: finalRemark,
+        conversionUnit: conversionUnit?.trim() || undefined,
+        conversionRatio: conversionRatio || undefined
       };
       this.saveToStorage();
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}）`);
+      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
        
       // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入
       LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤", finalRemark);

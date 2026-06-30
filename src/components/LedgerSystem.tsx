@@ -513,6 +513,19 @@ export function LedgerSystem() {
         const prc = updatedRecord.inPrice ?? 0;
         updatedRecord.inAmount = Number((qty * prc).toFixed(2));
       }
+      // 自动计算换算比例对应的换算后单位数量数值（如袋数*50）
+      if (updatedRecord.inQuantity !== undefined) {
+        // 根据 itemId 找出对应的原料采购项
+        const item = ledgerItems.find((i) => i.id === itemId);
+        if (item) {
+          const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
+          if (dictItem && dictItem.conversionRatio) {
+            updatedRecord.conversionUnitQuantity = Number((updatedRecord.inQuantity * dictItem.conversionRatio).toFixed(2));
+          } else {
+            updatedRecord.conversionUnitQuantity = undefined;
+          }
+        }
+      }
       
       const newDrafts = { ...prev, [itemId]: updatedRecord };
       // 同步缓存到 localStorage
@@ -1379,6 +1392,19 @@ export function LedgerSystem() {
                                     onChange={(e) => handleDraftCellChange(item.id, { inQuantity: Number(e.target.value) })}
                                     className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
                                   />
+                                  {(() => {
+                                    const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                                    if (dictItem && dictItem.conversionUnit && dictItem.conversionRatio) {
+                                      const qty = recordToRender.inQuantity || 0;
+                                      const converted = qty * dictItem.conversionRatio;
+                                      return (
+                                        <div className="text-[9px] text-emerald-600 font-bold text-right mt-0.5">
+                                          折合: {converted.toFixed(1)} {dictItem.conversionUnit}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </td>
                                 
                                 {/* 单价 */}

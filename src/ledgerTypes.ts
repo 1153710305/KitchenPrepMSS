@@ -63,6 +63,10 @@ export interface DailyStockRecord {
   outHandler?: string;
   /** 领用接收人名称 */
   outRecipient?: string;
+  
+  // ================= 换算关系扩展字段 =================
+  /** 换算后单位的数量数值，例如袋数*换算比例 */
+  conversionUnitQuantity?: number;
 }
 
 /**
