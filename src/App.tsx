@@ -15,7 +15,7 @@ import { AdminBackend } from "./components/AdminBackend.tsx";
 import { LogBroker } from "./utils.ts";
 import { LedgerSystem } from "./components/LedgerSystem.tsx";
 import { LedgerService } from "./ledgerStore.ts";
-import { 
+import {
   Settings, 
   RefreshCw, 
   ShieldAlert, 
@@ -25,7 +25,8 @@ import {
   LogOut,
   Lock,
   Menu,
-  X
+  X,
+  CalendarDays
 } from "lucide-react";
 
 /**
