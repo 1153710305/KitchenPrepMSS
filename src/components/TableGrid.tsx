@@ -33,6 +33,8 @@ interface TableGridProps {
   activeGroupsList: DynamicGroup[];
   /** 激活的二级食材分类列表 */
   activeCategoriesList: DynamicCategory[];
+  /** 是否为只读模式（餐位分组页面下禁用增删改操作时传 true） */
+  readOnly?: boolean;
 }
 
 /**
@@ -46,7 +48,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
   onDeleteItem,
   isAdminMode,
   activeGroupsList,
-  activeCategoriesList
+  activeCategoriesList,
+  readOnly = false
 }) => {
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
@@ -329,37 +332,39 @@ export const TableGrid: React.FC<TableGridProps> = ({
             />
           </div>
 
-          {/* 新增原料采购项下拉框 (只允许从原料大字典已存在的原料中挑选新增) */}
-          <form onSubmit={handleAddSubmit} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-1">
-            <span className="text-[10px] text-gray-400 font-bold shrink-0">添加原料:</span>
-            <select
-              value={newItemName}
-              onChange={(e) => {
-                const name = e.target.value;
-                setNewItemName(name);
-                const matched = dictOptions.find(opt => opt.value === name);
-                if (matched) {
-                  setNewItemUnit(matched.unit);
-                }
-              }}
-              className="text-xs text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
-              required
-            >
-              <option value="">-- 选择原料 --</option>
-              {dictOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label} ({opt.unit})
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={!newItemName}
-              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-            >
-              新增
-            </button>
-          </form>
+          {/* 新增原料采购项下拉框 (只允许从原料大字典已存在的原料中挑选新增，只读模式下隐藏) */}
+          {!readOnly && (
+            <form onSubmit={handleAddSubmit} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-1">
+              <span className="text-[10px] text-gray-400 font-bold shrink-0">添加原料:</span>
+              <select
+                value={newItemName}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setNewItemName(name);
+                  const matched = dictOptions.find(opt => opt.value === name);
+                  if (matched) {
+                    setNewItemUnit(matched.unit);
+                  }
+                }}
+                className="text-xs text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
+                required
+              >
+                <option value="">-- 选择原料 --</option>
+                {dictOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label} ({opt.unit})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!newItemName}
+                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+              >
+                新增
+              </button>
+            </form>
+          )}
         </div>
 
         {/* 辅视图控制切换 */}
@@ -454,14 +459,16 @@ export const TableGrid: React.FC<TableGridProps> = ({
                               })()}
                             </span>
                             
-                            {/* 悬浮删除原料项按钮（鼠标移入当前行时展示，防止误触且干净美观） */}
-                            <button
-                              onClick={() => onDeleteItem(item.id)}
-                              className="opacity-0 group-hover/cell:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-1.5"
-                              title="删除此原料行"
-                            >
-                              <Trash size={12} />
-                            </button>
+                            {/* 悬浮删除原料项按钮（只读模式下隐藏，防止在餐位分组页误删） */}
+                            {!readOnly && (
+                              <button
+                                onClick={() => onDeleteItem(item.id)}
+                                className="opacity-0 group-hover/cell:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-1.5"
+                                title="删除此原料行"
+                              >
+                                <Trash size={12} />
+                              </button>
+                            )}
                           </td>
 
                           {/* 渲染31天每日录入小卡格 */}
@@ -596,14 +603,16 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             })()}
                           </div>
                           
-                          {/* 垃圾桶删除行按钮 */}
-                          <button
-                            onClick={() => onDeleteItem(item.id)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg cursor-pointer transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                            title="从备餐细表中移除该原料项目"
-                          >
-                            <Trash size={13} />
-                          </button>
+                          {/* 垃圾桶删除行按钮（只读模式下隐藏，防止在餐位分组页误删） */}
+                          {!readOnly && (
+                            <button
+                              onClick={() => onDeleteItem(item.id)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg cursor-pointer transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                              title="从备餐细表中移除该原料项目"
+                            >
+                              <Trash size={13} />
+                            </button>
+                          )}
                         </div>
 
                         {/* 修改区 */}

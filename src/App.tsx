@@ -877,6 +877,7 @@ export default function App() {
                     isAdminMode={isAdminMode}
                     activeGroupsList={activeGroupsList}
                     activeCategoriesList={activeCategoriesList}
+                    readOnly={true}
                   />
                 )}
 

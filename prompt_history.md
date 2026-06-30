@@ -178,3 +178,12 @@
      - 在 [LedgerStyle2Flow.tsx](file:///Users/sangsang/Desktop/KPMSS/src/components/LedgerStyle2Flow.tsx)（样式二）的流水表格卡片顶部，新设了“采购流水时间段筛选”的日期区段调节器，使得页面仅展示、录入指定时间范围内的明细，并自适应期初结余。
      - 在 [LedgerPrintStyle2.tsx](file:///Users/sangsang/Desktop/KPMSS/src/components/LedgerPrintStyle2.tsx)（图二打印模板）中将日期由单日天号升级为完整的 “YYYY-MM-DD 年月日”，且顶部“日期：（        ）”框自动填充为该自定义开始至结束的完整时间段范围。
 
+### 2026-07-01 - [V5.2.0] 餐位分组页面下每日采购细表设为只读
+- **需求**：不允许在餐位分组页面下对每日采购细表里的采购原料数据进行增删改。
+- **实现方案**：
+  1. 在 [TableGrid.tsx] 中新增 `readOnly?: boolean` 可选属性。当 `readOnly=true` 时：
+     - 隐藏顶部工具栏的添加原料下拉表单（新增功能入口）
+     - 隐藏 MATRIX 矩阵视图中每行悬浮的垃圾桶删除按钮
+     - 隐藏 FOCUS 聚焦卡片视图中每张卡片顶部的垃圾桶删除按钮
+  2. 在 [App.tsx] 中调用 TableGrid 时传入 `readOnly={true}`，使餐位分组页面统一进入只读查看模式。
+
