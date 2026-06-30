@@ -300,17 +300,97 @@ pause
    npm run build
    ```
 
-#### 3. 云端生产环境启动与守护
-云服务器中应使用 pm2 进行守护启动，以防服务器断网重启或异常中断导致服务无法访问：
+#### 3. 云端生产环境启动与守护（支持手动端口与多服务隔离）
+
+在多服务运行的云服务器上部署时，需要配置独立的运行端口，并通过 Nginx 进行反向代理与域名映射，确保各服务之间互不影响：
+
+##### (1) 手动修改/指定部署端口
+后端服务默认监听 **3000** 端口。如果该端口已被服务器上其他服务占用，您可以通过配置 `.env` 环境变量中的 `PORT` 参数，或者在启动时直接注入环境变量来手动更改端口：
+- **方式 A：在 `.env` 中指定**（推荐，便于管理）：
+  ```env
+  PORT=8085  # 手动将系统部署端口修改为 8085
+  ```
+- **方式 B：命令行启动时临时注入**：
+  ```bash
+  PORT=8085 node dist/server.cjs
+  ```
+
+##### (2) 灵活选择是否启用云端 COS 对象存储
+系统支持在云端直接读写本地 JSON 文件，也支持使用腾讯云 COS。通过调整 `.env` 配置文件中的 `STORAGE_TYPE` 来开启/关闭：
+- **不使用对象存储（使用本地单机 JSON 文件）**：
+  ```env
+  STORAGE_TYPE="local"
+  LOCAL_DB_PATH="data/db.json"  # 数据将以 JSON 文件形式存储在服务器项目根目录的 data 文件夹下
+  ```
+- **使用云端对象存储（数据完全托管到腾讯云 COS）**：
+  ```env
+  STORAGE_TYPE="cos"
+  COS_SECRET_ID="您的腾讯云SecretId"
+  COS_SECRET_KEY="您的腾讯云SecretKey"
+  COS_REGION="ap-guangzhou"
+  COS_BUCKET="你的存储桶名称-1234567890"
+  COS_KEY="production/db.json"
+  ```
+
+##### (3) 如何使用域名访问与 Nginx 反向代理（多服务无冲突共存）
+为了使用域名访问系统，且不影响服务器上其他正在运行的服务，建议使用 **Nginx** 作为统一的网关，通过配置反向代理（Reverse Proxy）和虚拟主机（Virtual Host）将特定子域名转发至后厨系统的对应端口。
+
+1. **配置 DNS 解析**：
+   在您的域名服务商控制台（如腾讯云 DNS Pod），为系统添加一条 `A 记录` 或 `CNAME 记录`，将子域名（如 `kitchen.yourdomain.com`）指向您的云服务器公网 IP。
+
+2. **配置 Nginx 虚拟主机 (避免服务冲突)**：
+   在服务器的 Nginx 配置目录（通常为 `/etc/nginx/sites-available/` 或 `/etc/nginx/conf.d/`）下为后厨系统建立独立的配置文件（例如 `kitchen.conf`），加入以下配置：
+   ```nginx
+   server {
+       listen 80;
+       server_name kitchen.yourdomain.com; # 绑定您的后厨系统专属访问域名
+
+       # 调高 Nginx 上传限额，防止备份包导入时因 Payload 过大被拦截 (同 Express 的 50MB 限制对齐)
+       client_max_body_size 50m;
+
+       # 开启 Gzip 压缩，加速老旧 Win7 客户端大矩阵的加载速度
+       gzip on;
+       gzip_types text/plain text/css application/json application/javascript text/xml;
+
+       location / {
+           proxy_pass http://127.0.0.1:8085; # 对应您在系统 .env 中手动指定的 PORT 端口
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+           
+           # 转发真实客户端 IP 供后台审计日志留存
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       }
+   }
+   ```
+   *通过这种域名配置，即使服务器上运行着数十个其他 Web 网站或微服务，只要它们的 `server_name` 域名不同，或者监听不同的本地端口，Nginx 就能在入口处精准路由，**各服务之间在运行端口与流量通道上实现了 100% 物理隔离，互不干扰**。*
+
+3. **测试并重载 Nginx 规则**：
+   ```bash
+   sudo nginx -t          # 检查配置文件语法是否正确
+   sudo systemctl reload nginx # 重载 Nginx 服务使配置立即生效
+   ```
+
+4. **开启 HTTPS 安全访问 (可选但强烈建议)**：
+   由于后厨包含敏感的就餐和采购成本数据，建议使用免费的 Let's Encrypt 工具为域名部署 SSL 证书：
+   ```bash
+   sudo apt-get install certbot python3-certbot-nginx
+   sudo certbot --nginx -d kitchen.yourdomain.com
+   ```
+
+##### (4) 云端生产环境 PM2 守护启动命令
+在 `.env` 完成端口和存储选择、并由 Nginx 配置好反向代理后，执行以下命令在后台独立守护启动：
 ```bash
-# 启动 Express 生产独立编译包并命名为 kitchen-prep-system
+# 使用 PM2 启动生产环境并命名为 kitchen-prep-system
 pm2 start dist/server.cjs --name "kitchen-prep-system"
 
-# 设置开机自启
+# 固化 PM2 运行列表并设置服务器开机自动拉起进程
 pm2 save
 pm2 startup
 ```
-若需要配置域名访问，请使用 Nginx 监听 80/443 端口，并通过反向代理反代至服务器本地的 `http://127.0.0.1:3000` 即可。
 
 
 ---
