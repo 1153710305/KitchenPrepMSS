@@ -77,6 +77,7 @@ export function LedgerSystem() {
   const [newMaterialStock, setNewMaterialStock] = useState<number>(0);
   // 新增原料模糊搜索检索词
   const [addMaterialSearchQuery, setAddMaterialSearchQuery] = useState<string>("");
+  const [isAddDropdownOpen, setIsAddDropdownOpen] = useState<boolean>(false);
   
   // 编辑原料明细相关状态
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
@@ -144,6 +145,18 @@ export function LedgerSystem() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // 监听全局点击事件，点击外部收起添加原料的联想下拉框
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".add-material-search-container")) {
+        setIsAddDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   // ================= 计算属性与动态过滤 =================
@@ -1006,58 +1019,96 @@ export function LedgerSystem() {
                       LedgerService.addLedgerItem(activeLedgerId, newMaterialName, unit, spec, 0)
                         .then(() => {
                           setNewMaterialName("");
+                          setAddMaterialSearchQuery("");
+                          setIsAddDropdownOpen(false);
                           setSaveToast("成功新增台账原料行！");
                           setTimeout(() => setSaveToast(null), 2000);
                         })
                         .catch((err) => triggerError(err.message));
                     }}
-                    className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2"
+                    className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-2 md:p-3 relative add-material-search-container z-40"
                   >
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold shrink-0">搜索原料:</span>
+                    <span className="text-[10px] text-slate-500 font-bold shrink-0">添加原料采购项:</span>
+                    
+                    {/* 相对定位输入容器，用来精准挂载悬浮框 */}
+                    <div className="relative min-w-[200px] flex-1 max-w-xs">
                       <input
                         type="text"
-                        placeholder="输入汉字/首拼字母筛选..."
+                        placeholder="输入拼音/汉字进行联想匹配..."
                         value={addMaterialSearchQuery}
-                        onChange={(e) => setAddMaterialSearchQuery(e.target.value)}
-                        className="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] w-36 outline-none focus:border-teal-500 font-medium"
+                        onFocus={() => setIsAddDropdownOpen(true)}
+                        onChange={(e) => {
+                          setAddMaterialSearchQuery(e.target.value);
+                          setIsAddDropdownOpen(true);
+                          // 如果用户清空了输入，重置选中项
+                          if (!e.target.value.trim()) {
+                            setNewMaterialName("");
+                          }
+                        }}
+                        className="bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs w-full outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-bold placeholder-slate-400"
+                        required
                       />
+
+                      {/* 实时动态检索联想浮窗，显示在输入框的正下方 */}
+                      {isAddDropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 py-1 scrollbar-thin">
+                          {(() => {
+                            const filtered = RawMaterialsDictService.getItems().filter((item) => 
+                              matchPinyin(item.name, addMaterialSearchQuery)
+                            );
+                            if (filtered.length === 0) {
+                              return <div className="p-2 text-[10px] text-slate-400 text-center font-bold">无匹配的字典原料</div>;
+                            }
+                            return filtered.map((item) => (
+                              <div
+                                key={item.name}
+                                onClick={() => {
+                                  setNewMaterialName(item.name);
+                                  setAddMaterialSearchQuery(item.name);
+                                  setIsAddDropdownOpen(false);
+                                }}
+                                className={`p-2 text-xs font-bold cursor-pointer transition-colors flex items-center justify-between ${
+                                  newMaterialName === item.name 
+                                    ? "bg-teal-50 text-teal-700" 
+                                    : "text-slate-700 hover:bg-slate-100"
+                                }`}
+                              >
+                                <span>{item.name}</span>
+                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded shrink-0 font-medium">
+                                  {item.unit} ({item.category})
+                                </span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold shrink-0">选择:</span>
-                      <select
-                        value={newMaterialName}
-                        onChange={(e) => setNewMaterialName(e.target.value)}
-                        className="text-[11px] text-slate-700 bg-white border border-slate-300 rounded px-2 py-1 outline-none cursor-pointer max-w-[150px] font-bold"
-                        required
-                      >
-                        <option value="">-- 选择字典原料 --</option>
-                        {RawMaterialsDictService.getItems()
-                          .filter((item) => matchPinyin(item.name, addMaterialSearchQuery))
-                          .map((item) => (
-                            <option key={item.name} value={item.name}>
-                              {item.name} ({item.unit})
-                            </option>
-                          ))}
-                      </select>
-                    </div>
+                    {newMaterialName && (
+                      <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-extrabold">
+                        已选: {newMaterialName}
+                      </span>
+                    )}
                     
                     <button
                       type="submit"
                       disabled={!newMaterialName}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0 transition-colors"
+                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg cursor-pointer shrink-0 transition-colors shadow-xs"
                     >
                       添加
                     </button>
                     
-                    {addMaterialSearchQuery && (
+                    {(addMaterialSearchQuery || newMaterialName) && (
                       <button
                         type="button"
-                        onClick={() => setAddMaterialSearchQuery("")}
-                        className="text-[9px] text-slate-400 hover:text-slate-600 underline font-bold cursor-pointer"
+                        onClick={() => {
+                          setAddMaterialSearchQuery("");
+                          setNewMaterialName("");
+                          setIsAddDropdownOpen(false);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 underline font-bold cursor-pointer"
                       >
-                        清除搜索
+                        清空
                       </button>
                     )}
                   </form>
