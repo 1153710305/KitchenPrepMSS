@@ -84,16 +84,16 @@ export const TableGrid: React.FC<TableGridProps> = ({
     // 找出与当前备餐报表所属客群（targetGroup）相匹配的台账集合
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === report.targetGroup);
 
-    return report.items
+    return groupLedgerItems
       .filter((item) => {
-        const matchCat = selectedCategory === null ? true : item.category === selectedCategory;
+        // 解析该台账原料在字典里的所属品类大类
+        const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
+        const cat = dictItem ? dictItem.category : FoodCategory.VEGETABLE;
+        const matchCat = selectedCategory === null ? true : cat === selectedCategory;
         const matchSearch = item.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
         return matchCat && matchSearch;
       })
       .map((item) => {
-        // 寻找此人群此食材在台账中对应的采购项
-        const matchedLedgerItem = groupLedgerItems.find((li) => li.name === item.name);
-        
         // 构造克隆条目，重定向其每日数据为台账当日入库数据
         const alignedDailyData: Record<string, any> = {};
         
@@ -103,7 +103,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           const dayStr = String(day).padStart(2, "0");
           const targetDateKey = `${report.year}-${monthStr}-${dayStr}`;
           
-          const ledgerRecord = matchedLedgerItem?.dailyRecords?.[targetDateKey];
+          const ledgerRecord = item.dailyRecords?.[targetDateKey];
           
           if (ledgerRecord && ledgerRecord.inQuantity > 0) {
             alignedDailyData[day] = {
@@ -117,12 +117,18 @@ export const TableGrid: React.FC<TableGridProps> = ({
           }
         });
 
+        // 返回由台账映射而成的标准备餐明细项
+        const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
         return {
-          ...item,
+          id: item.id,
+          name: item.name,
+          category: dictItem ? dictItem.category : FoodCategory.VEGETABLE,
+          targetGroup: report.targetGroup,
+          unit: item.unit,
           dailyData: alignedDailyData
         };
       });
-  }, [report.items, report.targetGroup, report.year, report.month, selectedCategory, searchQuery, days]);
+  }, [report.targetGroup, report.year, report.month, selectedCategory, searchQuery, days]);
 
   // 2. 统计计算：每个日期(1-31号)在该类目下的总开销汇总
   const dayTotals = useMemo(() => {

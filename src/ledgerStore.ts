@@ -309,16 +309,8 @@ export class LedgerService {
         createdAt: new Date().toISOString()
       };
       
-      const newItems: LedgerItem[] = PRESET_LEDGER_MATERIALS.map((material, index) => ({
-        id: `ledger_item_${newLedger.id}_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        ledgerId: newLedger.id,
-        name: material.name,
-        unit: material.unit,
-        spec: material.spec,
-        initialStock: material.initialStock,
-        currentStock: material.initialStock,
-        dailyRecords: {}
-      }));
+      // 新建一级人群对应台账时，不要有默认采购原料项目，直接设为空，满足“不要有默认记录，不要显示任何原料”
+      const newItems: LedgerItem[] = [];
       
       this.ledgers = [...this.ledgers, newLedger];
       this.ledgerItems = [...this.ledgerItems, ...newItems];
