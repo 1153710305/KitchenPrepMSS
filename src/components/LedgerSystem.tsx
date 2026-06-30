@@ -75,6 +75,8 @@ export function LedgerSystem() {
   const [newMaterialUnit, setNewMaterialUnit] = useState<string>("斤");
   const [newMaterialSpec, setNewMaterialSpec] = useState<string>("");
   const [newMaterialStock, setNewMaterialStock] = useState<number>(0);
+  // 新增原料模糊搜索检索词
+  const [addMaterialSearchQuery, setAddMaterialSearchQuery] = useState<string>("");
   
   // 编辑原料明细相关状态
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
@@ -1009,29 +1011,55 @@ export function LedgerSystem() {
                         })
                         .catch((err) => triggerError(err.message));
                     }}
-                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5"
+                    className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2"
                   >
-                    <span className="text-[10px] text-slate-500 font-bold shrink-0">添加原料采购项:</span>
-                    <select
-                      value={newMaterialName}
-                      onChange={(e) => setNewMaterialName(e.target.value)}
-                      className="text-[11px] text-slate-700 bg-transparent outline-none cursor-pointer max-w-[130px] font-bold"
-                      required
-                    >
-                      <option value="">-- 选择字典原料 --</option>
-                      {RawMaterialsDictService.getItems().map((item) => (
-                        <option key={item.name} value={item.name}>
-                          {item.name} ({item.unit})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-bold shrink-0">搜索原料:</span>
+                      <input
+                        type="text"
+                        placeholder="输入汉字/首拼字母筛选..."
+                        value={addMaterialSearchQuery}
+                        onChange={(e) => setAddMaterialSearchQuery(e.target.value)}
+                        className="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] w-36 outline-none focus:border-teal-500 font-medium"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-bold shrink-0">选择:</span>
+                      <select
+                        value={newMaterialName}
+                        onChange={(e) => setNewMaterialName(e.target.value)}
+                        className="text-[11px] text-slate-700 bg-white border border-slate-300 rounded px-2 py-1 outline-none cursor-pointer max-w-[150px] font-bold"
+                        required
+                      >
+                        <option value="">-- 选择字典原料 --</option>
+                        {RawMaterialsDictService.getItems()
+                          .filter((item) => matchPinyin(item.name, addMaterialSearchQuery))
+                          .map((item) => (
+                            <option key={item.name} value={item.name}>
+                              {item.name} ({item.unit})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    
                     <button
                       type="submit"
                       disabled={!newMaterialName}
-                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0 transition-colors"
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg cursor-pointer shrink-0 transition-colors"
                     >
                       添加
                     </button>
+                    
+                    {addMaterialSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setAddMaterialSearchQuery("")}
+                        className="text-[9px] text-slate-400 hover:text-slate-600 underline font-bold cursor-pointer"
+                      >
+                        清除搜索
+                      </button>
+                    )}
                   </form>
                 )}
 
