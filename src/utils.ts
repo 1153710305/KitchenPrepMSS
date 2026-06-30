@@ -21,6 +21,8 @@ export function getDaysInMonth(year: number, month: number): string[] {
   return days;
 }
 
+import { pinyin } from "pinyin-pro";
+
 /**
  * @description 计算单条备菜行内指定天数的金额
  * @param quantity 备菜数量
@@ -31,6 +33,35 @@ export function calculateEntryAmount(quantity: number, price: number): number {
   if (isNaN(quantity) || quantity < 0) quantity = 0;
   if (isNaN(price) || price < 0) price = 0;
   return Math.round(quantity * price * 100) / 100;
+}
+
+/**
+ * @description 判断目标中文文本是否匹配查询关键词（支持拼音首字母缩写、全拼模糊以及中文原文）
+ * @param targetText 中文目标文本，如 "大米"
+ * @param querySearch 查找关键词，如 "dm" 或 "dami" 或 "大米"
+ * @returns 是否匹配
+ */
+export function matchPinyin(targetText: string, querySearch: string): boolean {
+  const query = querySearch.trim().toLowerCase();
+  if (!query) return true;
+  
+  const text = targetText.trim().toLowerCase();
+  if (text.includes(query)) return true;
+  
+  try {
+    // 获取无音调全拼，如 "da mi"
+    const fullPinyin = pinyin(text, { toneType: "none" }).toLowerCase().replace(/\s+/g, "");
+    if (fullPinyin.includes(query)) return true;
+
+    // 获取拼音首字母，如 "dm"
+    const firstLetters = pinyin(text, { pattern: "first", toneType: "none" }).toLowerCase().replace(/\s+/g, "");
+    if (firstLetters.includes(query)) return true;
+  } catch (err) {
+    // 降级防呆
+    return text.includes(query);
+  }
+  
+  return false;
 }
 
 /**

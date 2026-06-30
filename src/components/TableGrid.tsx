@@ -7,7 +7,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../types.ts";
 import { PrepReportService } from "../store.ts";
 import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../constants.ts";
-import { getDaysInMonth, getItemMonthlySummary, LogBroker } from "../utils.ts";
+import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin } from "../utils.ts";
 import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
@@ -90,7 +90,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
         const cat = dictItem ? dictItem.category : FoodCategory.VEGETABLE;
         const matchCat = selectedCategory === null ? true : cat === selectedCategory;
-        const matchSearch = item.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+        const matchSearch = matchPinyin(item.name, searchQuery);
         return matchCat && matchSearch;
       })
       .map((item) => {

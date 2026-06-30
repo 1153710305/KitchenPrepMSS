@@ -8,7 +8,7 @@ import { PrepReportService } from "../store.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { DynamicGroup, DynamicCategory, GroupMonthlyReport, FoodCategory } from "../types.ts";
 import { LogView } from "./LogView.tsx";
-import { LogBroker, getDaysInMonth, convertAllGroupsToCsv } from "../utils.ts";
+import { LogBroker, getDaysInMonth, convertAllGroupsToCsv, matchPinyin } from "../utils.ts";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { 
   Users, 
@@ -1007,7 +1007,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 max-h-96 overflow-y-auto pr-1 scrollbar-thin">
                   {dictItems
                     .filter((item) => {
-                      const matchSearch = item.name.toLowerCase().includes(dictSearchQuery.trim().toLowerCase());
+                      const matchSearch = matchPinyin(item.name, dictSearchQuery);
                       const matchCat = dictSearchCategory === "ALL" ? true : item.category === dictSearchCategory;
                       return matchSearch && matchCat;
                     })

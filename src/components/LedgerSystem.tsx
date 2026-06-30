@@ -7,7 +7,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Ledger, LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../ledgerConstants.ts";
-import { LogBroker } from "../utils.ts";
+import { LogBroker, matchPinyin } from "../utils.ts";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { FoodCategory } from "../types.ts";
@@ -164,7 +164,7 @@ export function LedgerSystem() {
     const dictItems = RawMaterialsDictService.getItems();
     return currentLedgerItems.filter((item) => {
       if (filterName.trim()) {
-        if (!item.name.toLowerCase().includes(filterName.trim().toLowerCase())) return false;
+        if (!matchPinyin(item.name, filterName)) return false;
       }
       if (filterCategory) {
         const dictItem = dictItems.find(d => d.name === item.name);
