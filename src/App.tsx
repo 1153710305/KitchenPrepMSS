@@ -14,6 +14,7 @@ import { AiAssistant } from "./components/AiAssistant.tsx";
 import { AdminBackend } from "./components/AdminBackend.tsx";
 import { LogBroker } from "./utils.ts";
 import { LedgerSystem } from "./components/LedgerSystem.tsx";
+import { InventoryPanel } from "./components/InventoryPanel.tsx";
 import { LedgerService } from "./ledgerStore.ts";
 import {
   Settings, 
@@ -26,7 +27,8 @@ import {
   Lock,
   Menu,
   X,
-  CalendarDays
+  CalendarDays,
+  Package
 } from "lucide-react";
 
 /**
@@ -75,6 +77,8 @@ export default function App() {
   const [activeCategoriesList, setActiveCategoriesList] = useState<DynamicCategory[]>([]);
   /** 订阅的购销台账原料列表 */
   const [ledgerItemsList, setLedgerItemsList] = useState<any[]>([]);
+  /** 库存总览面板显示状态 */
+  const [isInventoryOpen, setIsInventoryOpen] = useState<boolean>(false);
 
   // ================= 2026-06-30 新增：餐位分组折叠及子功能按需控制状态 =================
   /** 活动餐位分组用户是否手动折叠（左侧侧边栏折叠状态） */
@@ -521,6 +525,16 @@ export default function App() {
 
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
           
+          {/* 库存总览快速入口 */}
+          <button
+            onClick={() => setIsInventoryOpen(true)}
+            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-700 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-500 font-bold text-[10px] sm:text-xs text-slate-200 hover:text-white rounded cursor-pointer transition-all shadow-sm"
+            title="查看全部原料库存总览"
+          >
+            <Package size={11} />
+            <span className="hidden sm:inline">库存总览</span>
+          </button>
+
           {/* 配置管理后台高权入口 */}
           <button
             onClick={handleAdminAccessAttempt}
@@ -959,6 +973,11 @@ export default function App() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* 库存总览模态面板 */}
+      {isInventoryOpen && (
+        <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
       )}
     </div>
   );
