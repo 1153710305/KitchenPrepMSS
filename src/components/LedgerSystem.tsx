@@ -8,6 +8,8 @@ import { Ledger, LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../ledgerConstants.ts";
 import { LogBroker } from "../utils.ts";
+import { SearchableSelect } from "./SearchableSelect.tsx";
+import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { 
   Plus, 
   Trash2, 
@@ -82,6 +84,16 @@ export function LedgerSystem() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   /** 仅供打印使用的纯净弹出视图状态: null | "in" | "out" */
   const [printDocType, setPrintDocType] = useState<null | "in" | "out">(null);
+
+  /** 从全局原料大字典获取的可供选择下拉项 */
+  const dictOptions = useMemo(() => {
+    return RawMaterialsDictService.getItems().map((item) => ({
+      value: item.name,
+      label: item.name,
+      unit: item.unit,
+      category: item.category
+    }));
+  }, [isAddMaterialOpen, editingMaterialId]);
 
   // ================= 数据加载及订阅变动 =================
 
@@ -907,9 +919,17 @@ export function LedgerSystem() {
                                     <form onSubmit={handleSaveEditMaterial} className="flex flex-wrap items-center gap-3">
                                       <div className="flex items-center gap-1.5">
                                         <span className="text-[11px] font-bold text-slate-400">原料品名:</span>
-                                        <input 
-                                          type="text" value={editMaterialName} onChange={(e) => setEditMaterialName(e.target.value)}
-                                          className="bg-white border border-slate-300 px-2 py-1 rounded text-xs w-28 outline-none" required
+                                        <SearchableSelect
+                                          options={dictOptions}
+                                          value={editMaterialName}
+                                          onChange={(val, opt) => {
+                                            setEditMaterialName(val);
+                                            if (opt && opt.unit) {
+                                              setEditMaterialUnit(opt.unit);
+                                            }
+                                          }}
+                                          placeholder="选择原料"
+                                          className="w-28"
                                         />
                                       </div>
                                       <div className="flex items-center gap-1.5">
@@ -1384,9 +1404,16 @@ export function LedgerSystem() {
             <form onSubmit={handleAddMaterialSubmit} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 block uppercase">原料名称 (必填)</label>
-                <input 
-                  type="text" placeholder="如: 黑米" value={newMaterialName} onChange={(e) => setNewMaterialName(e.target.value)}
-                  className="w-full bg-slate-50 text-xs p-2.5 border border-slate-200 rounded outline-none focus:border-emerald-500 focus:bg-white" required
+                <SearchableSelect
+                  options={dictOptions}
+                  value={newMaterialName}
+                  onChange={(val, opt) => {
+                    setNewMaterialName(val);
+                    if (opt && opt.unit) {
+                      setNewMaterialUnit(opt.unit);
+                    }
+                  }}
+                  placeholder="请输入或选择原料，如: 土豆"
                 />
               </div>
 

@@ -7,6 +7,9 @@ import { Ledger, LedgerItem, DailyStockRecord } from "./ledgerTypes.ts";
 import { DEFAULT_LEDGER_NAMES, PRESET_LEDGER_MATERIALS } from "./ledgerConstants.ts";
 import { LogBroker } from "./utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
+import { PrepReportService } from "./store.ts";
+import { RawMaterialsDictService } from "./rawMaterialDict.ts";
+import { FoodCategory } from "./types.ts";
 
 /** 本地 LocalStorage 缓存台账列表的 Key */
 const LEDGERS_LIST_KEY = "KITCHEN_LEDGERS_LIST_V2";
@@ -107,15 +110,19 @@ export class LedgerService {
     });
   }
 
-  /**
-   * @description 合成系统初始化默认种子台账和预设采购原料数据
-   */
   private static generateSeeds(): void {
     LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账和预设采购项...");
     
-    const initialLedgers: Ledger[] = DEFAULT_LEDGER_NAMES.map((name, index) => ({
-      id: `ledger_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 4)}`,
-      name,
+    const alignedGroups = [
+      { key: "TEACHER", name: "教师备餐" },
+      { key: "KID", name: "幼儿备餐" },
+      { key: "LOW_GRADE", name: "低年级备餐" },
+      { key: "HIGH_GRADE", name: "高年级备餐" }
+    ];
+
+    const initialLedgers: Ledger[] = alignedGroups.map((group) => ({
+      id: group.key,
+      name: group.name,
       createdAt: new Date().toISOString()
     }));
 
@@ -142,7 +149,7 @@ export class LedgerService {
     this.ledgers = initialLedgers;
     this.ledgerItems = initialItems;
     this.saveToStorage();
-    LogBroker.publish("INFO", "LedgerService", `成功合成四大默认台账「幼儿、教师、幼儿晚餐、在校生」，每个台账下预载 ${PRESET_LEDGER_MATERIALS.length} 项初始原料。`);
+    LogBroker.publish("INFO", "LedgerService", `成功对齐合成四大默认台账「教师备餐、幼儿备餐、低年级备餐、高年级备餐」，每个台账下预载 ${PRESET_LEDGER_MATERIALS.length} 项初始原料。`);
   }
 
   /**
@@ -170,8 +177,9 @@ export class LedgerService {
           return;
         }
 
+        const newId = `ledger_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         const newLedger: Ledger = {
-          id: `ledger_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          id: newId,
           name: normalizedName,
           createdAt: new Date().toISOString()
         };
@@ -193,6 +201,10 @@ export class LedgerService {
 
         this.notifyListeners();
         LogBroker.publish("INFO", "LedgerService", `【新增台账】成功新增台账「${normalizedName}」，并关联导入 ${PRESET_LEDGER_MATERIALS.length} 项初始采购原料`);
+        
+        // 双向同步：通知备餐系统添加人群
+        PrepReportService.syncGroupFromLedger(newId, normalizedName);
+        
         resolve(newLedger);
       }, LEDGER_API_LATENCY);
     });
@@ -235,6 +247,10 @@ export class LedgerService {
         this.ledgers = updatedLedgers;
         this.notifyListeners();
         LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${normalizedName}」`);
+        
+        // 双向同步：通知备餐系统修改人群
+        PrepReportService.syncGroupFromLedger(id, normalizedName);
+        
         resolve();
       }, LEDGER_API_LATENCY);
     });
@@ -259,9 +275,60 @@ export class LedgerService {
 
         this.notifyListeners();
         LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger.name}」以及其下的所有原料出入库及库存账单`);
+        
+        // 双向同步：通知备餐系统移出人群
+        PrepReportService.syncDeleteGroupFromLedger(id);
+        
         resolve();
       }, LEDGER_API_LATENCY);
     });
+  }
+
+  /**
+   * @description 从餐位分组同步新增/修改台账
+   */
+  public static syncLedgerFromGroup(id: string, name: string): void {
+    const existing = this.ledgers.find((l) => l.id === id);
+    if (existing) {
+      if (existing.name !== name) {
+        existing.name = name;
+        this.notifyListeners();
+      }
+    } else {
+      const newLedger: Ledger = {
+        id,
+        name,
+        createdAt: new Date().toISOString()
+      };
+      
+      const newItems: LedgerItem[] = PRESET_LEDGER_MATERIALS.map((material, index) => ({
+        id: `ledger_item_${newLedger.id}_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        ledgerId: newLedger.id,
+        name: material.name,
+        unit: material.unit,
+        spec: material.spec,
+        initialStock: material.initialStock,
+        currentStock: material.initialStock,
+        dailyRecords: {}
+      }));
+      
+      this.ledgers = [...this.ledgers, newLedger];
+      this.ledgerItems = [...this.ledgerItems, ...newItems];
+      this.notifyListeners();
+    }
+  }
+
+  /**
+   * @description 从餐位分组同步物理删除台账
+   */
+  public static syncDeleteLedgerFromGroup(id: string): void {
+    const ledger = this.ledgers.find((l) => l.id === id);
+    if (ledger) {
+      this.ledgers = this.ledgers.filter((l) => l.id !== id);
+      this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId !== id);
+      this.notifyListeners();
+      LogBroker.publish("WARN", "LedgerService", `从备餐分组同步物理移除了台账: ${id}`);
+    }
   }
 
   /**
@@ -493,6 +560,35 @@ export class LedgerService {
         this.ledgerItems = updatedItems;
 
         this.notifyListeners();
+
+        // 当用户手动录入入库数据或入库单价时，单向自动同步至备餐月度报表
+        if (fields.inQuantity !== undefined || fields.inPrice !== undefined) {
+          const inQty = mergedRecord.inQuantity ?? 0;
+          const inPr = mergedRecord.inPrice ?? 0;
+
+          // 从原料库字典中根据原料名称查询二级分类和默认单位
+          const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || FoodCategory.VEGETABLE;
+          const unit = item.unit || "斤";
+
+          // 从 YYYY-MM-DD 提取年、月、日
+          const [yearStr, monthStr, dayStr] = dateStr.split("-");
+          const year = parseInt(yearStr || "2026");
+          const month = parseInt(monthStr || "06");
+          const day = parseInt(dayStr || "01").toString(); // 去除前导0
+
+          PrepReportService.syncFromLedger(
+            item.ledgerId, // 即 targetGroup
+            year,
+            month,
+            day,
+            item.name,
+            category,
+            unit,
+            inQty,
+            inPr
+          );
+        }
+
         resolve();
       } catch (err) {
         reject(err);

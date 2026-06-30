@@ -41,6 +41,10 @@ export default function App() {
   /** 当前选中的二级食材品类。当设置为 null 时，代表“合计汇总”汇总表 */
   const [activeCategory, setActiveCategory] = useState<string | null>("VEGETABLE");
   
+  /** 当前备餐查看选中的年份与月份 */
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
+  
   /** 系统离线架构自检与加载态指示 */
   const [isLoading, setIsLoading] = useState<boolean>(true);
   /** 自动同步极速轻量气泡提示文字 */
@@ -186,12 +190,10 @@ export default function App() {
     return () => clearTimeout(timer);
   };
 
-  /** 
-   * @description 获取当前激活受众人群的月度账期备单报表
-   */
   const currentReport = useMemo(() => {
-    return reports.find((r) => r.targetGroup === activeGroup as TargetGroup);
-  }, [reports, activeGroup]);
+    if (activeGroup === "ANALYTICS" || activeGroup === "LEDGER") return null;
+    return PrepReportService.getOrCreateReport(activeGroup, selectedYear, selectedMonth);
+  }, [reports, activeGroup, selectedYear, selectedMonth]);
 
   // ================= 记账控制交互事务 =================
 
@@ -663,7 +665,6 @@ export default function App() {
             <LedgerSystem />
           ) : (
             <>
-              {/* 二级动态联动大分类大 Tab / 专属分析页头 (蔬菜、粮油、品料等以及右端的合计汇总) */}
               <div className="flex items-center px-4 bg-white border-b border-slate-200 justify-between shrink-0 h-12">
                 {activeGroup === "ANALYTICS" ? (
                   <div className="flex items-center space-x-2">
@@ -694,24 +695,47 @@ export default function App() {
                       );
                     })}
                 
-                <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
+                    <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
                 
-                <button
-                  onClick={() => {
-                    setActiveCategory(null);
-                    LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
-                  }}
-                  className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${
-                    activeCategory === null
-                      ? "border-emerald-600 text-emerald-700 font-extrabold"
-                      : "border-transparent text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  合计汇总表
-                </button>
+                    <button
+                      onClick={() => {
+                        setActiveCategory(null);
+                        LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
+                      }}
+                      className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${
+                        activeCategory === null
+                          ? "border-emerald-600 text-emerald-700 font-extrabold"
+                          : "border-transparent text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      合计汇总表
+                    </button>
+                  </div>
+                )}
+
+                {/* 账期选择器 */}
+                {activeGroup !== "LEDGER" && activeGroup !== "ANALYTICS" && (
+                  <div className="flex items-center space-x-2 shrink-0 ml-4">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 animate-fade-in">
+                      <CalendarDays size={14} className="text-slate-400" />
+                      查看账期:
+                    </span>
+                    <input
+                      type="month"
+                      value={`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [y, m] = e.target.value.split("-").map(Number);
+                          setSelectedYear(y);
+                          setSelectedMonth(m);
+                          LogBroker.publish("INFO", "App", `切换账期至: ${y}年${m}月`);
+                        }
+                      }}
+                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-700 outline-none cursor-pointer focus:bg-white focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
           {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
           <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">

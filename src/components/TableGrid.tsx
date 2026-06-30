@@ -9,6 +9,8 @@ import { PrepReportService } from "../store.ts";
 import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../constants.ts";
 import { getDaysInMonth, getItemMonthlySummary, LogBroker } from "../utils.ts";
 import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect.tsx";
+import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 
 /**
  * @description 备菜网格组件的输入参数协议
@@ -60,6 +62,18 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 新条目新增窗控制
   const [newItemName, setNewItemName] = useState<string>("");
   const [newItemUnit, setNewItemUnit] = useState<string>("斤");
+
+  /** 根据当前所选二级大品类，过滤该大类下所有的原料字典选项 */
+  const dictOptions = useMemo(() => {
+    return RawMaterialsDictService.getItems()
+      .filter((item) => !selectedCategory || item.category === selectedCategory)
+      .map((item) => ({
+        value: item.name,
+        label: item.name,
+        unit: item.unit,
+        category: item.category
+      }));
+  }, [selectedCategory]);
 
   // 当月包含的日期数组 (["1", "2", ..., "31"])
   const days = useMemo(() => getDaysInMonth(report.year, report.month), [report.year, report.month]);
@@ -283,12 +297,17 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
           {/* 新增菜品表单 */}
           <form onSubmit={handleAddSubmit} className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder={UI_TEXT.itemNamePlaceholder}
+            <SearchableSelect
+              options={dictOptions}
               value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              className="px-3 py-1.5 w-32 bg-white border border-gray-100 rounded-xl text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+              onChange={(val, opt) => {
+                setNewItemName(val);
+                if (opt && opt.unit) {
+                  setNewItemUnit(opt.unit);
+                }
+              }}
+              placeholder={UI_TEXT.itemNamePlaceholder}
+              className="w-36"
             />
             <input
               type="text"

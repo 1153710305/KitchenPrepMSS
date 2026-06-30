@@ -6,9 +6,10 @@
 import React, { useState } from "react";
 import { PrepReportService } from "../store.ts";
 import { LedgerService } from "../ledgerStore.ts";
-import { DynamicGroup, DynamicCategory, GroupMonthlyReport } from "../types.ts";
+import { DynamicGroup, DynamicCategory, GroupMonthlyReport, FoodCategory } from "../types.ts";
 import { LogView } from "./LogView.tsx";
 import { LogBroker, getDaysInMonth, convertAllGroupsToCsv } from "../utils.ts";
+import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { 
   Users, 
   Settings, 
@@ -78,7 +79,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   /** 
    * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'maintenance'代表数据维护，'logs'代表内核日志 
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "maintenance" | "logs">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance" | "logs">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -133,6 +134,14 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
    * @description 二级食材大类操作异常文字提示 
    */
   const [catError, setCatError] = useState<string | null>(null);
+
+  // --- 原料字典管理相关内部状态 ---
+  const [dictItems, setDictItems] = useState(() => RawMaterialsDictService.getItems());
+  const [dictNameInput, setDictNameInput] = useState<string>("");
+  const [dictCategoryInput, setDictCategoryInput] = useState<FoodCategory>(FoodCategory.VEGETABLE);
+  const [dictUnitInput, setDictUnitInput] = useState<string>("斤");
+  const [editingDictName, setEditingDictName] = useState<string | null>(null);
+  const [dictError, setDictError] = useState<string | null>(null);
 
   // ================= 核心工具函数 =================
 
@@ -253,6 +262,68 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     setGroupLabelInput("");
     setGroupEmojiInput("🍽️");
     setGroupError(null);
+  };
+  // ================= 原料字典管理 C.R.U.D. 执行方法 =================
+
+  /**
+   * @description 提交保存原料字典配置
+   */
+  const handleSaveDictSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDictError(null);
+
+    const name = dictNameInput.trim();
+    if (!name) {
+      setDictError("原料名称不能为空！");
+      return;
+    }
+
+    try {
+      if (editingDictName) {
+        await RawMaterialsDictService.updateMaterial(editingDictName, name, dictCategoryInput, dictUnitInput);
+      } else {
+        await RawMaterialsDictService.addMaterial(name, dictCategoryInput, dictUnitInput);
+      }
+      setDictItems([...RawMaterialsDictService.getItems()]);
+      setDictNameInput("");
+      setDictUnitInput("斤");
+      setDictCategoryInput(FoodCategory.VEGETABLE);
+      setEditingDictName(null);
+    } catch (err: any) {
+      setDictError(err.message || "保存原料时发生错误");
+    }
+  };
+
+  /**
+   * @description 启动对原料项的编辑回填
+   */
+  const handleStartEditDict = (item: any) => {
+    setDictError(null);
+    setEditingDictName(item.name);
+    setDictNameInput(item.name);
+    setDictCategoryInput(item.category);
+    setDictUnitInput(item.unit);
+  };
+
+  /**
+   * @description 删除原料记录
+   */
+  const handleDeleteDict = (name: string) => {
+    showConfirm(
+      "危险：删除原料字典项",
+      `您确定要删除原料「${name}」吗？这不会自动删除已有台账明细，但该原料在以后录入时将无法通过下拉快速查找。确定继续？`,
+      async () => {
+        await RawMaterialsDictService.deleteMaterial(name);
+        setDictItems([...RawMaterialsDictService.getItems()]);
+        if (editingDictName === name) {
+          setEditingDictName(null);
+          setDictNameInput("");
+          setDictUnitInput("斤");
+          setDictCategoryInput(FoodCategory.VEGETABLE);
+        }
+      },
+      "warn"
+    );
   };
 
   // ================= 二级食材大类 C.R.U.D. 执行方法 =================
@@ -548,6 +619,18 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
               </button>
 
               <button
+                onClick={() => setActiveTab("dictionary")}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
+                  activeTab === "dictionary"
+                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                    : "text-slate-600 hover:bg-slate-50 border-transparent"
+                }`}
+              >
+                <FileSpreadsheet size={15} className="mr-3 shrink-0" />
+                <span>原料字典管理</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab("maintenance")}
                 className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
                   activeTab === "maintenance"
@@ -831,6 +914,150 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                     >
                       {editingCatKey ? <Check size={12} /> : <PlusCircle size={12} />}
                       <span>{editingCatKey ? "保存类别" : "建立供应大类"}</span>
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          )}
+
+          {/* 原料大底库字典管理 Tab 页 */}
+          {activeTab === "dictionary" && (
+            <div className="space-y-6 max-w-4xl animate-fade-in">
+              <section className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <div className="flex items-center space-x-2.5">
+                    <FileSpreadsheet className="text-teal-600" size={18} />
+                    <h3 className="text-sm font-bold text-slate-900">核心原料库字典管理</h3>
+                  </div>
+                  <span className="text-[10px] bg-teal-50 text-teal-700 font-mono px-2 py-0.5 rounded-full font-extrabold">
+                    {dictItems.length} 项原料已注册
+                  </span>
+                </div>
+
+                {/* 原料卡片列表 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 max-h-96 overflow-y-auto pr-1 scrollbar-thin">
+                  {dictItems.map((item) => {
+                    const isUnderEdit = editingDictName === item.name;
+                    return (
+                      <div 
+                        key={item.name}
+                        className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
+                          isUnderEdit 
+                            ? "bg-teal-50/50 border-teal-300 shadow-xs" 
+                            : "bg-slate-50 border-slate-150 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-slate-800 truncate block">{item.name}</span>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
+                              {item.unit}
+                            </span>
+                            <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.2 rounded font-medium">
+                              {item.category}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <button
+                            onClick={() => handleStartEditDict(item)}
+                            className="p-1 text-slate-500 hover:text-teal-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                            title="编辑原料"
+                            disabled={isUnderEdit}
+                          >
+                            <Edit2 size={11} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDict(item.name)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                            title="删除原料"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 新增/编辑原料表单 */}
+                <form onSubmit={handleSaveDictSubmit} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-3">
+                    <Sparkles size={13} className="text-teal-600" />
+                    {editingDictName ? "修改已有原料属性定义" : "增添全新食品与备品原料记录"}
+                  </h4>
+
+                  {dictError && (
+                    <div className="text-[11px] bg-rose-50 text-rose-600 p-2.5 rounded border border-rose-100 mb-3 flex items-center space-x-1.5">
+                      <ShieldAlert size={12} className="shrink-0" />
+                      <span>{dictError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">原料品名(如: 土豆)</label>
+                      <input
+                        type="text"
+                        placeholder="如: 西蓝花"
+                        value={dictNameInput}
+                        onChange={(e) => setDictNameInput(e.target.value)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">所属二级食材大类</label>
+                      <select
+                        value={dictCategoryInput}
+                        onChange={(e) => setDictCategoryInput(e.target.value as FoodCategory)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
+                      >
+                        {activeCategoriesList.map((cat) => (
+                          <option key={cat.key} value={cat.key}>
+                            {cat.label} ({cat.key})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">默认单位(如: 斤/箱/袋)</label>
+                      <input
+                        type="text"
+                        placeholder="如: 斤"
+                        value={dictUnitInput}
+                        onChange={(e) => setDictUnitInput(e.target.value)}
+                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end items-center mt-3.5 space-x-2">
+                    {editingDictName && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDictName(null);
+                          setDictNameInput("");
+                          setDictUnitInput("斤");
+                          setDictCategoryInput(FoodCategory.VEGETABLE);
+                        }}
+                        className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer font-bold transition-all"
+                      >
+                        取消编辑
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs cursor-pointer font-bold flex items-center space-x-1 shadow-sm"
+                    >
+                      {editingDictName ? <Check size={12} /> : <PlusCircle size={12} />}
+                      <span>{editingDictName ? "保存原料属性" : "添加至原料库"}</span>
                     </button>
                   </div>
                 </form>

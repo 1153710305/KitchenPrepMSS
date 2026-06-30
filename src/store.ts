@@ -7,6 +7,7 @@ import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "./constants.ts
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "./types.ts";
 import { calculateEntryAmount, LogBroker } from "./utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
+import { LedgerService } from "./ledgerStore.ts";
 
 /** 
  * @description 本地 LocalStorage 物理缓存 Key 
@@ -158,6 +159,210 @@ export class PrepReportService {
         }
       }, MOCK_API_LATENCY);
     });
+  }
+
+  /**
+   * @description 惰性获取或创建一个月度报表
+   * @param targetGroup 目标受众人群
+   * @param year 年份
+   * @param month 月份
+   * @returns 已有或新建的月度报表
+   */
+  public static getOrCreateReport(targetGroup: string, year: number, month: number): GroupMonthlyReport {
+    let report = this.reports.find(
+      (r) => r.targetGroup === targetGroup as TargetGroup && r.year === year && r.month === month
+    );
+    if (!report) {
+      // 找到这个人群的最近一份月度报表以克隆它的原料条目
+      const latestReportForGroup = [...this.reports]
+        .filter((r) => r.targetGroup === targetGroup as TargetGroup)
+        .sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))[0];
+
+      let items: PreparedItem[] = [];
+      if (latestReportForGroup) {
+        // 复制所有原料条目，但将每日数据置空
+        items = latestReportForGroup.items.map((oldItem) => {
+          const dailyData: Record<string, DailyEntry> = {};
+          for (let d = 1; d <= 31; d++) {
+            dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
+          }
+          return {
+            ...oldItem,
+            id: `item_${targetGroup.toLowerCase()}_${oldItem.category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            dailyData
+          };
+        });
+      } else {
+        // 如果没有历史报表，使用默认品类种子填充
+        const foodCategories = this.activeCategories.map((c) => c.key);
+        foodCategories.forEach((cat) => {
+          const defaultNames = (PRESET_ITEMS_BY_CATEGORY as Record<string, string[]>)[cat] || ["预设原料"];
+          const defaultUnit = (CATEGORY_DEFAULT_UNITS as Record<string, string>)[cat] || "斤";
+
+          defaultNames.forEach((name) => {
+            const dailyData: Record<string, DailyEntry> = {};
+            for (let d = 1; d <= 31; d++) {
+              dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
+            }
+            items.push({
+              id: `item_${targetGroup.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              name,
+              category: cat as FoodCategory,
+              targetGroup: targetGroup as TargetGroup,
+              unit: defaultUnit,
+              dailyData
+            });
+          });
+        });
+      }
+
+      const dailyHeadcount: Record<string, number> = {};
+      for (let d = 1; d <= 31; d++) {
+        dailyHeadcount[String(d)] = 50;
+      }
+
+      report = {
+        targetGroup: targetGroup as TargetGroup,
+        year,
+        month,
+        items,
+        dailyHeadcount
+      };
+      this.reports.push(report);
+      this.saveToStorage();
+      LogBroker.publish("INFO", "PrepReportService", `惰性合成了客群「${targetGroup}」在 ${year}年${month}月 的空白初始备餐表。`);
+    }
+    return report;
+  }
+
+  /**
+   * @description 从台账入库记录同步数据到备餐采购量和单价
+   */
+  public static async syncFromLedger(
+    targetGroup: string,
+    year: number,
+    month: number,
+    day: string,
+    itemName: string,
+    category: FoodCategory,
+    unit: string,
+    quantity: number,
+    price: number
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      // 惰性获取或创建报表
+      this.getOrCreateReport(targetGroup, year, month);
+      
+      const reportIndex = this.reports.findIndex(
+        (r) => r.targetGroup === targetGroup as TargetGroup && r.year === year && r.month === month
+      );
+      
+      const report = this.reports[reportIndex];
+      const itemIndex = report.items.findIndex((item) => item.name === itemName);
+
+      if (itemIndex > -1) {
+        const item = report.items[itemIndex];
+        const updatedDailyData = { ...item.dailyData };
+        updatedDailyData[day] = {
+          quantity,
+          price,
+          amount: Math.round(quantity * price * 100) / 100
+        };
+        const updatedItem = {
+          ...item,
+          dailyData: updatedDailyData
+        };
+        const updatedItems = [...report.items];
+        updatedItems[itemIndex] = updatedItem;
+        this.reports[reportIndex] = {
+          ...report,
+          items: updatedItems
+        };
+      } else {
+        // 创建新原料行
+        const dailyData: Record<string, DailyEntry> = {};
+        for (let d = 1; d <= 31; d++) {
+          dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
+        }
+        dailyData[day] = {
+          quantity,
+          price,
+          amount: Math.round(quantity * price * 100) / 100
+        };
+        const newItem: PreparedItem = {
+          id: `item_${targetGroup.toLowerCase()}_${category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          name: itemName,
+          category,
+          targetGroup: targetGroup as TargetGroup,
+          unit,
+          dailyData
+        };
+        const updatedReport = {
+          ...report,
+          items: [...report.items, newItem]
+        };
+        this.reports[reportIndex] = updatedReport;
+      }
+
+      this.saveToStorage();
+      LogBroker.publish(
+        "INFO",
+        "PrepReportService",
+        `已成功同步台账入库数据到备餐明细: ${targetGroup} - ${itemName} (${year}-${month}-${day}，数量:${quantity}，价格:${price})`
+      );
+      resolve();
+    });
+  }
+
+  /**
+   * @description 从台账同步餐位人群配置列表
+   * @param id 台账唯一ID / 人群唯一Key
+   * @param name 台账名称 / 人群中文名称
+   */
+  public static syncGroupFromLedger(id: string, name: string): void {
+    const existingIndex = this.activeGroups.findIndex((g) => g.key === id);
+    if (existingIndex > -1) {
+      if (this.activeGroups[existingIndex].label !== name) {
+        this.activeGroups[existingIndex].label = name;
+        this.saveConfigAndNotify();
+      }
+    } else {
+      this.activeGroups.push({
+        key: id,
+        label: name,
+        emoji: "🍽️"
+      });
+      // 检查当前年月报表是否存在
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      const reportExists = this.reports.some((r) => r.targetGroup === id as TargetGroup && r.year === currentYear && r.month === currentMonth);
+      if (!reportExists) {
+        const dailyHeadcount: Record<string, number> = {};
+        for (let d = 1; d <= 31; d++) {
+          dailyHeadcount[String(d)] = 50;
+        }
+        this.reports.push({
+          targetGroup: id as TargetGroup,
+          year: currentYear,
+          month: currentMonth,
+          items: [],
+          dailyHeadcount
+        });
+      }
+      this.saveConfigAndNotify();
+    }
+  }
+
+  /**
+   * @description 从台账同步删除餐位人群配置
+   * @param id 台账ID / 人群Key
+   */
+  public static syncDeleteGroupFromLedger(id: string): void {
+    const upperKey = id.toUpperCase();
+    this.activeGroups = this.activeGroups.filter((g) => g.key !== upperKey);
+    this.reports = this.reports.filter((r) => r.targetGroup !== upperKey as TargetGroup);
+    LogBroker.publish("WARN", "PrepReportService", `从台账同步物理移除了群组与备餐报表: ${upperKey}`);
+    this.saveConfigAndNotify();
   }
 
   /**
@@ -576,6 +781,8 @@ export class PrepReportService {
           }
 
           this.saveConfigAndNotify();
+          // 同步至台账服务
+          LedgerService.syncLedgerFromGroup(upperKey, label.trim());
           resolve();
         } catch (error) {
           reject(error);
@@ -596,6 +803,8 @@ export class PrepReportService {
         this.reports = this.reports.filter((r) => r.targetGroup !== upperKey as TargetGroup);
         LogBroker.publish("WARN", "PrepReportService", `剔除了一级备餐人群及关联的所有报表: ${upperKey}`);
         this.saveConfigAndNotify();
+        // 同步至台账服务进行对应删除
+        LedgerService.syncDeleteLedgerFromGroup(upperKey);
         resolve();
       }, MOCK_API_LATENCY);
     });
