@@ -8,15 +8,27 @@ import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { matchPinyin } from "../utils.ts";
 
+/**
+ * @description 行内添加采购项表单组件入参接口
+ */
 interface LedgerAddMaterialInlineFormProps {
+  /** 当前激活的台账 ID */
   activeLedgerId: string;
+  /** 新原料名称 */
   newMaterialName: string;
+  /** 设置新原料名称的回调 */
   setNewMaterialName: (val: string) => void;
+  /** 添加原料的拼音/中文搜索查询词 */
   addMaterialSearchQuery: string;
+  /** 设置搜索查询词的回调 */
   setAddMaterialSearchQuery: (val: string) => void;
+  /** 下拉搜索浮框是否展开 */
   isAddDropdownOpen: boolean;
+  /** 设置下拉搜索浮框展开状态的回调 */
   setIsAddDropdownOpen: (val: boolean) => void;
+  /** 设置保存轻量气泡提示文字的回调 */
   setSaveToast: (val: string | null) => void;
+  /** 触发全局错误提示的回调 */
   triggerError: (msg: string) => void;
 }
 

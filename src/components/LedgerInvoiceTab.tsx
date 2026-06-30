@@ -6,21 +6,37 @@
 import { DailyStockRecord } from "../ledgerTypes.ts";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 
+/**
+ * @description 当日出入库单组件入参接口
+ */
 interface LedgerInvoiceTabProps {
+  /** 当日有入库行为的原料采购项列表 */
   dailyInwardItems: Array<{
+    /** 原料项目ID */
     id: string;
+    /** 原料名称 */
     name: string;
+    /** 原料规格 */
     spec: string;
+    /** 计量单位 */
     unit: string;
+    /** 当日收支明细记录 */
     record: DailyStockRecord;
   }>;
+  /** 当日有出库行为的原料列表 */
   dailyOutwardItems: Array<{
+    /** 原料项目ID */
     id: string;
+    /** 原料名称 */
     name: string;
+    /** 原料规格 */
     spec: string;
+    /** 计量单位 */
     unit: string;
+    /** 当日收支明细记录 */
     record: DailyStockRecord;
   }>;
+  /** 当日总入库金额 */
   dailyInTotalAmount: number;
 }
 
