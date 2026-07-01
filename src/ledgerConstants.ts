@@ -212,3 +212,33 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   outDocSubTitleFontSize: "14px"
 };
 
+/**
+ * @description 记账登记表样式一（总表模式）打印配置常量
+ */
+export const LEDGER_PRINT_STYLE1_CONFIG = {
+  /**
+   * @description 打印字体家族（宋体）
+   */
+  fontFamily: "SimSun, '宋体', serif",
+
+  /**
+   * @description 表格内容字体大小
+   */
+  contentFontSize: "12px",
+
+  /**
+   * @description 标题的字体大小
+   */
+  titleFontSize: "16px",
+
+  /**
+   * @description 标题的基础前缀
+   */
+  titlePrefix: "食堂食品原材料购销台账-",
+
+  /**
+   * @description 最小打印行数（不足时以空行填充）
+   */
+  minPrintRows: 15
+};
+
