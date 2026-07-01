@@ -65,48 +65,43 @@ export class LedgerService {
   }
 
   /**
-   * @description 将数据物理落盘保存到 LocalStorage 中
+   * @description 将数据通过 SyncHelper 触发防抖同步至服务器后端
    */
   private static saveToStorage(): void {
-    try {
-      localStorage.setItem(LEDGERS_LIST_KEY, JSON.stringify(this.ledgers));
-      localStorage.setItem(LEDGER_ITEMS_KEY, JSON.stringify(this.ledgerItems));
-      // 异步同步至后端存储
-      SyncHelper.triggerSyncToServer();
-    } catch (err) {
-      LogBroker.publish("ERROR", "LedgerService", "数据落盘LocalStorage遇到异常，请检查物理存储空间。", String(err));
-    }
+    // 异步同步至后端存储
+    SyncHelper.triggerSyncToServer();
   }
 
   /**
    * @description 启动并自检缓存。若没有，则自动生成四个默认种子台账，并导入默认采购原料项目
    */
+  /**
+   * @description 启动并自检缓存。完全从服务器同步获取数据，不使用本地缓存
+   */
   public static async initLedgerStore(): Promise<{ ledgers: Ledger[]; items: LedgerItem[] }> {
+    let serverData: any = null;
     try {
-      // 优先从后端拉取最新同步数据落盘
-      await SyncHelper.loadFromServer();
+      // 优先从后端拉取最新同步数据
+      serverData = await SyncHelper.loadFromServer();
     } catch (err) {
-      LogBroker.publish("WARN", "LedgerService", "同步服务器数据失败，降级使用本地缓存: " + String(err));
+      LogBroker.publish("WARN", "LedgerService", "同步服务器数据失败: " + String(err));
     }
 
     return new Promise((resolve) => {
       setTimeout(() => {
         try {
-          const cachedLedgers = localStorage.getItem(LEDGERS_LIST_KEY);
-          const cachedItems = localStorage.getItem(LEDGER_ITEMS_KEY);
-
-          if (cachedLedgers && cachedItems) {
-            this.ledgers = JSON.parse(cachedLedgers);
-            this.ledgerItems = JSON.parse(cachedItems);
-            LogBroker.publish("INFO", "LedgerService", "成功从物理缓存重新挂载原料购销台账及原料项目明细");
+          if (serverData && serverData.ledgers && serverData.ledgerItems) {
+            this.ledgers = serverData.ledgers;
+            this.ledgerItems = serverData.ledgerItems;
+            LogBroker.publish("INFO", "LedgerService", "成功从服务器同步载入原料购销台账及原料项目明细");
           } else {
+            // 服务器上无台账数据，降级初始化演示台账
             this.generateSeeds();
           }
           resolve({ ledgers: this.ledgers, items: this.ledgerItems });
         } catch (err) {
-          LogBroker.publish("ERROR", "LedgerService", "启动阶段自检台账缓存遇到异常:", String(err));
-          this.generateSeeds();
-          resolve({ ledgers: this.ledgers, items: this.ledgerItems });
+          LogBroker.publish("ERROR", "LedgerService", "启动加载数据发生异常:", String(err));
+          resolve({ ledgers: [], items: [] });
         }
       }, LEDGER_API_LATENCY);
     });
@@ -668,5 +663,33 @@ export class LedgerService {
       this.ledgerItems = this.ledgerItems.filter((item) => item.name !== name);
       this.notifyListeners();
     }
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的台账列表，防止 LocalStorage 覆写
+   */
+  public static setLedgersInMemory(l: Ledger[]): void {
+    this.ledgers = l;
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的台账条目明细
+   */
+  public static setLedgerItemsInMemory(i: LedgerItem[]): void {
+    this.ledgerItems = i;
+  }
+
+  /**
+   * @description 强制广播分发最新的台账数据变动
+   */
+  public static forceNotify(): void {
+    // 强制通知时我们需要调用 notifyListeners 且避免同步到后端
+    this.changeListeners.forEach((listener) => {
+      try {
+        listener([...this.ledgers], [...this.ledgerItems]);
+      } catch (err) {
+        LogBroker.publish("ERROR", "LedgerService", "强制广播台账变动失败:", String(err));
+      }
+    });
   }
 }

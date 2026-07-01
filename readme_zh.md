@@ -560,3 +560,12 @@ pm2 startup
   2. 按照数据服务层底层 API，统一重构为对 `PrepReportService.saveGroup` 与 `PrepReportService.deleteGroup` 方法的正确调用；
   3. 编辑状态下，如遇标识 Key 被修改，增加「先删老 Key，后保存新 Key」的安全防幽灵人群保障逻辑。
 
+### 2026-07-01 - [V5.10.0] 废除本地浏览器 LocalStorage 缓存，升级为准实时多端心跳同步架构
+- **原因分析**：
+  此前系统采用「本地改 LocalStorage -> 防抖全量覆盖云端」设计。在多浏览器多用户高并发使用时，由于各浏览器 LocalStorage 彼此隔离，会导致数据互相全量覆写并导致别人的录入丢失。
+- **解决手段**：
+  1. **废除 LocalStorage**：从 [store.ts]、[ledgerStore.ts]、[rawMaterialDict.ts] 中物理移除所有 `localStorage.getItem/setItem` 的存取逻辑；
+  2. **全局并行预载**：在 [App.tsx] 启动时通过 `Promise.all` 并行加载备餐、台账与原料大字典的初始化接口，防止各模块按需加载时因空内存上传而清空服务器文件；
+  3. **一键内存提取器 (MemoryFetcher)**：由 SyncHelper 注册全局提取回调，在防抖同步时动态提取各 Store 最新的内存快照进行打包上传，规避 LocalStorage 媒介；
+  4. **心跳校准对齐**：在首屏启动 `10秒静默心跳拉取器`，自动捕获云端服务器数据的变更，并以静默内存赋值方式刷新前台 React 视图，实现多浏览器视窗最终一致性。
+

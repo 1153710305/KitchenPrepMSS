@@ -31,28 +31,24 @@ export interface BackendData {
 }
 
 /**
- * @description 客户端与服务端数据同步助手类
+ * @description 客户端与服务端数据同步助手类 (剔除 LocalStorage 本地缓存，完全基于内存与服务器通信)
  */
 export class SyncHelper {
   /**
-   * @description 防抖等待定时器引用
+   * @description 动态注册的内存数据提取器，用来获取当前全模块最完整的最新内存数据
    */
-  private static debounceTimer: any = null;
+  private static memoryFetcher: (() => BackendData) | null = null;
 
   /**
-   * @description 本地 LocalStorage 键映射表，便于更新 LocalStorage
+   * @description 注册内存数据提取器回调
+   * @param fetcher 提取器函数
    */
-  private static keysMap = {
-    reports: "KITCHEN_PREP_REPORTS_V1",
-    activeGroups: "KITCHEN_TARGET_GROUPS_V1",
-    activeCategories: "KITCHEN_FOOD_CATEGORIES_V1",
-    ledgers: "KITCHEN_LEDGERS_LIST_V2",
-    ledgerItems: "KITCHEN_LEDGER_ITEMS_V2",
-    rawMaterialsDict: "KITCHEN_RAW_MATERIALS_DICT_V1"
-  };
+  public static registerMemoryFetcher(fetcher: () => BackendData): void {
+    this.memoryFetcher = fetcher;
+  }
 
   /**
-   * @description 从服务器拉取最新的完整数据并覆盖本地 LocalStorage 与内存
+   * @description 从服务器拉取最新的完整数据并返回给调用层
    * @returns {Promise<BackendData | null>} 获取到的后端数据，若失败或无数据则返回 null
    */
   public static async loadFromServer(): Promise<BackendData | null> {
@@ -68,14 +64,6 @@ export class SyncHelper {
         return null;
       }
 
-      // 将拉取到的有效数据同步写入本地 LocalStorage
-      if (data.reports) localStorage.setItem(this.keysMap.reports, JSON.stringify(data.reports));
-      if (data.activeGroups) localStorage.setItem(this.keysMap.activeGroups, JSON.stringify(data.activeGroups));
-      if (data.activeCategories) localStorage.setItem(this.keysMap.activeCategories, JSON.stringify(data.activeCategories));
-      if (data.ledgers) localStorage.setItem(this.keysMap.ledgers, JSON.stringify(data.ledgers));
-      if (data.ledgerItems) localStorage.setItem(this.keysMap.ledgerItems, JSON.stringify(data.ledgerItems));
-      if ((data as any).rawMaterialsDict) localStorage.setItem(this.keysMap.rawMaterialsDict, JSON.stringify((data as any).rawMaterialsDict));
-
       return data;
     } catch (err) {
       console.error("[SYNC HELPER] 从后端加载数据失败:", err);
@@ -84,40 +72,27 @@ export class SyncHelper {
   }
 
   /**
-   * @description 将当前系统完整状态异步推送到后端保存（带防抖处理）
+   * @description 将当前系统在内存中的最新完整状态推送到后端保存（防抖 200 毫秒，防止高频点击/录入导致请求阻塞）
+   * @param {BackendData} [customData] 可选的特定数据，不传时自动通过已注册的 memoryFetcher 从内存一键拉取
    * @returns {void}
    */
-  public static triggerSyncToServer(): void {
+  public static triggerSyncToServer(customData?: BackendData): void {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
 
-    // 防抖 500 毫秒，防止高频键入时频繁发起网络请求降低性能
+    // 防抖 200 毫秒
     this.debounceTimer = setTimeout(async () => {
       try {
-        // 读取本地最新的所有数据状态
-        const reportsStr = localStorage.getItem(this.keysMap.reports);
-        const groupsStr = localStorage.getItem(this.keysMap.activeGroups);
-        const categoriesStr = localStorage.getItem(this.keysMap.activeCategories);
-        const ledgersStr = localStorage.getItem(this.keysMap.ledgers);
-        const itemsStr = localStorage.getItem(this.keysMap.ledgerItems);
-        const dictStr = localStorage.getItem(this.keysMap.rawMaterialsDict);
-
-        const payload: BackendData = {
-          reports: reportsStr ? JSON.parse(reportsStr) : undefined,
-          activeGroups: groupsStr ? JSON.parse(groupsStr) : undefined,
-          activeCategories: categoriesStr ? JSON.parse(categoriesStr) : undefined,
-          ledgers: ledgersStr ? JSON.parse(ledgersStr) : undefined,
-          ledgerItems: itemsStr ? JSON.parse(itemsStr) : undefined,
-          rawMaterialsDict: dictStr ? JSON.parse(dictStr) : undefined
-        } as any;
-
+        // 如果没有传入特定数据包，则使用 memoryFetcher 自主合并最新的内存报表和台账数据
+        const data = customData || (this.memoryFetcher ? this.memoryFetcher() : {});
+        
         const response = await fetch("/api/storage/save", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(data)
         });
 
         if (!response.ok) {
@@ -129,6 +104,6 @@ export class SyncHelper {
       } catch (err) {
         console.error("[SYNC HELPER] 数据同步保存至后端失败:", err);
       }
-    }, 500);
+    }, 200);
   }
 }

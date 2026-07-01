@@ -13,6 +13,8 @@ import { HeadcountPanel } from "./components/HeadcountPanel.tsx";
 import { AiAssistant } from "./components/AiAssistant.tsx";
 import { LogBroker } from "./utils.ts";
 import { LedgerService } from "./ledgerStore.ts";
+import { SyncHelper } from "./syncHelper.ts";
+import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 const AdminBackend = lazy(() => import("./components/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
 const LedgerSystem = lazy(() => import("./components/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
@@ -132,9 +134,33 @@ export default function App() {
   // 1. 系统初始化，挂载并预检底层存储结构，同时订阅状态变动
   useEffect(() => {
     let active = true;
-    PrepReportService.initStore().then((data) => {
+
+    // 注册全局内存状态一键提取器，用于各模块修改数据时自动防抖同步给后端，规避多浏览器 LocalStorage 覆写冲突
+    SyncHelper.registerMemoryFetcher(() => {
+      return {
+        reports: PrepReportService.getReports(),
+        activeGroups: PrepReportService.getActiveGroups(),
+        activeCategories: PrepReportService.getActiveCategories(),
+        ledgers: LedgerService.getLedgers(),
+        ledgerItems: LedgerService.getLedgerItems(),
+        rawMaterialsDict: RawMaterialsDictService.getItems()
+      };
+    });
+
+    // 并行初始化备餐、台账及原料字典服务，打通内存数据流并规避空内存数据覆写覆盖服务器的问题
+    Promise.all([
+      PrepReportService.initStore(),
+      LedgerService.initLedgerStore(),
+      SyncHelper.loadFromServer()
+    ]).then(([prepData, ledgerData, serverData]) => {
       if (active) {
-        setReports(data);
+        setReports(prepData);
+        setLedgerItemsList(ledgerData.items);
+        
+        // 使用服务器的原料大字典来初始化字典内存
+        const sDict = serverData ? (serverData as any).rawMaterialsDict : undefined;
+        RawMaterialsDictService.initDictFromServer(sDict);
+
         const groups = PrepReportService.getActiveGroups();
         const cats = PrepReportService.getActiveCategories();
         setActiveGroupsList(groups);
@@ -149,8 +175,10 @@ export default function App() {
         }
 
         setIsLoading(false);
-        LogBroker.publish("INFO", "App", "备餐管理控制中心完成数据模型全量自检引导");
+        LogBroker.publish("INFO", "App", "系统已完成备餐、台账以及大字典服务数据模型的全局并行加载初始化");
       }
+    }).catch(err => {
+      LogBroker.publish("ERROR", "App", "加载基础数据服务异常:", String(err));
     });
 
     // 监听服务数据重大变动回调，实现各版块自动重算
@@ -190,10 +218,55 @@ export default function App() {
       }
     });
 
+    // 心跳静默同步：每 10 秒钟静默从服务器拉取一次最新状态覆盖内存并触发分发重绘（解决多浏览器并发操作数据冲突）
+    const syncInterval = setInterval(async () => {
+      try {
+        const freshData = await SyncHelper.loadFromServer();
+        if (freshData && active) {
+          let memoryChanged = false;
+          
+          if (freshData.reports && JSON.stringify(freshData.reports) !== JSON.stringify(PrepReportService.getReports())) {
+            PrepReportService.setReportsInMemory(freshData.reports);
+            memoryChanged = true;
+          }
+          if (freshData.activeGroups && JSON.stringify(freshData.activeGroups) !== JSON.stringify(PrepReportService.getActiveGroups())) {
+            PrepReportService.setActiveGroupsInMemory(freshData.activeGroups);
+            memoryChanged = true;
+          }
+          if (freshData.activeCategories && JSON.stringify(freshData.activeCategories) !== JSON.stringify(PrepReportService.getActiveCategories())) {
+            PrepReportService.setActiveCategoriesInMemory(freshData.activeCategories);
+            memoryChanged = true;
+          }
+          if (freshData.ledgers && JSON.stringify(freshData.ledgers) !== JSON.stringify(LedgerService.getLedgers())) {
+            LedgerService.setLedgersInMemory(freshData.ledgers);
+            memoryChanged = true;
+          }
+          if (freshData.ledgerItems && JSON.stringify(freshData.ledgerItems) !== JSON.stringify(LedgerService.getLedgerItems())) {
+            LedgerService.setLedgerItemsInMemory(freshData.ledgerItems);
+            memoryChanged = true;
+          }
+          if ((freshData as any).rawMaterialsDict && JSON.stringify((freshData as any).rawMaterialsDict) !== JSON.stringify(RawMaterialsDictService.getItems())) {
+            RawMaterialsDictService.setRawMaterialsDictInMemory((freshData as any).rawMaterialsDict);
+            memoryChanged = true;
+          }
+
+          if (memoryChanged) {
+            // 强行分发，使 React UI 触发重新渲染，对齐最新服务器状态
+            PrepReportService.forceNotify();
+            LedgerService.forceNotify();
+            LogBroker.publish("INFO", "App", "心跳同步成功，检测到服务器数据变化并完成多端数据静默对齐");
+          }
+        }
+      } catch (err) {
+        console.warn("[SILENT HEARTBEAT SYNC] 静默定时同步失败:", err);
+      }
+    }, 10000);
+
     return () => {
       active = false;
       unsubscribe();
       unsubscribeLedger();
+      clearInterval(syncInterval);
     };
   }, []);
 

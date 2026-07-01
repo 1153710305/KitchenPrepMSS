@@ -38,21 +38,30 @@ export class RawMaterialsDictService {
   private static items: RawMaterialDictItem[] = [];
 
   /**
-   * @description 初始化原料字典。若缓存无数据，使用默认推荐种子数据填充
+   * @description 初始化原料字典。若内存无数据，使用默认推荐种子数据填充
    * @returns 初始化的原料列表
    */
   public static initDict(): RawMaterialDictItem[] {
-    try {
-      const cached = localStorage.getItem(RAW_MATERIALS_DICT_KEY);
-      if (cached) {
-        this.items = JSON.parse(cached);
-        LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从物理缓存挂载原料字典数据。");
-      } else {
-        this.generateDefaultSeeds();
-      }
-    } catch (err) {
-      LogBroker.publish("ERROR", "RawMaterialsDictService", "加载原料字典缓存遇到异常:", String(err));
+    if (this.items.length > 0) {
+      return this.items;
+    }
+    this.generateDefaultSeeds();
+    return this.items;
+  }
+
+  /**
+   * @description 供系统启动时统一由服务器加载数据并覆盖字典内存
+   * @param serverDictItems 从服务器拉取回来的原料字典条目数组
+   */
+  public static initDictFromServer(serverDictItems?: RawMaterialDictItem[]): RawMaterialDictItem[] {
+    if (serverDictItems && serverDictItems.length > 0) {
+      this.items = serverDictItems;
+      LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从服务器同步载入原料字典数据");
+    } else {
       this.generateDefaultSeeds();
+      LogBroker.publish("INFO", "RawMaterialsDictService", "服务器上无原料字典，系统已装载默认推荐原料种子大底库");
+      // 首次初始化同步到后端
+      SyncHelper.triggerSyncToServer();
     }
     return this.items;
   }
@@ -139,10 +148,18 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 物理持久化保存到 LocalStorage
+   * @description 将数据通过 SyncHelper 触发防抖同步至服务器后端
    */
   private static saveToStorage(): void {
-    localStorage.setItem(RAW_MATERIALS_DICT_KEY, JSON.stringify(this.items));
+    // 异步同步至后端存储
+    SyncHelper.triggerSyncToServer();
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的原料字典列表，防止 LocalStorage 覆写
+   */
+  public static setRawMaterialsDictInMemory(items: RawMaterialDictItem[]): void {
+    this.items = items;
   }
 
   /**

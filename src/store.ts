@@ -68,6 +68,13 @@ export class PrepReportService {
   }
 
   /**
+   * @description 获取内存中全部的报表数据
+   */
+  public static getReports(): GroupMonthlyReport[] {
+    return this.reports;
+  }
+
+  /**
    * @description 获取当前激活的餐卡人群列表
    * @returns 动态人群配置列表
    */
@@ -84,37 +91,46 @@ export class PrepReportService {
   }
 
   /**
-   * @description 启动并自检缓存。若无，自动使用 constants 中提取的种子填充库
+   * @description 启动并自检缓存。完全从服务器同步获取数据，不使用本地缓存
    */
   public static async initStore(): Promise<GroupMonthlyReport[]> {
+    let serverData: any = null;
     try {
-      // 优先从后端拉取最新同步数据落盘
-      await SyncHelper.loadFromServer();
+      // 从后端拉取最新同步数据
+      serverData = await SyncHelper.loadFromServer();
     } catch (err) {
-      LogBroker.publish("WARN", "PrepReportService", "同步服务器数据失败，降级使用本地缓存: " + String(err));
+      LogBroker.publish("WARN", "PrepReportService", "同步服务器数据失败: " + String(err));
     }
 
     return new Promise((resolve) => {
       setTimeout(() => {
         try {
-          // 加载动态一级人群配置
-          const cachedGroups = localStorage.getItem(GROUPS_STORAGE_KEY);
-          if (cachedGroups) {
-            this.activeGroups = JSON.parse(cachedGroups);
+          if (serverData && serverData.activeGroups && serverData.activeCategories && serverData.reports) {
+            // 服务器上有完整数据，直接同步到内存
+            this.activeGroups = serverData.activeGroups;
+            this.activeCategories = serverData.activeCategories;
+            this.reports = serverData.reports.map((report: any) => {
+              // 自动补齐可能缺失的 dailyHeadcount
+              if (!report.dailyHeadcount) {
+                const dailyHeadcount: Record<string, number> = {};
+                for (let d = 1; d <= 31; d++) {
+                  let defaultCount = 50;
+                  if (report.targetGroup === "TEACHER") defaultCount = 20;
+                  else if (report.targetGroup === "KID") defaultCount = 120;
+                  dailyHeadcount[String(d)] = defaultCount;
+                }
+                return { ...report, dailyHeadcount };
+              }
+              return report;
+            });
+            LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
           } else {
+            // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化
             this.activeGroups = [
               { key: "KID", label: "幼儿备餐", emoji: "👶" },
               { key: "STUDENT", label: "在校生备餐", emoji: "🎒" },
               { key: "TEACHER", label: "教师备餐", emoji: "👩‍🏫" }
             ];
-            localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(this.activeGroups));
-          }
-
-          // 加载动态二级大类配置
-          const cachedCategories = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-          if (cachedCategories) {
-            this.activeCategories = JSON.parse(cachedCategories);
-          } else {
             this.activeCategories = [
               { key: "VEGETABLE", label: "蔬菜" },
               { key: "GRAIN_OIL", label: "粮油" },
@@ -123,38 +139,16 @@ export class PrepReportService {
               { key: "LOW_CONSUMP", label: "低耗品" },
               { key: "FRUIT", label: "水果" }
             ];
-            localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.activeCategories));
-          }
-
-          // 加载月度报表
-          const cached = localStorage.getItem(STORAGE_KEY);
-          if (cached) {
-            const loadedReports = JSON.parse(cached) as GroupMonthlyReport[];
-            // 补正老版本数据中或导入数据中缺失的 dailyHeadcount 属性，并添加中文注释
-            this.reports = loadedReports.map((report) => {
-              if (!report.dailyHeadcount) {
-                const dailyHeadcount: Record<string, number> = {};
-                for (let d = 1; d <= 31; d++) {
-                  let defaultCount = 50;
-                  if (report.targetGroup === "TEACHER") defaultCount = 20;
-                  else if (report.targetGroup === "KID") defaultCount = 120;
-                  else if (report.targetGroup === "LOW_GRADE") defaultCount = 80;
-                  else if (report.targetGroup === "HIGH_GRADE") defaultCount = 90;
-                  dailyHeadcount[String(d)] = defaultCount;
-                }
-                return { ...report, dailyHeadcount };
-              }
-              return report;
-            });
-            LogBroker.publish("INFO", "PrepReportService", "已从 LocalStorage 重新挂载物理备餐数据集并自动补全人数配置");
-          } else {
             this.generateInitialSeeds();
+            LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
+            
+            // 首次推送到服务器落盘，确保各端首次拉取同步
+            SyncHelper.triggerSyncToServer();
           }
           resolve(this.reports);
         } catch (error) {
-          LogBroker.publish("ERROR", "PrepReportService", "启动阶段加载缓存遇到严重异常:", String(error));
-          this.generateInitialSeeds();
-          resolve(this.reports);
+          LogBroker.publish("ERROR", "PrepReportService", "启动加载数据发生异常:", String(error));
+          resolve([]);
         }
       }, MOCK_API_LATENCY);
     });
@@ -437,14 +431,9 @@ export class PrepReportService {
    * @description 持久化落盘物理手段
    */
   private static saveToStorage(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.reports));
-      this.notifyListeners();
-      // 异步同步到后端存储
-      SyncHelper.triggerSyncToServer();
-    } catch (err) {
-      LogBroker.publish("ERROR", "PrepReportService", "数据落盘LocalStorage发生溢出或权限阻碍错误", String(err));
-    }
+    this.notifyListeners();
+    // 异步同步到后端存储
+    SyncHelper.triggerSyncToServer();
   }
 
   /**
@@ -931,16 +920,9 @@ export class PrepReportService {
    * @description 同步所有配置项目落盘并广播更新消息
    */
   private static saveConfigAndNotify(): void {
-    try {
-      localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(this.activeGroups));
-      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.activeCategories));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.reports));
-      this.notifyListeners();
-      // 异步同步到后端存储
-      SyncHelper.triggerSyncToServer();
-    } catch (err) {
-      LogBroker.publish("ERROR", "PrepReportService", "数据和配置落盘LocalStorage发生严重异常:", String(err));
-    }
+    this.notifyListeners();
+    // 异步同步到后端存储
+    SyncHelper.triggerSyncToServer();
   }
 
   /**
@@ -1048,6 +1030,34 @@ export class PrepReportService {
     if (changed) {
       this.saveConfigAndNotify();
     }
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的报表集，防止 LocalStorage 覆写
+   */
+  public static setReportsInMemory(r: GroupMonthlyReport[]): void {
+    this.reports = r;
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的一级人群列表
+   */
+  public static setActiveGroupsInMemory(g: DynamicGroup[]): void {
+    this.activeGroups = g;
+  }
+
+  /**
+   * @description 供心跳轮询静默更新内存中的二级大类列表
+   */
+  public static setActiveCategoriesInMemory(c: DynamicCategory[]): void {
+    this.activeCategories = c;
+  }
+
+  /**
+   * @description 强制广播分发最新的内存数据变动
+   */
+  public static forceNotify(): void {
+    this.notifyListeners();
   }
 }
 

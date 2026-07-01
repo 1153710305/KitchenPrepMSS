@@ -154,13 +154,11 @@ export function LedgerSystem() {
   // ================= 数据加载及订阅变动 =================
 
   useEffect(() => {
-    LedgerService.initLedgerStore().then((data) => {
-      setLedgers(data.ledgers);
-      setLedgerItems(data.items);
-      if (data.ledgers.length > 0) {
-        setActiveLedgerId(data.ledgers[0].id);
-      }
-    });
+    // 依赖全局统一首屏初始化，此处直接同步内存默认值，避免重复拉取
+    const currentLedgers = LedgerService.getLedgers();
+    if (currentLedgers.length > 0) {
+      setActiveLedgerId((prev) => prev || currentLedgers[0].id);
+    }
 
     const unsubscribe = LedgerService.subscribe((updatedLedgers, updatedItems) => {
       setLedgers(updatedLedgers);
