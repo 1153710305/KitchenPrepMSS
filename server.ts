@@ -578,12 +578,34 @@ async function bootstrap() {
     console.log("[SYSTEM BOOT] 生产模式启动：托管静态主包路径在 dist/");
   }
 
+  // 挂载全局路由执行错误捕获器，确保服务端异常不引起停机且保留堆栈日志
+  app.use((err: any, req: any, res: any, next: any) => {
+    const errMsg = err instanceof Error ? `${err.message}\nStack: ${err.stack}` : String(err);
+    console.error("[HTTP ERROR] 路由遭遇运行时内部执行异常:", err);
+    LogService.write("ERROR", "ExpressRouter", `URL: ${req.method} ${req.url} - ${errMsg}`);
+    res.status(500).json({ error: "服务器内部异常", details: err.message || String(err) });
+  });
+
   // 绑定宿主 0.0.0.0 以绕过沙箱
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[KITCHEN SYSTEM LIVE] 服务就绪! 请访问外部绑定端口层: http://localhost:${PORT}`);
   });
 }
 
+// 监听进程级别未捕获异常
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL ERROR] 捕获到未处理的致命运行时异常:", err);
+  LogService.write("ERROR", "UncaughtException", `${err.message}\nStack: ${err.stack}`);
+});
+
+// 监听 Promise 异步未处理拒绝
+process.on("unhandledRejection", (reason: any) => {
+  console.error("[FATAL ERROR] 捕获到未处理的致命 Promise Rejection:", reason);
+  const msg = reason instanceof Error ? `${reason.message}\nStack: ${reason.stack}` : String(reason);
+  LogService.write("ERROR", "UnhandledRejection", msg);
+});
+
 bootstrap().catch((err) => {
   console.error("[FATAL ERROR] 启动服务器引擎阶段直接死亡:", err);
+  LogService.write("ERROR", "Bootstrap", String(err));
 });

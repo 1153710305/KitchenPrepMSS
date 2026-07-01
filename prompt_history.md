@@ -294,3 +294,11 @@
   1. **初始化安全自锁**：在 [syncHelper.ts] 中引入了 `isInitialized` 状态自锁控制，若安全锁未解开，所有发往云端服务器的 triggerSyncToServer 保存写操作将被强制性拦截；
   2. **就绪解除限制**：在 [App.tsx] 的 Promise.all 数据加载完成 then 回调中，数据安全落盘内存之后才调用 `SyncHelper.setInitialized(true)` 解锁数据写同步，彻底绝后顾之忧。
 
+### 2026-07-01 - [V5.13.0] 前后端闭环式高鲁棒性容错与日志上报系统增强
+- **需求**：增强日志系统，如果有报错，一定要捕捉到，打印详细报错警告信息等。注意不要影响性能。
+- **实施架构**：
+  1. **Node 后端致命异常捕捉**：在 [server.ts] 中注册了 `uncaughtException` 与 `unhandledRejection` 物理进程级监听，并在 Express 路由总线最后挂载了全局错误拦截中间件，将一切 500 崩溃和底层异常的详细堆栈实时安全记录入 `data/app.log`；
+  2. **React 前端隔离防白屏屏障**：新建 [ErrorBoundary.tsx] 错误边界组件，一旦子树组件遭遇计算或渲染异常，会显示带有重试按钮和诊断代码折叠的精致降级 UI，阻断了整页白屏的蔓延，并自动调用 LogBroker 上报详细组件堆栈；
+  3. **前端全局 JS/Promise 运行监测**：在 [App.tsx] 生命周期中挂载对 window 的 `error` 与 `unhandledrejection` 顶级监听，在零性能损耗的无感状态下，静默拦截并秒级向后端持久化发送客户端发生的异步失败、AJAX崩溃或脚本报错；
+  4. **核心业务舱覆盖**：在 [App.tsx] 将 `AdminBackend` (行政后台)、`LedgerSystem` (台账中心)、`InventoryPanel` (库存面板) 全面包裹于 ErrorBoundary 中，形成坚不可摧的安全沙箱。
+

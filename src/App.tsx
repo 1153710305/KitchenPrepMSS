@@ -15,6 +15,7 @@ import { LogBroker } from "./utils.ts";
 import { LedgerService } from "./ledgerStore.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
+import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 
 const AdminBackend = lazy(() => import("./components/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
 const LedgerSystem = lazy(() => import("./components/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
@@ -263,11 +264,29 @@ export default function App() {
       }
     }, 10000);
 
+    // 监听前端浏览器全局未捕获 JS 运行时脚本错误
+    const handleGlobalError = (event: ErrorEvent) => {
+      const errMsg = `Message: ${event.message} | Source: ${event.filename} | Line: ${event.lineno}:${event.colno} | Stack: ${event.error?.stack || "No Stack"}`;
+      LogBroker.publish("ERROR", "ClientGlobalError", errMsg);
+    };
+
+    // 监听前端未捕获 Promise Rejection
+    const handleGlobalRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const errMsg = reason instanceof Error ? `${reason.message}\nStack: ${reason.stack}` : String(reason);
+      LogBroker.publish("ERROR", "ClientUnhandledRejection", errMsg);
+    };
+
+    window.addEventListener("error", handleGlobalError);
+    window.addEventListener("unhandledrejection", handleGlobalRejection);
+
     return () => {
       active = false;
       unsubscribe();
       unsubscribeLedger();
       clearInterval(syncInterval);
+      window.removeEventListener("error", handleGlobalError);
+      window.removeEventListener("unhandledrejection", handleGlobalRejection);
     };
   }, []);
 
@@ -571,14 +590,16 @@ export default function App() {
           <span className="text-xs">系统安全审计后台加载中，请稍候...</span>
         </div>
       }>
-        <AdminBackend
-          reports={reports}
-          activeGroupsList={activeGroupsList}
-          activeCategoriesList={activeCategoriesList}
-          onClose={() => setIsAdminMode(false)}
-          onResetToSeeds={(data) => setReports(data)}
-          onImportBackup={(data) => setReports(data)}
-        />
+        <ErrorBoundary fallbackTitle="管理行政后台运行异常">
+          <AdminBackend
+            reports={reports}
+            activeGroupsList={activeGroupsList}
+            activeCategoriesList={activeCategoriesList}
+            onClose={() => setIsAdminMode(false)}
+            onResetToSeeds={(data) => setReports(data)}
+            onImportBackup={(data) => setReports(data)}
+          />
+        </ErrorBoundary>
       </Suspense>
     );
   }
@@ -804,7 +825,9 @@ export default function App() {
                 <span className="text-xs">台账购销及库存控制模块加载中，请稍候...</span>
               </div>
             }>
-              <LedgerSystem />
+              <ErrorBoundary fallbackTitle="台账系统模块运行异常">
+                <LedgerSystem />
+              </ErrorBoundary>
             </Suspense>
           ) : (
             <>
@@ -1076,7 +1099,9 @@ export default function App() {
             </div>
           </div>
         }>
-          <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
+          <ErrorBoundary fallbackTitle="库存盘点中心运行异常">
+            <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
+          </ErrorBoundary>
         </Suspense>
       )}
     </div>
