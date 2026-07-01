@@ -12,12 +12,16 @@ interface AdminGroupsTabProps {
   onRefresh?: () => void;
 }
 
+// 辅助函数：生成一级受众的唯一识别 Key
+const generateUniqueGroupKey = () => "GROUP_" + Math.random().toString(36).substr(2, 6).toUpperCase() + "_" + Math.floor(Math.random() * 100);
+
 export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
   const [groups, setGroups] = useState<DynamicGroup[]>(() => PrepReportService.getActiveGroups());
   
   // Form states
-  const [groupKeyInput, setGroupKeyInput] = useState<string>("");
+  const [groupKeyInput, setGroupKeyInput] = useState<string>(() => generateUniqueGroupKey());
   const [groupLabelInput, setGroupLabelInput] = useState<string>("");
+  const [groupEmojiInput, setGroupEmojiInput] = useState<string>("🏫");
   const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null);
   const [groupError, setGroupError] = useState<string | null>(null);
 
@@ -27,28 +31,25 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
 
     const key = groupKeyInput.trim().toUpperCase();
     const label = groupLabelInput.trim();
+    const emoji = groupEmojiInput;
 
     if (!key || !label) {
       setGroupError("标识Key和人群名称不能为空！");
       return;
     }
 
-    if (!/^[A-Z0-9_]+$/.test(key)) {
-      setGroupError("标识Key必须为大写字母、数字或下划线组成的字符！");
-      return;
-    }
-
     try {
       if (editingGroupKey && editingGroupKey !== key) {
-        // 如果标识 Key 被用户修改了，先从底层清除老旧客群分类，再存入新的，防止产生双客群冲突
+        // 如果标识 Key 被物理移除，这里防御性清除并覆盖老旧分类
         await PrepReportService.deleteGroup(editingGroupKey);
       }
-      await PrepReportService.saveGroup(key, label, "🍽️");
+      await PrepReportService.saveGroup(key, label, emoji);
 
       const freshGroups = PrepReportService.getActiveGroups();
       setGroups(freshGroups);
-      setGroupKeyInput("");
+      setGroupKeyInput(generateUniqueGroupKey());
       setGroupLabelInput("");
+      setGroupEmojiInput("🏫");
       setEditingGroupKey(null);
       if (onRefresh) onRefresh();
     } catch (err: any) {
@@ -61,6 +62,7 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
     setEditingGroupKey(g.key);
     setGroupKeyInput(g.key);
     setGroupLabelInput(g.label);
+    setGroupEmojiInput(g.emoji || "🍽️");
   };
 
   const handleDeleteGroup = async (key: string) => {
@@ -71,8 +73,9 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
         setGroups(freshGroups);
         if (editingGroupKey === key) {
           setEditingGroupKey(null);
-          setGroupKeyInput("");
+          setGroupKeyInput(generateUniqueGroupKey());
           setGroupLabelInput("");
+          setGroupEmojiInput("🏫");
         }
         if (onRefresh) onRefresh();
       } catch (err: any) {
@@ -148,16 +151,14 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">唯一识别Key (大写英文字母/数字)</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">唯一识别Key (系统唯一分配)</label>
               <input
                 type="text"
-                placeholder="如: SPECIAL_MEAL"
                 value={groupKeyInput}
-                onChange={(e) => setGroupKeyInput(e.target.value)}
-                disabled={editingGroupKey !== null}
-                className="w-full bg-white disabled:bg-slate-100 disabled:text-slate-400 text-xs text-slate-850 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none uppercase font-mono"
+                disabled={true}
+                className="w-full bg-slate-100 text-slate-400 text-xs p-2 border border-slate-350 rounded outline-none font-mono"
                 required
               />
             </div>
@@ -172,6 +173,26 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
                 className="w-full bg-white text-xs text-slate-850 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none"
                 required
               />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">受众图标/头像 Emoji</label>
+              <select
+                value={groupEmojiInput}
+                onChange={(e) => setGroupEmojiInput(e.target.value)}
+                className="w-full bg-white text-xs text-slate-850 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none cursor-pointer"
+              >
+                <option value="🏫">🏫 校园学校 (教师)</option>
+                <option value="👶">👶 幼儿婴童 (幼儿)</option>
+                <option value="👦">👦 学生群体 (中小学)</option>
+                <option value="🏢">🏢 机关单位 (职工)</option>
+                <option value="🍽️">🍽️ 食堂公共 (普通受众)</option>
+                <option value="🍲">🍲 热汤砂锅 (风味)</option>
+                <option value="🍜">🍜 面点主食 (特色)</option>
+                <option value="🍱">🍱 精致快餐 (套餐)</option>
+                <option value="🥖">🥖 面包糕点 (烘焙)</option>
+                <option value="👴">👴 银发养老 (老年)</option>
+              </select>
             </div>
           </div>
 

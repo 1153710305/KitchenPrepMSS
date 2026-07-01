@@ -11,18 +11,18 @@ import { LogBroker, getDaysInMonth, convertAllGroupsToCsv, matchPinyin } from ".
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
-import { 
-  Users, 
-  Settings, 
-  Trash2, 
-  Edit2, 
-  Check, 
-  X, 
-  PlusCircle, 
-  FolderHeart, 
-  CalendarDays, 
-  ShieldAlert, 
-  Sparkles, 
+import {
+  Users,
+  Settings,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  PlusCircle,
+  FolderHeart,
+  CalendarDays,
+  ShieldAlert,
+  Sparkles,
   ChevronLeft,
   FileSpreadsheet,
   FileJson,
@@ -64,7 +64,7 @@ interface ConfirmModalState {
 }
 
 /**
- * @description 智能后厨配置管理后台组件，支持一级餐位人群及二级食材大类的增删改查(CRUD)，附带实时监控日志与行政核销中心
+ * @description 智能食堂配置管理后台组件，支持一级餐位人群及二级食材大类的增删改查(CRUD)，附带实时监控日志与行政核销中心
  */
 export const AdminBackend: React.FC<AdminBackendProps> = ({
   reports,
@@ -90,17 +90,22 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
     type: "info"
   });
 
-  
+
 
   // --- 二级大类管理相关内部状态 ---
   /** 
+   * @description 生成二级大类系统唯一 Key 的辅助函数 
+   */
+  const generateUniqueCatKey = () => "CAT_" + Math.random().toString(36).substr(2, 6).toUpperCase() + "_" + Math.floor(Math.random() * 100);
+
+  /** 
    * @description 食材供应分类标识Key输入值 (英数大写) 
    */
-  const [catKeyInput, setCatKeyInput] = useState<string>("");
+  const [catKeyInput, setCatKeyInput] = useState<string>(() => "CAT_" + Math.random().toString(36).substr(2, 6).toUpperCase() + "_" + Math.floor(Math.random() * 100));
   /** 
    * @description 食材供应分类中文显示名称 
    */
@@ -111,13 +116,13 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   const [editingCatKey, setEditingCatKey] = useState<string | null>(null);
 
   // --- 联动警告状态 ---
-  
+
   /** 
    * @description 二级食材大类操作异常文字提示 
    */
   const [catError, setCatError] = useState<string | null>(null);
 
-  
+
 
   // ================= 核心工具函数 =================
 
@@ -179,7 +184,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       await PrepReportService.saveCategory(targetKey, catLabelInput);
       LogBroker.publish("INFO", "AdminBackend", `配置后台成功存储了二级食材大类：${catLabelInput} (${targetKey})`);
 
-      setCatKeyInput("");
+      setCatKeyInput(generateUniqueCatKey());
       setCatLabelInput("");
       setEditingCatKey(null);
     } catch (err: any) {
@@ -215,7 +220,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           LogBroker.publish("WARN", "AdminBackend", `配置后台物理剔除了餐饮品类：${key}`);
           if (editingCatKey === key) {
             setEditingCatKey(null);
-            setCatKeyInput("");
+            setCatKeyInput(generateUniqueCatKey());
             setCatLabelInput("");
           }
         } catch (err: any) {
@@ -231,7 +236,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
    */
   const handleCancelCatEdit = () => {
     setEditingCatKey(null);
-    setCatKeyInput("");
+    setCatKeyInput(generateUniqueCatKey());
     setCatLabelInput("");
     setCatError(null);
   };
@@ -248,7 +253,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `后厨备餐账目全套备份_${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `食堂备餐账目全套备份_${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
       LogBroker.publish("INFO", "AdminBackend", `配置后台：已成功生成并下载全套 JSON 数据备份包。`);
@@ -276,7 +281,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
             LogBroker.publish("INFO", "AdminBackend", "配置后台：已安全覆盖导入备餐底盘，重绘前端。");
           });
         } else {
-          throw new Error("识别标志缺失：JSON数据并非合规的后厨月度备份。");
+          throw new Error("识别标志缺失：JSON数据并非合规的食堂月度备份。");
         }
       } catch (err: any) {
         alert(`导入数据失败：${err.message}`);
@@ -311,7 +316,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   const handleResetToSeeds = () => {
     showConfirm(
       "出厂复位：重新恢复演示种子",
-      "您确定要执行系统复位并导入示例数据吗？这会抹除您当前建立的所有客群标签、大类分类及所有自定义录入，并重新装载预设的标准中式后厨演示人设与各品类示范月度底账！",
+      "您确定要执行系统复位并导入示例数据吗？这会抹除您当前建立的所有客群标签、大类分类及所有自定义录入，并重新装载预设的标准中式食堂演示人设与各品类示范月度底账！",
       () => {
         (window as any).__setGlobalLoading?.("正在出厂复位并装载系统预设演示种子数据，请稍候...");
         PrepReportService.factoryReset().then((data) => {
@@ -375,7 +380,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `后厨全餐位客群备菜账目月度汇总明细_${year}年${month}月_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `食堂全餐位客群备菜账目月度汇总明细_${year}年${month}月_${new Date().toISOString().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
       LogBroker.publish("INFO", "AdminBackend", `配置后台：成功将所有餐卡客群的日度记账矩阵汇总打包导出为 Excel CSV。`);
@@ -387,23 +392,23 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   // ================= 界面渲染视图部分 =================
   return (
     <div className="flex flex-col h-screen bg-slate-100 w-full font-sans select-none overflow-hidden">
-      
+
       {/* 顶部二级暗灰快速行政控制条 */}
       <header className="sticky top-0 bg-slate-900 text-slate-100 flex items-center justify-between px-6 py-4 shadow-md border-b border-slate-800 z-50 shrink-0">
         <div className="flex items-center space-x-3">
-          <button 
+          <button
             onClick={onClose}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded text-xs transition cursor-pointer font-medium text-slate-200"
             title="关闭后台返回记账矩阵"
           >
             <ChevronLeft size={14} />
-            <span>返回后厨记账主厅</span>
+            <span>返回食堂记账主厅</span>
           </button>
-          
+
           <div className="h-4 w-[1px] bg-slate-700" />
           <div className="flex items-center space-x-2">
             <Settings className="text-emerald-400 animate-spin-slow" size={18} />
-            <h2 className="text-sm font-extrabold tracking-tight">后厨配置中央管理后台</h2>
+            <h2 className="text-sm font-extrabold tracking-tight">食堂配置中央管理后台</h2>
           </div>
         </div>
 
@@ -414,22 +419,21 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
       {/* 核心双分骨架排布 (Aside + Main) */}
       <div className="flex flex-1 overflow-hidden relative">
-        
+
         {/* 左侧导航菜单栏 Sidebar */}
         <aside className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 justify-between font-sans">
           <div className="flex flex-col flex-1 min-h-0">
             <div className="p-4 border-b border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">功能快捷菜单</span>
             </div>
-            
+
             <nav className="flex-1 py-2 space-y-1 overflow-y-auto">
               <button
                 onClick={() => setActiveTab("groups")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
-                  activeTab === "groups"
-                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                    : "text-slate-600 hover:bg-slate-50 border-transparent"
-                }`}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "groups"
+                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
               >
                 <Users size={15} className="mr-3 shrink-0" />
                 <span>一级受众管理</span>
@@ -437,11 +441,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
               <button
                 onClick={() => setActiveTab("categories")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
-                  activeTab === "categories"
-                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                    : "text-slate-600 hover:bg-slate-50 border-transparent"
-                }`}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "categories"
+                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
               >
                 <FolderHeart size={15} className="mr-3 shrink-0" />
                 <span>二级大类管理</span>
@@ -449,11 +452,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
               <button
                 onClick={() => setActiveTab("dictionary")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
-                  activeTab === "dictionary"
-                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                    : "text-slate-600 hover:bg-slate-50 border-transparent"
-                }`}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "dictionary"
+                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
               >
                 <FileSpreadsheet size={15} className="mr-3 shrink-0" />
                 <span>原料字典管理</span>
@@ -461,11 +463,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
               <button
                 onClick={() => setActiveTab("maintenance")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
-                  activeTab === "maintenance"
-                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                    : "text-slate-600 hover:bg-slate-50 border-transparent"
-                }`}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "maintenance"
+                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
               >
                 <ShieldAlert size={15} className="mr-3 shrink-0" />
                 <span>数据维护核销</span>
@@ -485,7 +486,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
         {/* 右侧核心功能工作盘 */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-6 bg-slate-50">
-          
+
           {/* 一级人群管理 Tab 页 */}
           {activeTab === "groups" && (
             <AdminGroupsTab />
@@ -510,13 +511,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                   {activeCategoriesList.map((cat) => {
                     const isUnderEdit = editingCatKey === cat.key;
                     return (
-                      <div 
+                      <div
                         key={cat.key}
-                        className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                          isUnderEdit 
-                            ? "bg-teal-50/50 border-teal-300 shadow-xs" 
-                            : "bg-slate-50 border-slate-150 hover:bg-slate-100"
-                        }`}
+                        className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${isUnderEdit
+                          ? "bg-teal-50/50 border-teal-300 shadow-xs"
+                          : "bg-slate-50 border-slate-150 hover:bg-slate-100"
+                          }`}
                       >
                         <div>
                           <span className="font-extrabold text-slate-800">{cat.label}类</span>
@@ -561,14 +561,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">大类英数字Key(系统唯一值)</label>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">大类唯一Key (系统自动分配)</label>
                       <input
                         type="text"
-                        placeholder="如: SPICE"
                         value={catKeyInput}
-                        onChange={(e) => setCatKeyInput(e.target.value)}
-                        disabled={editingCatKey !== null}
-                        className="w-full bg-white text-xs text-slate-800 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none uppercase font-mono disabled:opacity-50"
+                        disabled={true}
+                        className="w-full bg-slate-100 text-slate-400 text-xs p-2 border border-slate-355 rounded outline-none font-mono"
                         required
                       />
                     </div>
@@ -630,7 +628,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  
+
                   {/* CSV 导出汇总 */}
                   <button
                     onClick={handleExportAllGroupsCsv}
@@ -648,7 +646,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                   <button
                     onClick={handleExportBackup}
                     className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="导出当前后厨全量人群、分类以及记账数值的JSON备份包"
+                    title="导出当前食堂全量人群、分类以及记账数值的JSON备份包"
                   >
                     <div className="w-9 h-9 bg-slate-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
                       <FileJson size={18} />
@@ -698,7 +696,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                       <Sparkles size={18} />
                     </div>
                     <span className="text-xs font-bold text-amber-700">恢复演示种子数据</span>
-                    <span className="text-[9px] text-amber-500 font-semibold">一键重置、装载标准中式后厨样本</span>
+                    <span className="text-[9px] text-amber-500 font-semibold">一键重置、装载标准中式食堂样本</span>
                   </button>
 
                   {/* 清空原料购销台账数据 */}
@@ -741,13 +739,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden transform transition-all animate-scale-in">
             <div className="p-5 space-y-4">
               <div className="flex items-start space-x-3">
-                <div className={`p-2.5 rounded-full shrink-0 ${
-                  confirmModal.type === "danger" 
-                    ? "bg-rose-50 text-rose-600 border border-rose-100" 
-                    : confirmModal.type === "warn"
-                      ? "bg-amber-50 text-amber-600 border border-amber-100"
-                      : "bg-teal-50 text-teal-600 border border-teal-100"
-                }`}>
+                <div className={`p-2.5 rounded-full shrink-0 ${confirmModal.type === "danger"
+                  ? "bg-rose-50 text-rose-600 border border-rose-100"
+                  : confirmModal.type === "warn"
+                    ? "bg-amber-50 text-amber-600 border border-amber-100"
+                    : "bg-teal-50 text-teal-600 border border-teal-100"
+                  }`}>
                   {confirmModal.type === "danger" ? (
                     <Trash2 size={20} />
                   ) : confirmModal.type === "warn" ? (
@@ -766,7 +763,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-slate-50 px-5 py-3.5 flex items-center justify-end space-x-2 border-t border-slate-100">
               <button
                 type="button"
@@ -778,13 +775,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
               <button
                 type="button"
                 onClick={confirmModal.onConfirm}
-                className={`px-4 py-1.5 text-white rounded text-xs font-bold cursor-pointer shadow-xs transition-colors ${
-                  confirmModal.type === "danger"
-                    ? "bg-rose-600 hover:bg-rose-700 animate-pulse"
-                    : confirmModal.type === "warn"
-                      ? "bg-amber-600 hover:bg-amber-700"
-                      : "bg-teal-600 hover:bg-teal-700"
-                }`}
+                className={`px-4 py-1.5 text-white rounded text-xs font-bold cursor-pointer shadow-xs transition-colors ${confirmModal.type === "danger"
+                  ? "bg-rose-600 hover:bg-rose-700 animate-pulse"
+                  : confirmModal.type === "warn"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-teal-600 hover:bg-teal-700"
+                  }`}
               >
                 确认执行
               </button>

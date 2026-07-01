@@ -98,7 +98,7 @@ const THEME_MAP: Record<string, ThemeStyle> = {
 };
 
 /**
- * @description 多功能后厨电子备料表格与汇总合计组件
+ * @description 多功能食堂电子备料表格与汇总合计组件
  */
 export const TableGrid: React.FC<TableGridProps> = ({
   report,
@@ -126,13 +126,13 @@ export const TableGrid: React.FC<TableGridProps> = ({
     localStorage.setItem("prep_table_theme", newTheme);
     LogBroker.publish("INFO", "TableGrid", `用户切换了备餐明细表格的主题样式为：${newTheme === "sky" ? "天空蓝" : newTheme === "emerald" ? "翡翠绿" : newTheme === "purple" ? "丁香紫" : "典雅暗灰"}`);
   };
-  
+
   // 聚焦日的索引状态，默认聚焦 1 号
   const [focusDay, setFocusDay] = useState<string>("1");
-  
+
   // 食材搜索关键字
   const [searchQuery, setSearchQuery] = useState<string>("");
-  
+
   // 新条目新增窗控制
   const [newItemName, setNewItemName] = useState<string>("");
   const [newItemUnit, setNewItemUnit] = useState<string>("斤");
@@ -156,7 +156,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const filteredItems = useMemo(() => {
     // 拉取台账所有原料项目
     const allLedgerItems = LedgerService.getLedgerItems();
-    
+
     // 找出与当前备餐报表所属客群（targetGroup）相匹配的台账集合
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === report.targetGroup);
 
@@ -164,7 +164,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
       .filter((item) => {
         // 解析该台账原料在字典里的所属品类大类
         const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
-        
+
         // 安全防呆校验：必须确保台账明细原料存在于后台原料字典大底库中，避免后台不存在的品类出现
         if (!dictItem) return false;
 
@@ -176,15 +176,15 @@ export const TableGrid: React.FC<TableGridProps> = ({
       .map((item) => {
         // 构造克隆条目，重定向其每日数据为台账当日入库数据
         const alignedDailyData: Record<string, any> = {};
-        
+
         days.forEach((day) => {
           // 台账的日期索引是 YYYY-MM-DD
           const monthStr = String(report.month).padStart(2, "0");
           const dayStr = String(day).padStart(2, "0");
           const targetDateKey = `${report.year}-${monthStr}-${dayStr}`;
-          
+
           const ledgerRecord = item.dailyRecords?.[targetDateKey];
-          
+
           if (ledgerRecord && ledgerRecord.inQuantity > 0) {
             alignedDailyData[day] = {
               quantity: ledgerRecord.inQuantity,
@@ -258,7 +258,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         const groupLabel = getGroupLabel(item.targetGroup);
         const catLabel = getCategoryLabel(item.category);
         const dailyEntry = item.dailyData[day] || { quantity: 0, price: 0 };
-        
+
         // 计算旧的和新的实收金额
         const oldQty = field === "quantity" ? tracker.initialValue : dailyEntry.quantity;
         const oldPrice = field === "price" ? tracker.initialValue : dailyEntry.price;
@@ -287,7 +287,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const handleInputChange = (itemId: string, day: string, field: "quantity" | "price", rawValue: string) => {
     const numericValue = parseFloat(rawValue);
     const sanitized = isNaN(numericValue) || numericValue < 0 ? 0 : numericValue;
-    
+
     // 快速定位当前行和天并渲染
     const targetItem = report.items.find((i) => i.id === itemId);
     if (targetItem) {
@@ -319,10 +319,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const handleExportCsv = () => {
     const catLabel = selectedCategory ? (FOOD_CATEGORY_LABELS[selectedCategory] || selectedCategory) : "汇总合计";
     const groupLabel = getGroupLabel(report.targetGroup);
-    
+
     // 生成 CSV 内容
     const csvString = convertItemsToCsv(filteredItems, days, catLabel);
-    
+
     // 创建 blob 并下载
     const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -332,7 +332,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     LogBroker.publish(
       "INFO",
       "TableGrid",
@@ -349,7 +349,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
     const categoryRows = PrepReportService.getActiveCategories().map((cat) => {
       let costSum = 0;
       const catItems = report.items.filter((item) => item.category === cat.key as FoodCategory);
-      
+
       days.forEach((day) => {
         catItems.forEach((item) => {
           costSum += item.dailyData[day]?.amount || 0;
@@ -415,7 +415,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   return (
     <div className="space-y-4">
-      
+
       {/* 过滤条与功能操作开关 */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 mt-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -510,18 +510,16 @@ export const TableGrid: React.FC<TableGridProps> = ({
         <div className="flex rounded-md bg-white p-1 border border-gray-100 text-xs shadow-xs">
           <button
             onClick={() => setViewMode("MATRIX")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-              viewMode === "MATRIX" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${viewMode === "MATRIX" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
+              }`}
           >
             <Grid size={13} />
             <span>EXCEL 日历总矩阵</span>
           </button>
           <button
             onClick={() => setViewMode("FOCUS")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-              viewMode === "FOCUS" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${viewMode === "FOCUS" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
+              }`}
           >
             <CalendarDays size={13} />
             <span>单日聚焦卡片 (推荐)</span>
@@ -557,7 +555,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       ))}
                       <th colSpan={2} className="p-3 text-center border-b border-slate-300 bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
                     </tr>
-                    
+
                     {/* 二级头: [数量/单价/金额] 三胞胎 */}
                     <tr className="bg-slate-100 text-[10px] text-slate-700 font-bold border-b border-slate-350">
                       <th className="p-2.5 border-b border-r border-slate-350 sticky left-0 bg-slate-100 z-20">食材细分项目</th>
@@ -578,7 +576,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       const monthlySummary = getItemMonthlySummary(item, days);
                       return (
                         <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-350">
-                          
+
                           {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
                           <td className="p-3 sticky left-0 bg-white border-r-2 border-slate-400 z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                             <span className="truncate max-w-[110px] text-xs font-bold" title={item.name}>
@@ -597,7 +595,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                                 );
                               })()}
                             </span>
-                            
+
                             {/* 悬浮删除原料项按钮（只读模式下隐藏，防止在餐位分组页误删） */}
                             {!readOnly && (
                               <button
@@ -654,7 +652,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         </React.Fragment>
                       ))}
                       <th colSpan={2} className="p-3 text-center text-indigo-950 bg-indigo-200/50 font-black text-xs">
-                        ¥{Math.round(Object.values(dayTotals).reduce((s,v)=>s+v,0)*100)/100}
+                        ¥{Math.round(Object.values(dayTotals).reduce((s, v) => s + v, 0) * 100) / 100}
                       </th>
                     </tr>
                   </tbody>
@@ -666,7 +664,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           {/* ================ (2) 单日聚焦卡片 ================ */}
           {viewMode === "FOCUS" && (
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs space-y-6">
-              
+
               {/* 日期选择横轴 slider */}
               <div>
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2.5">
@@ -680,13 +678,12 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       <button
                         key={`focus-btn-${day}`}
                         onClick={() => setFocusDay(day)}
-                        className={`px-3.5 py-2 shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${
-                          isSelected
+                        className={`px-3.5 py-2 shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${isSelected
                             ? `${activeTheme.primaryBg} text-white border-transparent shadow-md`
                             : hasDataOnDay
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                                : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
-                        }`}
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
+                          }`}
                       >
                         <div className="text-[10px] opacity-75 font-normal">周天</div>
                         <div>{day}号</div>
@@ -711,7 +708,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       <p className="text-xs text-gray-400">在该日期下，垂直修改所有原材料的价格与数量</p>
                     </div>
                   </div>
-                  
+
 
                 </div>
 
@@ -741,7 +738,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                               );
                             })()}
                           </div>
-                          
+
                           {/* 垃圾桶删除行按钮（只读模式下隐藏，防止在餐位分组页误删） */}
                           {!readOnly && (
                             <button

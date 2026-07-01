@@ -1,6 +1,8 @@
 {
-  "name": "后厨备菜管理和统计系统",
+  "name": "食堂备菜管理和统计系统",
   "description": "一个支持教师、幼儿、低年级、高年级分类，包含蔬菜、粮油、调料、肉类、低耗品、水果和汇总合计品类的全功能31日记账卡片矩阵、深度数据统计图表及服务端Gemini流式AI健康膳食分析系统。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

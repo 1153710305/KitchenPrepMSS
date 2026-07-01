@@ -67,7 +67,7 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量后厨底库重装）
+   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量食堂底库重装）
    */
   private static generateDefaultSeeds(): void {
     this.items = [
@@ -202,11 +202,11 @@ export class RawMaterialsDictService {
    * @param conversionRatio 换算比例
    */
   public static async addMaterial(
-    name: string, 
-    category: FoodCategory, 
-    unit: string, 
-    remark?: string, 
-    conversionUnit?: string, 
+    name: string,
+    category: FoodCategory,
+    unit: string,
+    remark?: string,
+    conversionUnit?: string,
     conversionRatio?: number
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -244,12 +244,12 @@ export class RawMaterialsDictService {
    * @param conversionRatio 新换算比例
    */
   public static async updateMaterial(
-    oldName: string, 
-    name: string, 
-    category: FoodCategory, 
-    unit: string, 
-    remark?: string, 
-    conversionUnit?: string, 
+    oldName: string,
+    name: string,
+    category: FoodCategory,
+    unit: string,
+    remark?: string,
+    conversionUnit?: string,
     conversionRatio?: number
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -279,7 +279,7 @@ export class RawMaterialsDictService {
       };
       this.saveToStorage();
       LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
-       
+
       // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入
       LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤", finalRemark);
       PrepReportService.cascadeUpdateMaterial(oldName, trimmedName, category, unit.trim() || "斤");
@@ -299,7 +299,7 @@ export class RawMaterialsDictService {
       this.items = this.items.filter((item) => item.name !== name);
       this.saveToStorage();
       LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
-      
+
       // 级联物理删除关联采购原料项与备餐明细
       LedgerService.cascadeDeleteMaterial(name);
       PrepReportService.cascadeDeleteMaterial(name);

@@ -202,7 +202,7 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
         // 3. 计算人均餐费（元/人）
         const perCapita = headcount > 0 ? dailyTotalCost / headcount : 0;
         dataPoint[group.label] = Math.round(perCapita * 100) / 100;
-        
+
         // 留存额外数据字段方便自定义 tooltip 渲染
         dataPoint[`${group.label}_总开销`] = dailyTotalCost;
         dataPoint[`${group.label}_人数`] = headcount;
@@ -229,7 +229,7 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
   return (
     <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all duration-300">
       {/* 模块头部栏 */}
-      <div 
+      <div
         onClick={() => setIsOpen(!isOpen)}
         className="px-6 py-4 flex items-center justify-between border-b border-gray-50 bg-gradient-to-r from-slate-50 to-white cursor-pointer select-none hover:bg-slate-50/50 transition-colors"
       >
@@ -260,11 +260,11 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
       {/* 核心内容区 */}
       {isOpen && (
         <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
+
           {/* 左侧 (5格): 就餐人数日历录入网格 (Calendar-Style High Density Layout) */}
           <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
             <div className="space-y-4">
-              
+
               {/* 人群微切换器控制条 */}
               <div className="space-y-2">
                 <span className="text-[11px] font-bold text-slate-500 block">
@@ -281,11 +281,10 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
                           setCurrentEditorGroup(g.key);
                           LogBroker.publish("INFO", "HeadcountPanel", `在多维分析页切换当前编辑的人数分组: ${g.label}`);
                         }}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white text-emerald-700 shadow-xs"
-                            : "text-slate-500 hover:text-slate-700 hover:bg-white/40"
-                        }`}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${isActive
+                          ? "bg-white text-emerald-700 shadow-xs"
+                          : "text-slate-500 hover:text-slate-700 hover:bg-white/40"
+                          }`}
                       >
                         <span className="text-sm">{g.emoji}</span>
                         <span>{g.label}</span>
@@ -310,13 +309,12 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
                   const numVal = parseInt(val, 10);
                   const isZero = isNaN(numVal) || numVal <= 0;
                   return (
-                    <div 
+                    <div
                       key={`hc-cell-${day}`}
-                      className={`p-1 rounded-lg border transition-all flex flex-col justify-between ${
-                        isZero 
-                          ? "bg-rose-50/30 border-rose-100/60" 
-                          : "bg-white border-slate-100 hover:border-sky-300 hover:shadow-xs focus-within:ring-1 focus-within:ring-sky-500"
-                      }`}
+                      className={`p-1 rounded-lg border transition-all flex flex-col justify-between ${isZero
+                        ? "bg-rose-50/30 border-rose-100/60"
+                        : "bg-white border-slate-100 hover:border-sky-300 hover:shadow-xs focus-within:ring-1 focus-within:ring-sky-500"
+                        }`}
                     >
                       <div className="flex justify-between items-center text-[9px] font-mono font-bold text-slate-400 mb-0.5">
                         <span>{day}号</span>
@@ -343,7 +341,7 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
             <div className="p-3 bg-sky-50/50 border border-sky-100/50 rounded-xl flex items-start gap-2 text-[11px] text-sky-800 leading-relaxed">
               <Calculator size={14} className="text-sky-600 shrink-0 mt-0.5" />
               <p>
-                <strong>实时均摊公式：</strong>人均餐费 = 当天后厨采购总额 ÷ 就餐人数。修改人数并失去焦点后，右侧餐费走势将实时无卡顿重绘。
+                <strong>实时均摊公式：</strong>人均餐费 = 当天食堂采购总额 ÷ 就餐人数。修改人数并失去焦点后，右侧餐费走势将实时无卡顿重绘。
               </p>
             </div>
           </div>
@@ -384,7 +382,7 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
                       }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                    
+
                     {/* 动态绘制折线，保证添加、删除人群后，图例与色彩不崩塌 */}
                     {activeGroupsList.map((group, idx) => (
                       <Line
@@ -404,7 +402,7 @@ export const HeadcountPanel: React.FC<HeadcountPanelProps> = ({
 
             {/* 说明 */}
             <div className="text-[10px] text-slate-400 mt-2 text-right">
-              * 提示：鼠标悬停在图表拐点上，可一并穿透查看该日该人群的「后厨总开销」和「精准就餐人数」。
+              * 提示：鼠标悬停在图表拐点上，可一并穿透查看该日该人群的「食堂总开销」和「精准就餐人数」。
             </div>
           </div>
 

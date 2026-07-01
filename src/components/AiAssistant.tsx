@@ -31,15 +31,15 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
 
   // 1. 本地归并生成极轻量、高密度的物资概览，传递给大模型以防 Token 爆棚
   const days = useMemo(() => getDaysInMonth(activeGroupReport.year, activeGroupReport.month), [activeGroupReport.year, activeGroupReport.month]);
-  
+
   const formattedSummaryJson = useMemo(() => {
     // 汇总各品类在本月被记账的总数额
     const summaryMap: Record<string, { totalQty: number; totalCost: number; itemsList: string[] }> = {};
-    
+
     activeGroupReport.items.forEach((item) => {
       const summary = getItemMonthlySummary(item, days);
       if (summary.totalCost <= 0) return; // 忽略没有任何消耗的空品类，大幅节约算力
-      
+
       if (!summaryMap[item.category]) {
         summaryMap[item.category] = { totalQty: 0, totalCost: 0, itemsList: [] };
       }
@@ -105,7 +105,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
         // --- SSE 协议流处理 ---
         const reader = response.body?.getReader();
         if (!reader) throw new Error("无法读取浏览器 Response Body 管道。");
-        
+
         const decoder = new TextDecoder();
         let aggregatedText = "";
         let buffer = "";
@@ -219,7 +219,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
 
   return (
     <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-gray-100 shadow-sm mt-6">
-      
+
       {/* 头部区 */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 mb-5">
         <div className="flex items-center gap-3">
@@ -237,17 +237,15 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
           <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-100 text-xs">
             <button
               onClick={() => setIsStreamMode(true)}
-              className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-                isStreamMode ? "bg-white text-emerald-600 shadow-xs border border-gray-100" : "text-gray-500 hover:text-gray-900"
-              }`}
+              className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer font-medium ${isStreamMode ? "bg-white text-emerald-600 shadow-xs border border-gray-100" : "text-gray-500 hover:text-gray-900"
+                }`}
             >
               在线打字流
             </button>
             <button
               onClick={() => setIsStreamMode(false)}
-              className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-                !isStreamMode ? "bg-white text-emerald-600 shadow-xs border border-gray-100" : "text-gray-500 hover:text-gray-900"
-              }`}
+              className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer font-medium ${!isStreamMode ? "bg-white text-emerald-600 shadow-xs border border-gray-100" : "text-gray-500 hover:text-gray-900"
+                }`}
             >
               传统常规
             </button>
@@ -261,7 +259,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
             {loading ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                <span>后厨数据审计中...</span>
+                <span>食堂数据审计中...</span>
               </>
             ) : (
               <>
@@ -291,7 +289,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
             <HelpCircle size={22} />
           </div>
           <div className="max-w-md space-y-1">
-            <p className="font-semibold text-gray-600">双核智能后厨大脑已就绪</p>
+            <p className="font-semibold text-gray-600">双核智能食堂大脑已就绪</p>
             <p className="leading-relaxed">点击右上方按钮，即可综合分析大米、猪肉等【{activeGroupLabel}】物资配比，审查伙食的多样丰富度并得出控本报告。</p>
           </div>
         </div>
@@ -317,12 +315,12 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
       {analysisResult && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+
             {/* Bento 1: 综合膳食评分与雷达指示 */}
             <div className={`md:col-span-1 rounded-2xl border p-5 flex flex-col items-center justify-center text-center ${scoreMeta.bg} ${scoreMeta.border}`}>
               <Activity size={24} className={`mb-2 ${scoreMeta.text}`} />
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">膳食安全指数</h4>
-              
+
               <div className="relative flex items-center justify-center my-4">
                 {/* 仿真仪表盘圈 */}
                 <svg className="w-28 h-28 transform -rotate-90">
@@ -344,7 +342,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
                   <span className="text-[9px] text-gray-400">一期开局评分</span>
                 </div>
               </div>
-              
+
               <p className="text-xs text-gray-600 leading-relaxed font-sans px-2">
                 结合本月蔬菜、高糖粮油、必需蛋白质及水果耗资之丰富程度，折算得出当前膳食健康评价。
               </p>
@@ -379,12 +377,12 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ activeGroupReport }) =
               <span className="w-1.5 h-3 bg-emerald-500 rounded-xs animate-ping" />
               膳食结构及主导营养平衡诊断
             </h4>
-            
+
             {/* Markdown 排版渲染内容 */}
             <div className="text-xs text-gray-600 leading-relaxed markdown-body prose prose-sm max-w-none pr-1">
               <Markdown>{analysisResult.nutritionAnalysis}</Markdown>
             </div>
-            
+
             {/* 仓储采购指导子栏 */}
             {analysisResult.purchaseGuide !== "已合并至全景报告中展现。" && (
               <div className="mt-5 pt-4 border-t border-gray-200/50">

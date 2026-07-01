@@ -1,109 +1,137 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>后厨备菜管理和统计系统</title>
-    <!-- 引入用于 Windows 7 兼容的字体与图标方案 -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap" />
-    <style>
-      /* 全局回退字体，防止Windows 7渲染点阵宋体 */
-      body, input, select, textarea, button {
-        font-family: "Outfit", "Noto Sans SC", "Microsoft YaHei", "微软雅黑", -apple-system, sans-serif !important;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      /* 全局等比例放大字号并强化按钮清晰度 */
-      html {
-        font-size: 16px; /* 提升基准字体 */
-      }
-      body {
-        font-size: 0.95rem; /* 微调页面基础字号 */
-        letter-spacing: 0.01em;
-      }
-      /* 增强所有普通按钮的视觉清晰度与描边对比 */
-      button, input, select {
-        font-weight: 500 !important;
-        text-rendering: optimizeLegibility;
-      }
-      button:hover {
-        transform: translateY(-0.5px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
-      }
-      /* 针对 Windows 7 及旧系统的 emoji 图片样式兼容 */
-      img.emoji {
-        height: 1.15em;
-        width: 1.15em;
-        margin: 0 .05em 0 .1em;
-        vertical-align: -0.1em;
-        display: inline-block;
-      }
-      /* 针对 Windows 7 滚动条显示不全或遮挡内容进行优化 */
-      ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f1f5f9;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #94a3b8; /* 加深滚动条颜色以获得更清晰的指示 */
-        border-radius: 5px;
-        border: 2px solid #f1f5f9;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-      }
-      /* 全局明细表格线及色彩对比度强补丁 */
-      table td, table th {
-        border-color: #cbd5e1 !important; /* 加深单元格灰色边框线，实现强力横竖线效果 */
-      }
-      thead th {
-        background-color: #f1f5f9 !important;
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        border-bottom: 2px solid #94a3b8 !important; /* 加重表头底部分界 */
-      }
-      /* 输入框聚焦和高反差 */
-      input:focus, select:focus {
-        border-color: #10b981 !important;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
-      }
-    </style>
-    <!-- 引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片 -->
-    <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-    <script>
-      // 开启全局静默监听，DOM 渲染完毕后自动解析替换所有 Emoji 图标
-      document.addEventListener("DOMContentLoaded", function() {
-        if (typeof twemoji !== "undefined") {
-          twemoji.parse(document.body, {
-            folder: 'svg',
-            ext: '.svg'
-          });
-          // 使用 MutationObserver 监听动态生成的 DOM（如 React 局部重新渲染的区域）
-          var observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-              if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                for (var i = 0; i < mutation.addedNodes.length; i++) {
-                  var node = mutation.addedNodes[i];
-                  if (node.nodeType === 1) { // ELEMENT_NODE
-                    twemoji.parse(node, { folder: 'svg', ext: '.svg' });
-                  }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>食堂备菜管理和统计系统</title>
+  <!-- 引入用于 Windows 7 兼容的字体与图标方案 -->
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap" />
+  <style>
+    /* 全局回退字体，防止Windows 7渲染点阵宋体 */
+    body,
+    input,
+    select,
+    textarea,
+    button {
+      font-family: "Outfit", "Noto Sans SC", "Microsoft YaHei", "微软雅黑", -apple-system, sans-serif !important;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* 全局等比例放大字号并强化按钮清晰度 */
+    html {
+      font-size: 16px;
+      /* 提升基准字体 */
+    }
+
+    body {
+      font-size: 0.95rem;
+      /* 微调页面基础字号 */
+      letter-spacing: 0.01em;
+    }
+
+    /* 增强所有普通按钮的视觉清晰度与描边对比 */
+    button,
+    input,
+    select {
+      font-weight: 500 !important;
+      text-rendering: optimizeLegibility;
+    }
+
+    button:hover {
+      transform: translateY(-0.5px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* 针对 Windows 7 及旧系统的 emoji 图片样式兼容 */
+    img.emoji {
+      height: 1.15em;
+      width: 1.15em;
+      margin: 0 .05em 0 .1em;
+      vertical-align: -0.1em;
+      display: inline-block;
+    }
+
+    /* 针对 Windows 7 滚动条显示不全或遮挡内容进行优化 */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      /* 加深滚动条颜色以获得更清晰的指示 */
+      border-radius: 5px;
+      border: 2px solid #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+
+    /* 全局明细表格线及色彩对比度强补丁 */
+    table td,
+    table th {
+      border-color: #cbd5e1 !important;
+      /* 加深单元格灰色边框线，实现强力横竖线效果 */
+    }
+
+    thead th {
+      background-color: #f1f5f9 !important;
+      color: #1e293b !important;
+      font-weight: 700 !important;
+      border-bottom: 2px solid #94a3b8 !important;
+      /* 加重表头底部分界 */
+    }
+
+    /* 输入框聚焦和高反差 */
+    input:focus,
+    select:focus {
+      border-color: #10b981 !important;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
+    }
+  </style>
+  <!-- 引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片 -->
+  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <script>
+    // 开启全局静默监听，DOM 渲染完毕后自动解析替换所有 Emoji 图标
+    document.addEventListener("DOMContentLoaded", function () {
+      if (typeof twemoji !== "undefined") {
+        twemoji.parse(document.body, {
+          folder: 'svg',
+          ext: '.svg'
+        });
+        // 使用 MutationObserver 监听动态生成的 DOM（如 React 局部重新渲染的区域）
+        var observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (mutation) {
+            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+              for (var i = 0; i < mutation.addedNodes.length; i++) {
+                var node = mutation.addedNodes[i];
+                if (node.nodeType === 1) { // ELEMENT_NODE
+                  twemoji.parse(node, { folder: 'svg', ext: '.svg' });
                 }
               }
-            });
+            }
           });
-          observer.observe(document.getElementById("root"), {
-            childList: true,
-            subtree: true
-          });
-        }
-      });
-    </script>
-  </head>
-  <body class="bg-slate-50 text-slate-800 antialiased">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+        });
+        observer.observe(document.getElementById("root"), {
+          childList: true,
+          subtree: true
+        });
+      }
+    });
+  </script>
+</head>
 
+<body class="bg-slate-50 text-slate-800 antialiased">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

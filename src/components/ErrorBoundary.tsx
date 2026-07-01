@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
-    
+
     // 自动通过 LogBroker 异步把详细报错堆栈上报写到服务器的物理日志文件中
     const details = `Error: ${error.message}\nStack: ${error.stack}\nComponent Stack: ${errorInfo.componentStack}`;
     LogBroker.publish("ERROR", "ErrorBoundary", details);
@@ -58,9 +58,9 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.props.fallbackTitle || "该板块组件由于运行内部错误发生了崩溃"}
             </h2>
           </div>
-          
+
           <p className="text-xs text-slate-500 leading-relaxed">
-            系统已自动捕获并记录了该异常到服务器本地物理日志文件中。您可以尝试重试刷新或联系后厨系统管理员。
+            系统已自动捕获并记录了该异常到服务器本地物理日志文件中。您可以尝试重试刷新或联系食堂系统管理员。
           </p>
 
           {this.state.error && (

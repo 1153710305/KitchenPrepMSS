@@ -33,7 +33,7 @@ interface StatisticsPanelProps {
   selectedCategory: FoodCategory | null;
   /** 是否展示日开支走势曲线 */
   showTrend?: boolean;
-  /** 是否展示后厨配量各品类资金占比 */
+  /** 是否展示食堂配量各品类资金占比 */
   showPie?: boolean;
   /** 是否展示重点监控高成本主材 */
   showMonitor?: boolean;
@@ -88,7 +88,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
       report.items.forEach((item) => {
         // 如果用户锁定了某一个品类，则趋势图仅渲染该大类的日走势
         if (selectedCategory && item.category !== selectedCategory) return;
-        
+
         const entry = item.dailyData[day];
         if (entry) {
           costSum += entry.amount || 0;
@@ -152,20 +152,20 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                     </span>
                   )}
                 </div>
-                
+
                 <div className="h-64 mt-4 w-full text-xs">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={dailySpendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.00}/>
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.00} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" stroke="#94a3b8" tickLine={false} axisLine={false} />
                       <YAxis stroke="#94a3b8" tickLine={false} axisLine={false} />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: "#1e293b", borderRadius: "12px", border: "none", color: "#fff" }}
                         itemStyle={{ color: "#38bdf8" }}
                       />
@@ -212,7 +212,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                     <PieChart size={18} />
                   </span>
                   <div>
-                    <h3 className="font-semibold text-gray-800 text-sm">后厨配量各品类资金占比</h3>
+                    <h3 className="font-semibold text-gray-800 text-sm">食堂配量各品类资金占比</h3>
                     <p className="text-xs text-gray-400 mt-0.5">膳食均衡与采购能耗配比评估</p>
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" stroke="#94a3b8" hide />
                       <YAxis dataKey="label" type="category" stroke="#475569" tickLine={false} axisLine={false} />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: "#1e293b", borderRadius: "12px", border: "none", color: "#fff" }}
                         formatter={(value: any) => [`${value} 元`, "金额"]}
                       />

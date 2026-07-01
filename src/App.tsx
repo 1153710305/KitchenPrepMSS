@@ -21,11 +21,11 @@ const AdminBackend = lazy(() => import("./components/AdminBackend.tsx").then(m =
 const LedgerSystem = lazy(() => import("./components/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
 const InventoryPanel = lazy(() => import("./components/InventoryPanel.tsx").then(m => ({ default: m.InventoryPanel })));
 import {
-  Settings, 
-  RefreshCw, 
-  ShieldAlert, 
-  FolderDown, 
-  FolderUp, 
+  Settings,
+  RefreshCw,
+  ShieldAlert,
+  FolderDown,
+  FolderUp,
   Database,
   LogOut,
   Lock,
@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 /**
- * @description 后厨备餐备料记账统计系统主入口组件
+ * @description 食堂备餐备料记账统计系统主入口组件
  */
 export default function App() {
   // ================= 状态声明部分 =================
@@ -54,15 +54,15 @@ export default function App() {
   // 挂载全局 Loading 辅助器，使非 Context 组件、后台、台账均可秒级调用锁屏防呆并呈现进度条
   useEffect(() => {
     let progressTimer: any = null;
-    
+
     (window as any).__setGlobalLoading = (text: string | null, showProgress: boolean = true) => {
       if (progressTimer) {
         clearInterval(progressTimer);
         progressTimer = null;
       }
-      
+
       setGlobalLoadingText(text);
-      
+
       if (text && showProgress) {
         setGlobalLoadingProgress(0);
         let current = 0;
@@ -74,7 +74,7 @@ export default function App() {
         setGlobalLoadingProgress(null);
       }
     };
-    
+
     return () => {
       if (progressTimer) clearInterval(progressTimer);
       (window as any).__setGlobalLoading = undefined;
@@ -87,11 +87,11 @@ export default function App() {
   const [activeGroup, setActiveGroup] = useState<string>("TEACHER");
   /** 当前选中的二级食材品类。当设置为 null 时，代表“合计汇总”汇总表 */
   const [activeCategory, setActiveCategory] = useState<string | null>("VEGETABLE");
-  
+
   /** 当前备餐查看选中的年份与月份 */
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
-  
+
   /** 系统离线架构自检与加载态指示 */
   const [isLoading, setIsLoading] = useState<boolean>(true);
   /** 自动同步极速轻量气泡提示文字 */
@@ -215,7 +215,7 @@ export default function App() {
 
     Promise.all([p1, p2, p3]).then(([prepData, ledgerData, serverData]) => {
       reportProgress(10, "校验并装载全新主控交互面板...");
-      
+
       // 延迟 400ms 解除，避免一闪而过的尴尬，让进度条 100% 的视觉体验最大化
       setTimeout(() => {
         if (active) {
@@ -228,7 +228,7 @@ export default function App() {
 
           setReports(prepData);
           setLedgerItemsList(ledgerData.items);
-          
+
           // 使用服务器的原料大字典来初始化字典内存
           const sDict = serverData ? (serverData as any).rawMaterialsDict : undefined;
           RawMaterialsDictService.initDictFromServer(sDict);
@@ -298,7 +298,7 @@ export default function App() {
         const freshData = await SyncHelper.loadFromServer();
         if (freshData && active) {
           let memoryChanged = false;
-          
+
           if (freshData.reports && JSON.stringify(freshData.reports) !== JSON.stringify(PrepReportService.getReports())) {
             PrepReportService.setReportsInMemory(freshData.reports);
             memoryChanged = true;
@@ -561,7 +561,7 @@ export default function App() {
   }, [currentReport]);
 
   /**
-   * @description 计算后厨所有受众人群全品类在全月的累积费用总支出（宏观总额）
+   * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）
    */
   const allGroupsReportTotal = useMemo(() => {
     let sum = 0;
@@ -612,7 +612,7 @@ export default function App() {
           {/* 进度条轨道 */}
           <div className="space-y-2">
             <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300 shadow-sm"
                 style={{ width: `${syncProgress}%` }}
               ></div>
@@ -646,7 +646,7 @@ export default function App() {
               <Lock className="text-white" size={24} />
             </div>
             <h2 className="text-lg md:text-xl font-black text-white tracking-tight pt-2">
-              后厨备菜管理与统计系统
+              食堂备菜管理与统计系统
             </h2>
             <p className="text-xs text-slate-400">
               智能高效的日度矩阵记账及膳食营养辅助决策面板
@@ -722,7 +722,7 @@ export default function App() {
   // ================= 前台报表交互展示屏 =================
   return (
     <div className="flex flex-col h-screen w-full bg-[#f1f5f9] text-slate-800 font-sans select-none overflow-hidden">
-      
+
       {/* 顶部主横幅控制中心 (符合高密度设计风格 Deep Slate Colors) */}
       <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-slate-900 text-white border-b border-slate-700 shrink-0 relative z-50">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
@@ -734,15 +734,15 @@ export default function App() {
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
-          
+
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded flex items-center justify-center font-extrabold text-base sm:text-lg text-white shrink-0">K</div>
           <h1 className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold tracking-tight truncate">
-            后厨备菜管理系统 <span className="hidden md:inline text-slate-400 font-normal text-xs sm:text-sm ml-2">v2.5</span>
+            食堂备菜管理系统 <span className="hidden md:inline text-slate-400 font-normal text-xs sm:text-sm ml-2">v2.5</span>
           </h1>
         </div>
 
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
-          
+
           {/* 库存总览快速入口 */}
           <button
             onClick={() => setIsInventoryOpen(true)}
@@ -767,7 +767,7 @@ export default function App() {
           <button
             onClick={handleLogout}
             className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[10px] sm:text-xs text-slate-300 hover:text-rose-200 rounded cursor-pointer transition-all shadow-sm"
-            title="安全退出当前后厨记账系统并锁定首页面"
+            title="安全退出当前食堂记账系统并锁定首页面"
           >
             <LogOut size={11} />
             <span className="hidden md:inline">安全登出</span>
@@ -789,15 +789,15 @@ export default function App() {
 
       {/* 主面板内容区 (遵循高密双分 Aside + Main 左右骨架排布布局) */}
       <div className="flex flex-1 overflow-hidden relative">
-        
+
         {/* 移动端侧边栏遮罩层 */}
         {isSidebarOpen && (
-          <div 
-            className="lg:hidden fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-30 transition-opacity duration-300" 
+          <div
+            className="lg:hidden fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-30 transition-opacity duration-300"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
-        
+
         {/* 左侧侧边栏 Sidebar: 受众人群分组与多维分析决策顶级菜单栏 */}
         <aside className={`
           bg-white border-r border-slate-200 flex flex-col shrink-0 justify-between
@@ -814,7 +814,7 @@ export default function App() {
                   <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-extrabold shrink-0">{activeGroupsList.length}群</span>
                 </>
               )}
-              <button 
+              <button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors mx-auto cursor-pointer font-bold"
                 title={isSidebarCollapsed ? "展开" : "折叠"}
@@ -822,7 +822,7 @@ export default function App() {
                 {isSidebarCollapsed ? "▶" : "◀"}
               </button>
             </div>
-            
+
             <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto scrollbar-thin flex flex-col">
               <div className="flex-1">
                 {activeGroupsList.map((g) => {
@@ -833,14 +833,13 @@ export default function App() {
                       onClick={() => {
                         setActiveGroup(g.key);
                         setIsSidebarOpen(false); // 点击后折叠侧边栏
-                        LogBroker.publish("INFO", "App", `切换聚焦后厨受众人群: ${g.label}`);
+                        LogBroker.publish("INFO", "App", `切换聚焦食堂受众人群: ${g.label}`);
                       }}
                       title={g.label}
-                      className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all ${
-                        isSelected
-                          ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-bold"
-                          : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                      } ${isSidebarCollapsed ? "justify-center" : ""}`}
+                      className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all ${isSelected
+                        ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-bold"
+                        : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
+                        } ${isSidebarCollapsed ? "justify-center" : ""}`}
                     >
                       <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>{g.emoji}</span>
                       {!isSidebarCollapsed && <span>{g.label}</span>}
@@ -865,11 +864,10 @@ export default function App() {
                       LogBroker.publish("INFO", "App", "激活原料购销台账及仓储库存模块。");
                     }}
                     title="原料购销台账"
-                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
-                      activeGroup === "LEDGER"
-                        ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-black"
-                        : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                    } ${isSidebarCollapsed ? "justify-center" : ""}`}
+                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${activeGroup === "LEDGER"
+                      ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-black"
+                      : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
+                      } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
                     <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>📋</span>
                     {!isSidebarCollapsed && <span>原料购销台账</span>}
@@ -930,29 +928,27 @@ export default function App() {
                           setActiveCategory(cat.key);
                           LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
                         }}
-                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${
-                          isSelected
-                            ? "border-emerald-500 text-emerald-600 font-extrabold"
-                            : "border-transparent text-slate-400 hover:text-slate-600"
-                        }`}
+                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${isSelected
+                          ? "border-emerald-500 text-emerald-600 font-extrabold"
+                          : "border-transparent text-slate-400 hover:text-slate-600"
+                          }`}
                       >
                         {cat.label}品类
                       </button>
                     );
                   })}
-              
+
                   <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
-              
+
                   <button
                     onClick={() => {
                       setActiveCategory(null);
                       LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
                     }}
-                    className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${
-                      activeCategory === null
-                        ? "border-emerald-600 text-emerald-700 font-extrabold"
-                        : "border-transparent text-slate-400 hover:text-slate-600"
-                    }`}
+                    className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${activeCategory === null
+                      ? "border-emerald-600 text-emerald-700 font-extrabold"
+                      : "border-transparent text-slate-400 hover:text-slate-600"
+                      }`}
                   >
                     合计汇总表
                   </button>
@@ -982,135 +978,130 @@ export default function App() {
                 )}
               </div>
 
-          {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
-            
-            {/* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */}
-            <>
-                {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
-                <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200/60 shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">辅助工具栏:</span>
-                  <button 
-                    onClick={() => setActiveSubTools(prev => ({ ...prev, TREND: !prev.TREND }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
-                      activeSubTools.TREND 
-                        ? "bg-sky-500 border-sky-600 text-white font-bold shadow-xs" 
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    📈 日开支走势 {activeSubTools.TREND ? "已开启" : "已隐藏"}
-                  </button>
-                  <button 
-                    onClick={() => setActiveSubTools(prev => ({ ...prev, PIE: !prev.PIE }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
-                      activeSubTools.PIE 
-                        ? "bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs" 
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    📊 品类资金占比 {activeSubTools.PIE ? "已开启" : "已隐藏"}
-                  </button>
-                  <button 
-                    onClick={() => setActiveSubTools(prev => ({ ...prev, MONITOR: !prev.MONITOR }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
-                      activeSubTools.MONITOR 
-                        ? "bg-amber-500 border-amber-600 text-white font-bold shadow-xs" 
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    🎖️ 重点监控 Top5 {activeSubTools.MONITOR ? "已开启" : "已隐藏"}
-                  </button>
-                  <button 
-                    onClick={() => setActiveSubTools(prev => ({ ...prev, AI: !prev.AI }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
-                      activeSubTools.AI 
-                        ? "bg-violet-600 border-violet-700 text-white font-bold shadow-xs" 
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    🧠 AI膳食配餐分析 {activeSubTools.AI ? "已开启" : "已隐藏"}
-                  </button>
-                  <button 
-                    onClick={() => setActiveSubTools(prev => ({ ...prev, HEADCOUNT: !prev.HEADCOUNT }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
-                      activeSubTools.HEADCOUNT 
-                        ? "bg-teal-600 border-teal-700 text-white font-bold shadow-xs" 
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    👥 人数与餐费分析 {activeSubTools.HEADCOUNT ? "已开启" : "已隐藏"}
-                  </button>
-                  
-                  <span className="ml-auto text-[10px] text-slate-400 font-medium px-2">
-                    📄 每日采购细表默认展示中
-                  </span>
-                </div>
+              {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
 
-                {/* 1. 顶部流动预算占比与高消耗统计折线趋势看板 (按需控制各版块显示) */}
-                {currentReport && (activeSubTools.TREND || activeSubTools.PIE || activeSubTools.MONITOR) && (
-                  <StatisticsPanel
-                    report={currentReport}
-                    selectedCategory={activeCategory as FoodCategory | null}
-                    showTrend={activeSubTools.TREND}
-                    showPie={activeSubTools.PIE}
-                    showMonitor={activeSubTools.MONITOR}
-                  />
-                )}
+                {/* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */}
+                <>
+                  {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
+                  <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200/60 shrink-0">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">辅助工具栏:</span>
+                    <button
+                      onClick={() => setActiveSubTools(prev => ({ ...prev, TREND: !prev.TREND }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.TREND
+                        ? "bg-sky-500 border-sky-600 text-white font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      📈 日开支走势 {activeSubTools.TREND ? "已开启" : "已隐藏"}
+                    </button>
+                    <button
+                      onClick={() => setActiveSubTools(prev => ({ ...prev, PIE: !prev.PIE }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.PIE
+                        ? "bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      📊 品类资金占比 {activeSubTools.PIE ? "已开启" : "已隐藏"}
+                    </button>
+                    <button
+                      onClick={() => setActiveSubTools(prev => ({ ...prev, MONITOR: !prev.MONITOR }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.MONITOR
+                        ? "bg-amber-500 border-amber-600 text-white font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      🎖️ 重点监控 Top5 {activeSubTools.MONITOR ? "已开启" : "已隐藏"}
+                    </button>
+                    <button
+                      onClick={() => setActiveSubTools(prev => ({ ...prev, AI: !prev.AI }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.AI
+                        ? "bg-violet-600 border-violet-700 text-white font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      🧠 AI膳食配餐分析 {activeSubTools.AI ? "已开启" : "已隐藏"}
+                    </button>
+                    <button
+                      onClick={() => setActiveSubTools(prev => ({ ...prev, HEADCOUNT: !prev.HEADCOUNT }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.HEADCOUNT
+                        ? "bg-teal-600 border-teal-700 text-white font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      👥 人数与餐费分析 {activeSubTools.HEADCOUNT ? "已开启" : "已隐藏"}
+                    </button>
 
-                {/* 2. 核心日金额/录选数字表格单元 (默认始终显示每日采购细表) */}
-                {currentReport && (
-                  <TableGrid
-                    report={currentReport}
-                    selectedCategory={activeCategory as FoodCategory | null}
-                    onCellUpdate={handleCellUpdate}
-                    onAddItem={handleAddItem as any}
-                    onDeleteItem={handleDeleteItem}
-                    isAdminMode={isAdminMode}
-                    activeGroupsList={activeGroupsList}
-                    activeCategoriesList={activeCategoriesList}
-                    readOnly={true}
-                  />
-                )}
+                    <span className="ml-auto text-[10px] text-slate-400 font-medium px-2">
+                      📄 每日采购细表默认展示中
+                    </span>
+                  </div>
 
-                {/* 3. AI双脑深度配搭控本专家机器人 (按需控制显示) */}
-                {currentReport && activeSubTools.AI && (
-                  <AiAssistant
-                    activeGroupReport={currentReport}
-                  />
-                )}
-
-                {/* 4. 每日就餐人数与人均餐费多维度分析组件 (按需控制显示) */}
-                {currentReport && activeSubTools.HEADCOUNT && (
-                  <ErrorBoundary fallbackTitle="就餐人数与餐费分析模块发生故障">
-                    <HeadcountPanel
-                      reports={reports}
-                      activeGroup={activeGroup}
-                      activeGroupsList={activeGroupsList}
-                      onHeadcountUpdate={handleHeadcountUpdate}
-                      isAdminMode={isAdminMode}
+                  {/* 1. 顶部流动预算占比与高消耗统计折线趋势看板 (按需控制各版块显示) */}
+                  {currentReport && (activeSubTools.TREND || activeSubTools.PIE || activeSubTools.MONITOR) && (
+                    <StatisticsPanel
+                      report={currentReport}
+                      selectedCategory={activeCategory as FoodCategory | null}
+                      showTrend={activeSubTools.TREND}
+                      showPie={activeSubTools.PIE}
+                      showMonitor={activeSubTools.MONITOR}
                     />
-                  </ErrorBoundary>
-                )}
-              </>
+                  )}
 
-          </div>
-        </>
-      )}
-    </main>
+                  {/* 2. 核心日金额/录选数字表格单元 (默认始终显示每日采购细表) */}
+                  {currentReport && (
+                    <TableGrid
+                      report={currentReport}
+                      selectedCategory={activeCategory as FoodCategory | null}
+                      onCellUpdate={handleCellUpdate}
+                      onAddItem={handleAddItem as any}
+                      onDeleteItem={handleDeleteItem}
+                      isAdminMode={isAdminMode}
+                      activeGroupsList={activeGroupsList}
+                      activeCategoriesList={activeCategoriesList}
+                      readOnly={true}
+                    />
+                  )}
+
+                  {/* 3. AI双脑深度配搭控本专家机器人 (按需控制显示) */}
+                  {currentReport && activeSubTools.AI && (
+                    <AiAssistant
+                      activeGroupReport={currentReport}
+                    />
+                  )}
+
+                  {/* 4. 每日就餐人数与人均餐费多维度分析组件 (按需控制显示) */}
+                  {currentReport && activeSubTools.HEADCOUNT && (
+                    <ErrorBoundary fallbackTitle="就餐人数与餐费分析模块发生故障">
+                      <HeadcountPanel
+                        reports={reports}
+                        activeGroup={activeGroup}
+                        activeGroupsList={activeGroupsList}
+                        onHeadcountUpdate={handleHeadcountUpdate}
+                        isAdminMode={isAdminMode}
+                      />
+                    </ErrorBoundary>
+                  )}
+                </>
+
+              </div>
+            </>
+          )}
+        </main>
       </div>
 
       {/* 各项备餐审计说明页脚 */}
       <footer className="px-6 py-2 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between shrink-0 text-[10px] text-slate-500 select-none font-sans">
         <div className="flex space-x-6">
           <div className="flex items-center uppercase tracking-widest font-sans">
-            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">当前聚焦:</span> 
-            {activeGroup === "ANALYTICS" 
-              ? "多维餐费与人数分析中心" 
+            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">当前聚焦:</span>
+            {activeGroup === "ANALYTICS"
+              ? "多维餐费与人数分析中心"
               : `${dynamicGroupLabels[activeGroup]} / ${activeCategory ? dynamicCategoryLabels[activeCategory] : "合计汇总"} / 全月日对数核算`
             }
           </div>
           <div className="flex items-center uppercase tracking-widest font-sans">
-            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">操作权限:</span> 
+            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">操作权限:</span>
             高密热加载模式（管理员已授权）
           </div>
         </div>
@@ -1204,15 +1195,15 @@ export default function App() {
               <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
               <span className="absolute text-[10px] font-black text-emerald-700 animate-pulse">KPMSS</span>
             </div>
-            
+
             <div className="w-full space-y-2">
               <p className="text-xs font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
-              
+
               {/* 如果开启了进度模拟，则在遮罩上渲染进度条 */}
               {globalLoadingProgress !== null && (
                 <div className="space-y-1.5 pt-1">
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-150"
                       style={{ width: `${globalLoadingProgress}%` }}
                     ></div>
@@ -1224,7 +1215,7 @@ export default function App() {
                 </div>
               )}
             </div>
-            
+
             <span className="text-[9px] text-slate-400 font-medium text-center block">系统正在同步，此期间已安全锁定，请勿刷新页面</span>
           </div>
         </div>

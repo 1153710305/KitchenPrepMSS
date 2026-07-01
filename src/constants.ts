@@ -45,9 +45,9 @@ export const CATEGORY_DEFAULT_UNITS: Record<FoodCategory, string> = {
  */
 export const PRESET_ITEMS_BY_CATEGORY: Record<FoodCategory, string[]> = {
   [FoodCategory.VEGETABLE]: [
-    "土豆", "柿子", "黄瓜", "胡萝卜", "青椒", "葱", "蒜", "香菜", "豆芽", 
-    "大萝卜", "紫菜", "角瓜", "蒜苔", "白萝卜", "窝瓜", "白菜", "木耳", 
-    "菠菜", "圆葱", "甘蓝", "香菇", "茄子", "山药", "大豆腐", "芹菜", 
+    "土豆", "柿子", "黄瓜", "胡萝卜", "青椒", "葱", "蒜", "香菜", "豆芽",
+    "大萝卜", "紫菜", "角瓜", "蒜苔", "白萝卜", "窝瓜", "白菜", "木耳",
+    "菠菜", "圆葱", "甘蓝", "香菇", "茄子", "山药", "大豆腐", "芹菜",
     "油菜", "菜花", "干豆腐", "冬瓜"
   ],
   [FoodCategory.GRAIN_OIL]: [
@@ -82,7 +82,7 @@ export const LOGIN_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD || "guest";
  * @description 界面通用的中文文本字面量硬编码，集中管理方便修改
  */
 export const UI_TEXT = {
-  systemTitle: "后厨备菜管理和统计系统",
+  systemTitle: "食堂备菜管理和统计系统",
   systemSubtitle: "智能高效的日度矩阵记账及膳食营养辅助决策面板",
   exportBtn: "导出月度数据 (JSON)",
   importBtn: "导入备份数据",
@@ -111,7 +111,7 @@ export const UI_TEXT = {
   noDataMessage: "该品类暂无细分材料，请在左侧或上方点击“新增项”添加。",
   yearLabel: "年份",
   monthLabel: "月份",
-  aiAssistantTitle: "AI 后厨精细化膳食与成本规划师",
+  aiAssistantTitle: "AI 食堂精细化膳食与成本规划师",
   aiToggleClassic: "传统常规分析",
   aiToggleStream: "极速对话流式模式",
   aiAnalyzeBtn: "运行 AI 智能备菜审计与配餐预测",

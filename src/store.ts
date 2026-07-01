@@ -141,7 +141,7 @@ export class PrepReportService {
             ];
             this.generateInitialSeeds();
             LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
-            
+
             // 首次推送到服务器落盘，确保各端首次拉取同步
             SyncHelper.triggerSyncToServer();
           }
@@ -245,11 +245,11 @@ export class PrepReportService {
     return new Promise((resolve) => {
       // 惰性获取或创建报表
       this.getOrCreateReport(targetGroup, year, month);
-      
+
       const reportIndex = this.reports.findIndex(
         (r) => r.targetGroup === targetGroup as TargetGroup && r.year === year && r.month === month
       );
-      
+
       const report = this.reports[reportIndex];
       const itemIndex = report.items.findIndex((item) => item.name === itemName);
 
@@ -377,12 +377,11 @@ export class PrepReportService {
 
         defaultNames.forEach((name, itemIndex) => {
           const dailyData: Record<string, DailyEntry> = {};
-          
+
           for (let d = 1; d <= 31; d++) {
-            const isSampleDay = d <= 5;
-            const initialQty = isSampleDay ? Math.round((20 + (itemIndex % 4) * 8 + d * 3) * 10) / 10 : 0;
-            const initialPrice = isSampleDay ? Math.round((3.2 + (itemIndex % 3) * 1.5) * 10) / 10 : 0;
-            
+            const initialQty = 0;
+            const initialPrice = 0;
+
             dailyData[String(d)] = {
               quantity: initialQty,
               price: initialPrice,
@@ -532,7 +531,7 @@ export class PrepReportService {
         let found = false;
         let matchedReport: GroupMonthlyReport | undefined;
         let matchedItem: PreparedItem | undefined;
-        
+
         const updatedReports = this.reports.map((report) => {
           const itemIndex = report.items.findIndex((i) => i.id === itemId);
           if (itemIndex > -1) {
@@ -540,11 +539,11 @@ export class PrepReportService {
             const item = report.items[itemIndex];
             matchedReport = report;
             matchedItem = item;
-            
+
             // 复制 dailyData 深度属性，更新指定一天的指标数值并重新计算子金额
             const updatedDailyData = { ...item.dailyData };
             const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-            
+
             entry.quantity = Math.max(0, quantity);
             entry.price = Math.max(0, price);
             entry.amount = calculateEntryAmount(entry.quantity, entry.price);
@@ -574,7 +573,7 @@ export class PrepReportService {
         }
 
         this.reports = updatedReports;
-        
+
         // 物理存盘并实时派发通知，实现微秒级完美热更新
         this.saveToStorage();
 
@@ -583,11 +582,11 @@ export class PrepReportService {
           const monthStr = String(matchedReport.month).padStart(2, "0");
           const dayStr = String(day).padStart(2, "0");
           const targetDateKey = `${matchedReport.year}-${monthStr}-${dayStr}`;
-          
+
           // 查询字典，获取换算单位
           const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === matchedItem!.name);
-          const conversionQty = (dictItem && dictItem.conversionRatio) 
-            ? Number((quantity * dictItem.conversionRatio).toFixed(2)) 
+          const conversionQty = (dictItem && dictItem.conversionRatio)
+            ? Number((quantity * dictItem.conversionRatio).toFixed(2))
             : undefined;
 
           // 构造 DailyStockRecord
@@ -625,7 +624,7 @@ export class PrepReportService {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         let deleted = false;
-        
+
         const updatedReports = this.reports.map((report) => {
           const filtered = report.items.filter((item) => item.id !== itemId);
           if (filtered.length < report.items.length) {
@@ -672,7 +671,7 @@ export class PrepReportService {
           if (item.category === category) {
             const updatedDailyData = { ...item.dailyData };
             const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-            
+
             entry.price = Math.max(0, fixedPrice);
             entry.amount = calculateEntryAmount(entry.quantity, entry.price);
             updatedDailyData[day] = entry;
@@ -741,7 +740,7 @@ export class PrepReportService {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(GROUPS_STORAGE_KEY);
         localStorage.removeItem(CATEGORIES_STORAGE_KEY);
-        
+
         this.activeGroups = [
           { key: "TEACHER", label: "教师备餐", emoji: "🏫" },
           { key: "KID", label: "幼儿备餐", emoji: "👶" },
@@ -756,7 +755,7 @@ export class PrepReportService {
           { key: "LOW_CONSUMP", label: "低耗品" },
           { key: "FRUIT", label: "水果" }
         ];
-        
+
         localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(this.activeGroups));
         localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.activeCategories));
 
@@ -805,7 +804,7 @@ export class PrepReportService {
             if (!reportExists) {
               const currentYear = new Date().getFullYear();
               const currentMonth = new Date().getMonth() + 1;
-              
+
               // 新增一级人群时同步初始化 1-31 号的就餐人数 (默认 50 人)
               const dailyHeadcount: Record<string, number> = {};
               for (let d = 1; d <= 31; d++) {
