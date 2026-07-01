@@ -154,13 +154,15 @@ export function LedgerStyle2Flow({
               <th className="px-3 py-2.5 font-bold bg-indigo-50/10 w-24">出库数量</th>
               <th className="px-3 py-2.5 font-bold bg-slate-100/80 w-28">当日库存</th>
               <th className="px-3 py-2.5 font-bold w-24">保管员</th>
+              <th className="px-3 py-2.5 font-bold bg-indigo-50/10 w-24">出库人</th>
+              <th className="px-3 py-2.5 font-bold bg-indigo-50/10 w-24">接收人</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-center">
             {style2DatesArray.map((dayDateStr) => {
               const record = activeItem.dailyRecords[dayDateStr] || {
                 inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
-                produceDate: "", shelfLife: "", sensoryProperty: ""
+                produceDate: "", shelfLife: "", sensoryProperty: "", outHandler: "", outRecipient: ""
               };
               const balance = dailyStockBalances[dayDateStr] ?? activeItem.initialStock;
 
@@ -168,7 +170,7 @@ export function LedgerStyle2Flow({
               const dRec = draftRecords[activeItem.id];
               const recordToRender = isRowEditable ? (dRec || {
                 inQuantity: 0, outQuantity: 0, buyer: "", inspector: "", keeper: "",
-                produceDate: "", shelfLife: "", sensoryProperty: ""
+                produceDate: "", shelfLife: "", sensoryProperty: "", outHandler: "", outRecipient: ""
               }) : record;
 
               return (
@@ -276,6 +278,30 @@ export function LedgerStyle2Flow({
                       placeholder={isRowEditable ? "保管签字" : "锁定"}
                       disabled={!isRowEditable}
                       onChange={(e) => handleDraftCellChange(activeItem.id, { keeper: e.target.value })}
+                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                    />
+                  </td>
+
+                  {/* 出库人 */}
+                  <td className="px-2 py-1.5 bg-indigo-50/5">
+                    <input 
+                      type="text"
+                      value={recordToRender.outHandler || ""}
+                      placeholder={isRowEditable ? "出库人" : "锁定"}
+                      disabled={!isRowEditable}
+                      onChange={(e) => handleDraftCellChange(activeItem.id, { outHandler: e.target.value })}
+                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                    />
+                  </td>
+
+                  {/* 接收人 */}
+                  <td className="px-2 py-1.5 bg-indigo-50/5">
+                    <input 
+                      type="text"
+                      value={recordToRender.outRecipient || ""}
+                      placeholder={isRowEditable ? "接收人" : "锁定"}
+                      disabled={!isRowEditable}
+                      onChange={(e) => handleDraftCellChange(activeItem.id, { outRecipient: e.target.value })}
                       className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                     />
                   </td>
