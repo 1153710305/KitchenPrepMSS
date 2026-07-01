@@ -86,6 +86,90 @@ class StorageService {
   }
 
   /**
+   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的 JSON 流水文件，并合并到内存结构中
+   * @param {string} dailyDir 日度数据根目录路径
+   * @param {Record<string, Record<string, any>>} mergedDaily 用于在内存中重组的合并流水数据字典 (格式: { itemId: { YYYY-MM-DD: DailyStockRecord } })
+   */
+  private static readAllDailyRecordsLocal(dailyDir: string, mergedDaily: Record<string, Record<string, any>>): void {
+    if (!fs.existsSync(dailyDir)) return;
+    try {
+      const years = fs.readdirSync(dailyDir);
+      for (const year of years) {
+        const yearPath = path.join(dailyDir, year);
+        if (!fs.statSync(yearPath).isDirectory()) continue;
+        const months = fs.readdirSync(yearPath);
+        for (const month of months) {
+          const monthPath = path.join(yearPath, month);
+          if (!fs.statSync(monthPath).isDirectory()) continue;
+          const days = fs.readdirSync(monthPath);
+          for (const day of days) {
+            const dayPath = path.join(monthPath, day);
+            if (!fs.statSync(dayPath).isFile() || !day.endsWith(".json")) continue;
+            try {
+              const dateStr = `${year}-${month}-${day.replace(".json", "")}`;
+              const fileContent = fs.readFileSync(dayPath, "utf8");
+              const dayRecords = JSON.parse(fileContent);
+              
+              // dayRecords 格式为 { itemId: DailyStockRecord }
+              for (const [itemId, record] of Object.entries(dayRecords)) {
+                if (!mergedDaily[itemId]) {
+                  mergedDaily[itemId] = {};
+                }
+                mergedDaily[itemId][dateStr] = record as any;
+              }
+            } catch (e) {
+              console.error(`[STORAGE] 解析日度账单文件失败 ${dayPath}:`, e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[STORAGE] 读取日度分散台账目录失败:", e);
+    }
+  }
+
+  /**
+   * @description 将全量台账项目中的每日流水提取出来，按照年、月、天分散持久化到不同的文件夹中保存
+   * @param {string} dailyDir 日度数据根目录路径
+   * @param {any[]} ledgerItems 内存中的全量台账原料项列表
+   */
+  private static writeDailyRecordsLocal(dailyDir: string, ledgerItems: any[]): void {
+    if (!ledgerItems || !Array.isArray(ledgerItems)) return;
+    try {
+      // 1. 将全量数据按日期进行逆向分组整理
+      // dateMap 格式: { YYYY-MM-DD: { itemId: DailyStockRecord } }
+      const dateMap: Record<string, Record<string, any>> = {};
+      for (const item of ledgerItems) {
+        if (item.dailyRecords) {
+          for (const [dateStr, record] of Object.entries(item.dailyRecords)) {
+            if (!dateStr || !record) continue;
+            if (!dateMap[dateStr]) {
+              dateMap[dateStr] = {};
+            }
+            dateMap[dateStr][item.id] = record;
+          }
+        }
+      }
+
+      // 2. 将数据按年月日写到相应的独立 json 文件中，限制单个文件过大
+      for (const [dateStr, dayRecords] of Object.entries(dateMap)) {
+        const parts = dateStr.split("-");
+        if (parts.length !== 3) continue;
+        const [year, month, day] = parts;
+        
+        const targetDir = path.join(dailyDir, year, month);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const targetPath = path.join(targetDir, `${day}.json`);
+        fs.writeFileSync(targetPath, JSON.stringify(dayRecords, null, 2), "utf8");
+      }
+    } catch (e) {
+      console.error("[STORAGE] 写入日度分散台账文件失败:", e);
+    }
+  }
+
+  /**
    * @description 加载主数据库内容
    * @returns {Promise<any>} 返回 JSON 数据对象
    */
@@ -125,7 +209,21 @@ class StorageService {
       }
       try {
         const content = fs.readFileSync(StorageService.localDbPath, "utf8");
-        return JSON.parse(content);
+        const data = JSON.parse(content);
+
+        // 加载按年月日分散在各子文件夹中的日度账单流水
+        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+        const mergedDaily: Record<string, Record<string, any>> = {};
+        StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
+
+        // 重新拼装回 ledgerItems 对应的 dailyRecords 字典中
+        if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
+          for (const item of data.ledgerItems) {
+            item.dailyRecords = mergedDaily[item.id] || {};
+          }
+        }
+
+        return data;
       } catch (err) {
         console.error("[STORAGE LOCAL] 读取本地数据失败:", err);
         return {};
@@ -181,16 +279,30 @@ class StorageService {
     } else {
       // 本地存储模式
       try {
-        // 1. 保存当前主数据
-        fs.writeFileSync(StorageService.localDbPath, dataStr, "utf8");
-        console.log(`[STORAGE LOCAL] 数据已写入本地文件: ${StorageService.localDbPath}`);
+        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+        
+        // 1. 先将庞大的每日出入库流水提取整理，以 YYYY/MM/DD.json 分散文件物理落盘
+        StorageService.writeDailyRecordsLocal(dailyDir, data.ledgerItems);
 
-        // 2. 写入时间戳快照文件
+        // 2. 深度克隆并清理内存快照中的 dailyRecords，避免主 db.json 及系统快照包体积无限膨胀
+        const cleanedData = JSON.parse(JSON.stringify(data));
+        if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
+          for (const item of cleanedData.ledgerItems) {
+            item.dailyRecords = {};
+          }
+        }
+        const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
+
+        // 3. 保存去除了每日流水的主配置骨架文件
+        fs.writeFileSync(StorageService.localDbPath, cleanedDataStr, "utf8");
+        console.log(`[STORAGE LOCAL] 结构与配置数据已写入主文件: ${StorageService.localDbPath}`);
+
+        // 4. 写入去除了每日流水的时间戳快照备份文件
         const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
-        fs.writeFileSync(snapshotPath, dataStr, "utf8");
-        console.log(`[STORAGE LOCAL] 成功生成本地物理备份快照: ${snapshotPath}`);
+        fs.writeFileSync(snapshotPath, cleanedDataStr, "utf8");
+        console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
 
-        // 3. 限制本地历史备份文件总数（最多保留30个版本）
+        // 5. 限制本地历史备份文件总数（最多保留30个版本）
         StorageService.trimLocalBackups();
         return true;
       } catch (err) {
