@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { FoodCategory, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "./types.ts";
 import { UI_TEXT, ADMIN_PASSWORD, LOGIN_PASSWORD, TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants.ts";
 import { PrepReportService } from "./store.ts";
@@ -11,11 +11,12 @@ import { TableGrid } from "./components/TableGrid.tsx";
 import { StatisticsPanel } from "./components/StatisticsPanel.tsx";
 import { HeadcountPanel } from "./components/HeadcountPanel.tsx";
 import { AiAssistant } from "./components/AiAssistant.tsx";
-import { AdminBackend } from "./components/AdminBackend.tsx";
 import { LogBroker } from "./utils.ts";
-import { LedgerSystem } from "./components/LedgerSystem.tsx";
-import { InventoryPanel } from "./components/InventoryPanel.tsx";
 import { LedgerService } from "./ledgerStore.ts";
+
+const AdminBackend = lazy(() => import("./components/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
+const LedgerSystem = lazy(() => import("./components/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
+const InventoryPanel = lazy(() => import("./components/InventoryPanel.tsx").then(m => ({ default: m.InventoryPanel })));
 import {
   Settings, 
   RefreshCw, 
@@ -490,14 +491,21 @@ export default function App() {
   // ================= 管理行政后台隔离屏渲染 =================
   if (isAdminMode) {
     return (
-      <AdminBackend
-        reports={reports}
-        activeGroupsList={activeGroupsList}
-        activeCategoriesList={activeCategoriesList}
-        onClose={() => setIsAdminMode(false)}
-        onResetToSeeds={(data) => setReports(data)}
-        onImportBackup={(data) => setReports(data)}
-      />
+      <Suspense fallback={
+        <div className="flex h-screen w-full bg-slate-900 text-slate-100 flex-col items-center justify-center space-y-4">
+          <RefreshCw className="animate-spin text-emerald-400" size={24} />
+          <span className="text-xs">系统安全审计后台加载中，请稍候...</span>
+        </div>
+      }>
+        <AdminBackend
+          reports={reports}
+          activeGroupsList={activeGroupsList}
+          activeCategoriesList={activeCategoriesList}
+          onClose={() => setIsAdminMode(false)}
+          onResetToSeeds={(data) => setReports(data)}
+          onImportBackup={(data) => setReports(data)}
+        />
+      </Suspense>
     );
   }
 
@@ -716,7 +724,14 @@ export default function App() {
         {/* 核心右侧工作记账盘与二级品类选项页签 */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
           {activeGroup === "LEDGER" ? (
-            <LedgerSystem />
+            <Suspense fallback={
+              <div className="flex-1 flex flex-col items-center justify-center space-y-4 p-12 text-slate-500 bg-white m-6 rounded-xl border border-slate-200 shadow-sm">
+                <RefreshCw className="animate-spin text-emerald-500" size={24} />
+                <span className="text-xs">台账购销及库存控制模块加载中，请稍候...</span>
+              </div>
+            }>
+              <LedgerSystem />
+            </Suspense>
           ) : (
             <>
               <div className="flex items-center px-4 bg-white border-b border-slate-200 justify-between shrink-0 h-12">
@@ -979,7 +994,16 @@ export default function App() {
 
       {/* 库存总览模态面板 */}
       {isInventoryOpen && (
-        <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
+        <Suspense fallback={
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+            <div className="bg-white rounded-xl p-8 max-w-sm w-full mx-4 shadow-xl text-center space-y-3">
+              <RefreshCw className="animate-spin text-emerald-500 mx-auto" size={24} />
+              <p className="text-xs text-slate-500">库存自检总盘数据加载中...</p>
+            </div>
+          </div>
+        }>
+          <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
+        </Suspense>
       )}
     </div>
   );
