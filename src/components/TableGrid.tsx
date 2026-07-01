@@ -38,6 +38,66 @@ interface TableGridProps {
 }
 
 /**
+ * @description 二级分组采购细表的主题样式属性定义
+ */
+interface ThemeStyle {
+  primaryBg: string;      // 主题主背景（如 bg-sky-500）
+  primaryText: string;    // 主题主文字颜色（如 text-sky-700）
+  lightBg: string;        // 主题浅色背景（如 bg-sky-50/50）
+  borderHover: string;    // 卡片悬停边框颜色（如 hover:border-sky-300）
+  badgeClass: string;     // 日历天数等徽章背景（如 bg-sky-500 text-white）
+  accentText: string;     // 金额等高亮强调文字颜色（如 text-sky-800）
+  accentBg: string;       // 合计等高亮强调背景颜色（如 bg-sky-100/50）
+  btnActive: string;      // 激活态按钮背景类名
+}
+
+/**
+ * @description 预设精美的四套细表主题样式映射表
+ */
+const THEME_MAP: Record<string, ThemeStyle> = {
+  sky: {
+    primaryBg: "bg-sky-500",
+    primaryText: "text-sky-700",
+    lightBg: "bg-sky-50/50",
+    borderHover: "hover:border-sky-300",
+    badgeClass: "bg-sky-500 text-white shadow-sky-50",
+    accentText: "text-sky-800",
+    accentBg: "bg-sky-100/50",
+    btnActive: "bg-sky-500 text-white font-bold"
+  },
+  emerald: {
+    primaryBg: "bg-emerald-500",
+    primaryText: "text-emerald-700",
+    lightBg: "bg-emerald-50/50",
+    borderHover: "hover:border-emerald-300",
+    badgeClass: "bg-emerald-500 text-white shadow-emerald-50",
+    accentText: "text-emerald-800",
+    accentBg: "bg-emerald-100/50",
+    btnActive: "bg-emerald-500 text-white font-bold"
+  },
+  purple: {
+    primaryBg: "bg-violet-500",
+    primaryText: "text-violet-700",
+    lightBg: "bg-violet-50/50",
+    borderHover: "hover:border-violet-300",
+    badgeClass: "bg-violet-500 text-white shadow-violet-50",
+    accentText: "text-violet-800",
+    accentBg: "bg-violet-100/50",
+    btnActive: "bg-violet-500 text-white font-bold"
+  },
+  charcoal: {
+    primaryBg: "bg-slate-600",
+    primaryText: "text-slate-700",
+    lightBg: "bg-slate-50",
+    borderHover: "hover:border-slate-400",
+    badgeClass: "bg-slate-600 text-white shadow-slate-50",
+    accentText: "text-slate-800",
+    accentBg: "bg-slate-100",
+    btnActive: "bg-slate-600 text-white font-bold"
+  }
+};
+
+/**
  * @description 多功能后厨电子备料表格与汇总合计组件
  */
 export const TableGrid: React.FC<TableGridProps> = ({
@@ -53,6 +113,19 @@ export const TableGrid: React.FC<TableGridProps> = ({
 }) => {
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
+
+  // 主题样式管理，默认天空蓝 "sky"
+  const [theme, setTheme] = useState<"sky" | "emerald" | "purple" | "charcoal">(() => {
+    return (localStorage.getItem("prep_table_theme") as any) || "sky";
+  });
+
+  const activeTheme = THEME_MAP[theme] || THEME_MAP.sky;
+
+  const handleThemeChange = (newTheme: "sky" | "emerald" | "purple" | "charcoal") => {
+    setTheme(newTheme);
+    localStorage.setItem("prep_table_theme", newTheme);
+    LogBroker.publish("INFO", "TableGrid", `用户切换了备餐明细表格的主题样式为：${newTheme === "sky" ? "天空蓝" : newTheme === "emerald" ? "翡翠绿" : newTheme === "purple" ? "丁香紫" : "典雅暗灰"}`);
+  };
   
   // 聚焦日的索引状态，默认聚焦 1 号
   const [focusDay, setFocusDay] = useState<string>("1");
@@ -398,21 +471,47 @@ export const TableGrid: React.FC<TableGridProps> = ({
           <button
             onClick={handleExportCsv}
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 border border-sky-100 hover:bg-sky-100/80 text-sky-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+            className={`flex items-center gap-1.5 px-3 py-1.5 ${activeTheme.lightBg} border ${activeTheme.primaryText.replace("text-", "border-").replace("-700", "-200")} ${activeTheme.primaryText} text-xs font-bold rounded-xl transition-all cursor-pointer`}
             title="导出当前餐位二级大类当月所有的每日采购明细表 (CSV)"
           >
             <Download size={13} />
             <span>导出本月细表 (CSV)</span>
           </button>
 
+          {/* 细表主题样式选择器 */}
+          <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-1.5 text-xs select-none">
+            <span className="text-[10px] text-gray-400 font-bold shrink-0">表格主题:</span>
+            <div className="flex gap-1.5">
+              <button
+                type="button" onClick={() => handleThemeChange("sky")}
+                className={`w-3.5 h-3.5 rounded-full bg-sky-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "sky" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
+                title="天空蓝主题"
+              />
+              <button
+                type="button" onClick={() => handleThemeChange("emerald")}
+                className={`w-3.5 h-3.5 rounded-full bg-emerald-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "emerald" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
+                title="翡翠绿主题"
+              />
+              <button
+                type="button" onClick={() => handleThemeChange("purple")}
+                className={`w-3.5 h-3.5 rounded-full bg-violet-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "purple" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
+                title="丁香紫主题"
+              />
+              <button
+                type="button" onClick={() => handleThemeChange("charcoal")}
+                className={`w-3.5 h-3.5 rounded-full bg-slate-600 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "charcoal" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
+                title="典雅暗灰主题"
+              />
+            </div>
+          </div>
+
         </div>
 
-        {/* 辅视图控制切换 */}
         <div className="flex rounded-md bg-white p-1 border border-gray-100 text-xs shadow-xs">
           <button
             onClick={() => setViewMode("MATRIX")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-              viewMode === "MATRIX" ? "bg-sky-500 text-white font-bold" : "text-gray-500 hover:text-gray-900"
+              viewMode === "MATRIX" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
             }`}
           >
             <Grid size={13} />
@@ -421,7 +520,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           <button
             onClick={() => setViewMode("FOCUS")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${
-              viewMode === "FOCUS" ? "bg-sky-500 text-white font-bold" : "text-gray-500 hover:text-gray-900"
+              viewMode === "FOCUS" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
             }`}
           >
             <CalendarDays size={13} />
@@ -449,7 +548,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         <th
                           key={`col-day-${day}`}
                           colSpan={3}
-                          className="px-2 py-1.5 text-center border-b border-r border-gray-100 bg-sky-50/50 text-sky-700"
+                          className={`px-2 py-1.5 text-center border-b border-r border-gray-100 ${activeTheme.lightBg} ${activeTheme.primaryText}`}
                         >
                           <div className="flex items-center justify-center">
                             <span>{day}号</span>
@@ -466,7 +565,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         <React.Fragment key={`sub-dt-${day}`}>
                           <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/50">数量</th>
                           <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/30">单价</th>
-                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 text-sky-700 font-semibold bg-sky-50/50">金额</th>
+                          <th className={`px-1 py-1 text-center border-b border-r border-slate-300 font-semibold ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
                         </React.Fragment>
                       ))}
                       <th className="p-2 text-center border-b border-r border-slate-300 font-normal bg-slate-100">月总用量</th>
@@ -522,7 +621,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                                 <td className="p-2 border-b border-r border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/40">
                                   ¥{entry.price || 0}
                                 </td>
-                                <td className="p-2 border-b border-r border-slate-300 text-center text-xs font-bold text-sky-700 font-mono bg-sky-50/40">
+                                <td className={`p-2 border-b border-r border-slate-300 text-center text-xs font-bold font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
                                   {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                                 </td>
                               </React.Fragment>
@@ -549,7 +648,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                       {days.map((day) => (
                         <React.Fragment key={`tot-cell-${day}`}>
                           <td colSpan={2} className="px-1 py-3 text-[10px] text-slate-500 text-center font-bold uppercase">合计金额:</td>
-                          <td className="px-1 py-3 text-center text-xs text-sky-800 font-black border-r border-slate-300 bg-sky-100/50 font-mono">
+                          <td className={`px-1 py-3 text-center text-xs font-black border-r border-slate-300 ${activeTheme.accentText} ${activeTheme.accentBg} font-mono`}>
                             ¥{dayTotals[day]}
                           </td>
                         </React.Fragment>
@@ -583,7 +682,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         onClick={() => setFocusDay(day)}
                         className={`px-3.5 py-2 shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${
                           isSelected
-                            ? "bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-50"
+                            ? `${activeTheme.primaryBg} text-white border-transparent shadow-md`
                             : hasDataOnDay
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                                 : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
@@ -604,7 +703,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
               <div>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="p-2 bg-sky-50 text-sky-600 rounded-xl font-bold font-mono">
+                    <span className={`p-2 ${activeTheme.lightBg} ${activeTheme.primaryText} rounded-xl font-bold font-mono`}>
                       {focusDay}号
                     </span>
                     <div>
@@ -623,7 +722,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     return (
                       <div
                         key={`focus-card-${item.id}`}
-                        className="p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50/20 to-white hover:border-sky-300 transition-all flex flex-col justify-between group"
+                        className={`p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50/20 to-white ${activeTheme.borderHover} transition-all flex flex-col justify-between group`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -671,7 +770,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
                         <div className="mt-3 pt-2.5 border-t border-gray-50 flex justify-between items-center text-xs">
                           <span className="text-gray-400">日结金额合计:</span>
-                          <span className="font-extrabold text-sky-600 font-mono">
+                          <span className={`font-extrabold ${activeTheme.primaryText} font-mono`}>
                             ¥{entry.amount.toFixed(2)}
                           </span>
                         </div>
@@ -681,9 +780,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
                 </div>
 
                 {/* 今日总金额结算 */}
-                <div className="mt-6 p-4 bg-sky-50/50 border border-sky-100/50 rounded-xl flex items-center justify-between text-xs">
+                <div className={`mt-6 p-4 ${activeTheme.lightBg} border border-slate-100 rounded-xl flex items-center justify-between text-xs`}>
                   <span className="text-gray-500 font-medium">【{focusDay}号】单日大类累计消耗开支：</span>
-                  <span className="text-base font-extrabold text-sky-700 font-mono">
+                  <span className={`text-base font-extrabold ${activeTheme.primaryText} font-mono`}>
                     ¥{dayTotals[focusDay].toFixed(2)} 元
                   </span>
                 </div>
