@@ -43,13 +43,40 @@ export default function App() {
 
   /** 全局耗时等待锁定提示文本，若为 null 则不锁屏 */
   const [globalLoadingText, setGlobalLoadingText] = useState<string | null>(null);
+  /** 全局 Loading 进度条百分比，若为 null 则不渲染进度条 */
+  const [globalLoadingProgress, setGlobalLoadingProgress] = useState<number | null>(null);
 
-  // 挂载全局 Loading 辅助器，使非 Context 组件、后台、台账均可秒级调用锁屏防呆
+  /** 首屏数据同步进度 */
+  const [syncProgress, setSyncProgress] = useState<number>(0);
+  /** 首屏数据同步文本 */
+  const [progressText, setProgressText] = useState<string>("正在启动网络同步总线...");
+
+  // 挂载全局 Loading 辅助器，使非 Context 组件、后台、台账均可秒级调用锁屏防呆并呈现进度条
   useEffect(() => {
-    (window as any).__setGlobalLoading = (text: string | null) => {
+    let progressTimer: any = null;
+    
+    (window as any).__setGlobalLoading = (text: string | null, showProgress: boolean = true) => {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      
       setGlobalLoadingText(text);
+      
+      if (text && showProgress) {
+        setGlobalLoadingProgress(0);
+        let current = 0;
+        progressTimer = setInterval(() => {
+          current += Math.max(2, Math.floor((95 - current) / 6)); // 平滑趋近式加载
+          setGlobalLoadingProgress(Math.min(95, current));
+        }, 100);
+      } else {
+        setGlobalLoadingProgress(null);
+      }
     };
+    
     return () => {
+      if (progressTimer) clearInterval(progressTimer);
       (window as any).__setGlobalLoading = undefined;
     };
   }, []);
@@ -161,44 +188,68 @@ export default function App() {
       };
     });
 
-    // 并行初始化备餐、台账及原料字典服务，打通内存数据流并规避空内存数据覆写覆盖服务器的问题
-    Promise.all([
-      PrepReportService.initStore(),
-      LedgerService.initLedgerStore(),
-      SyncHelper.loadFromServer()
-    ]).then(([prepData, ledgerData, serverData]) => {
-      if (active) {
-        // 如果是系统初次启动且 data 目录下没有物理 db.json 数据，清空浏览器本地残留缓存，确保数据完全一致
-        if (serverData && (serverData as any).isFirstBoot) {
-          console.warn("[SECURITY CLEAR] 监测到系统首航初次启动，强力清洗浏览器旧版缓存，确保与服务器种子一致");
-          localStorage.clear();
-          sessionStorage.clear();
+    // 跟踪首屏并行加载进度
+    let progress = 10;
+    const reportProgress = (amt: number, txt: string) => {
+      progress += amt;
+      setSyncProgress(Math.min(100, progress));
+      setProgressText(txt);
+    };
+
+    // 并行初始化各服务，分别累加进度
+    const p1 = PrepReportService.initStore().then(data => {
+      reportProgress(30, "已成功装载月度备餐食材细表...");
+      return data;
+    });
+
+    const p2 = LedgerService.initLedgerStore().then(data => {
+      reportProgress(30, "已成功装载原料购销及库存台账...");
+      return data;
+    });
+
+    const p3 = SyncHelper.loadFromServer().then(data => {
+      reportProgress(20, "已成功对齐云端标准大字典底册...");
+      return data;
+    });
+
+    Promise.all([p1, p2, p3]).then(([prepData, ledgerData, serverData]) => {
+      reportProgress(10, "校验并装载全新主控交互面板...");
+      
+      // 延迟 400ms 解除，避免一闪而过的尴尬，让进度条 100% 的视觉体验最大化
+      setTimeout(() => {
+        if (active) {
+          // 如果是系统初次启动且 data 目录下没有物理 db.json 数据，清空浏览器本地残留缓存，确保数据完全一致
+          if (serverData && (serverData as any).isFirstBoot) {
+            console.warn("[SECURITY CLEAR] 监测到系统首航初次启动，强力清洗浏览器旧版缓存，确保与服务器种子一致");
+            localStorage.clear();
+            sessionStorage.clear();
+          }
+
+          setReports(prepData);
+          setLedgerItemsList(ledgerData.items);
+          
+          // 使用服务器的原料大字典来初始化字典内存
+          const sDict = serverData ? (serverData as any).rawMaterialsDict : undefined;
+          RawMaterialsDictService.initDictFromServer(sDict);
+
+          const groups = PrepReportService.getActiveGroups();
+          const cats = PrepReportService.getActiveCategories();
+          setActiveGroupsList(groups);
+          setActiveCategoriesList(cats);
+
+          // 如果动态列表已经就绪，并且默认或先前的选中项不存在了，自适应调平到首项
+          if (groups.length > 0 && !groups.some((g) => g.key === activeGroup)) {
+            setActiveGroup(groups[0].key);
+          }
+          if (cats.length > 0 && activeCategory && !cats.some((c) => c.key === activeCategory)) {
+            setActiveCategory(cats[0].key);
+          }
+
+          setIsLoading(false);
+          SyncHelper.setInitialized(true);
+          LogBroker.publish("INFO", "App", "系统已完成备餐、台账以及大字典服务数据模型的全局并行加载初始化");
         }
-
-        setReports(prepData);
-        setLedgerItemsList(ledgerData.items);
-        
-        // 使用服务器的原料大字典来初始化字典内存
-        const sDict = serverData ? (serverData as any).rawMaterialsDict : undefined;
-        RawMaterialsDictService.initDictFromServer(sDict);
-
-        const groups = PrepReportService.getActiveGroups();
-        const cats = PrepReportService.getActiveCategories();
-        setActiveGroupsList(groups);
-        setActiveCategoriesList(cats);
-
-        // 如果动态列表已经就绪，并且默认或先前的选中项不存在了，自适应调平到首项
-        if (groups.length > 0 && !groups.some((g) => g.key === activeGroup)) {
-          setActiveGroup(groups[0].key);
-        }
-        if (cats.length > 0 && activeCategory && !cats.some((c) => c.key === activeCategory)) {
-          setActiveCategory(cats[0].key);
-        }
-
-        setIsLoading(false);
-        SyncHelper.setInitialized(true);
-        LogBroker.publish("INFO", "App", "系统已完成备餐、台账以及大字典服务数据模型的全局并行加载初始化");
-      }
+      }, 400);
     }).catch(err => {
       LogBroker.publish("ERROR", "App", "加载基础数据服务异常:", String(err));
     });
@@ -535,6 +586,49 @@ export default function App() {
       return sum + itemSum;
     }, 0);
   }, [ledgerItemsList]);
+
+  // ================= 极速首屏并行数据服务同步加载进度屏 =================
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 font-sans p-4 relative overflow-hidden">
+        {/* 晶莹剔透的环境光背景装饰 */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-sm bg-slate-950 rounded-2xl shadow-2xl border border-slate-800 p-8 space-y-6 relative z-10 text-center select-none">
+          <div className="space-y-2">
+            <div className="mx-auto w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <RefreshCw className="text-white animate-spin" size={22} />
+            </div>
+            <h2 className="text-base font-black text-white tracking-wide pt-2">
+              系统数据资源同步中
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              正在与服务器端并行同步月度备餐、购销台账及大字典底册...
+            </p>
+          </div>
+
+          {/* 进度条轨道 */}
+          <div className="space-y-2">
+            <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300 shadow-sm"
+                style={{ width: `${syncProgress}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-0.5">
+              <span>{progressText}</span>
+              <span className="text-emerald-400">{syncProgress}%</span>
+            </div>
+          </div>
+
+          <span className="text-[9px] text-slate-500 font-medium block">
+            系统正与云端服务建立一致性连接，装载完成后自动解锁
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // ================= 首页系统安全验证屏 =================
   if (!isLoggedIn) {
@@ -1133,8 +1227,28 @@ export default function App() {
               <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
               <span className="absolute text-[10px] font-black text-emerald-700 animate-pulse">KPMSS</span>
             </div>
-            <p className="text-xs font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
-            <span className="text-[10px] text-slate-400 font-medium text-center">系统正在处理，此期间已锁定避免误操作，请稍候...</span>
+            
+            <div className="w-full space-y-2">
+              <p className="text-xs font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
+              
+              {/* 如果开启了进度模拟，则在遮罩上渲染进度条 */}
+              {globalLoadingProgress !== null && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                    <div 
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-150"
+                      style={{ width: `${globalLoadingProgress}%` }}
+                    ></div>
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] text-slate-400 font-bold px-0.5">
+                    <span>数据落盘同步进度</span>
+                    <span className="text-emerald-600">{globalLoadingProgress}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <span className="text-[9px] text-slate-400 font-medium text-center block">系统正在同步，此期间已安全锁定，请勿刷新页面</span>
           </div>
         </div>
       )}
