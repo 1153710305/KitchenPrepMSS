@@ -7,7 +7,6 @@ import React, { useState } from "react";
 import { PrepReportService } from "../store.ts";
 import { LedgerService } from "../ledgerStore.ts";
 import { DynamicGroup, DynamicCategory, GroupMonthlyReport, FoodCategory } from "../types.ts";
-import { LogView } from "./LogView.tsx";
 import { LogBroker, getDaysInMonth, convertAllGroupsToCsv, matchPinyin } from "../utils.ts";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
@@ -79,9 +78,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
   // --- 导航状态 ---
   /** 
-   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'maintenance'代表数据维护，'logs'代表内核日志 
+   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'maintenance'代表数据维护 
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance" | "logs">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -463,17 +462,6 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 <span>数据维护核销</span>
               </button>
 
-              <button
-                onClick={() => setActiveTab("logs")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
-                  activeTab === "logs"
-                    ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                    : "text-slate-600 hover:bg-slate-50 border-transparent"
-                }`}
-              >
-                <CalendarDays size={15} className="mr-3 shrink-0" />
-                <span>系统审计日志</span>
-              </button>
             </nav>
           </div>
 
@@ -731,20 +719,6 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                   </button>
 
                 </div>
-              </section>
-            </div>
-          )}
-
-          {/* 系统调试审计日志 Tab 页 */}
-          {activeTab === "logs" && (
-            <div className="space-y-6 max-w-4xl animate-fade-in">
-              <section className="border border-slate-200 bg-white rounded-xl p-5 shadow-xs">
-                <div className="flex items-center space-x-2.5 border-b border-slate-100 pb-3 mb-4">
-                  <CalendarDays className="text-teal-600 hover:animate-pulse" size={18} />
-                  <h3 className="text-sm font-extrabold text-slate-900">系统进程通信与内核性能日志 (审计区)</h3>
-                </div>
-                
-                <LogView />
               </section>
             </div>
           )}

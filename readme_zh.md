@@ -521,3 +521,12 @@ pm2 startup
   1. 移除了 [AdminBackend.tsx] 里对未定义属性 `onRefreshGroups` 的引用，直接使用组件的自刷新与全局广播机制，解决了进入后台报错 `ReferenceError: onRefreshGroups is not defined` 导致的白屏问题；
   2. 修复 Chrome 等浏览器在口令校验遮罩层针对 password 类型 input 标签报出的 `Input elements should have autocomplete attributes` 黄色提示，在 [App.tsx] 密码输入框中补齐 `autoComplete="new-password"`。
 
+### 2026-07-01 - [V5.7.0] 彻底解耦前端日志查看，新增服务端本地物理日志持久化
+- **需求**：增加详细的日志系统，去掉管理后台查看日志的功能，在服务器或本地部署时，把日志保存在本地，包含详细的时间，事件描述。用户通过查看本地文件查看日志。
+- **实现方案**：
+  1. 在 [server.ts] 中引入了 `LogService` 日志服务类，在本地初始化并创建 `data/app.log` 文件，提供带标准时间戳和等级分类的单行写入能力；
+  2. 暴露了 `POST /api/log` 服务端上报路由；
+  3. 修改 [utils.ts] 中的 `LogBroker.publish`，在发布日志的同时，触发 Web fetch 异步请求，自动将详细的模块操作、时间与等级信息上传至服务器持久化写入本地 `data/app.log` 中；
+  4. 修改了 [AdminBackend.tsx]，移除了“系统调试审计日志” Tab 导航、按钮及内容渲染区，全面砍掉在前端渲染查看日志的模块；
+  5. 物理剔除了冗余的 [LogView.tsx] 组件，使项目结构更加精简清晰。
+

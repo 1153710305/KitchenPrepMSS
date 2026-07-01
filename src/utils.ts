@@ -179,6 +179,17 @@ export class LogBroker {
     details?: string
   ): void {
     const log = createSystemLog(level, module, message, details);
+    
+    // 异步将日志上传至后端写入本地文件
+    fetch("/api/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level, category: module, message: details ? `${message} (详情: ${details})` : message })
+    }).catch(err => {
+      // 捕获可能出现的网络或配置错误，防止日志本身报错阻塞业务
+      console.warn("[LogBroker] 无法上传日志至后端持久化:", err);
+    });
+
     this.listeners.forEach((listener) => {
       try {
         listener(log);
