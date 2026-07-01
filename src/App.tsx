@@ -132,7 +132,8 @@ export default function App() {
     TREND: false,
     PIE: false,
     MONITOR: false,
-    AI: false
+    AI: false,
+    HEADCOUNT: false
   });
 
   // ================= 动态配置计算属性 =================
@@ -268,7 +269,7 @@ export default function App() {
         const catKeys = cats.map((c) => c.key);
 
         setActiveGroup((prev) => {
-          if (prev === "LEDGER" || prev === "ANALYTICS") return prev;
+          if (prev === "LEDGER") return prev;
           if (groupKeys.includes(prev)) return prev;
           return groupKeys[0] || "TEACHER";
         });
@@ -373,7 +374,7 @@ export default function App() {
   };
 
   const currentReport = useMemo(() => {
-    if (activeGroup === "ANALYTICS" || activeGroup === "LEDGER") return null;
+    if (activeGroup === "LEDGER") return null;
     return PrepReportService.getOrCreateReport(activeGroup, selectedYear, selectedMonth);
   }, [reports, activeGroup, selectedYear, selectedMonth]);
 
@@ -848,31 +849,8 @@ export default function App() {
                 })}
               </div>
 
-              {/* 多维分析决策顶级独立入口，隔离至独立菜单项中 */}
+              {/* 原多维分析决策已转移至各受众视图底部的辅助工具中 */}
               <div className="border-t border-slate-100 pt-2 mt-auto space-y-1">
-                <div>
-                  {!isSidebarCollapsed && (
-                    <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
-                      多维统计决策
-                    </div>
-                  )}
-                  <button
-                    onClick={() => {
-                      setActiveGroup("ANALYTICS");
-                      setIsSidebarOpen(false); // 点击后折叠侧边栏
-                      LogBroker.publish("INFO", "App", "激活宏观决策:「每日就餐人数与人均餐费多维度分析」入口页。");
-                    }}
-                    title="人数与餐费分析"
-                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${
-                      activeGroup === "ANALYTICS"
-                        ? "bg-sky-50 border-r-4 border-sky-500 text-sky-700 font-black"
-                        : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
-                    } ${isSidebarCollapsed ? "justify-center" : ""}`}
-                  >
-                    <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>📊</span>
-                    {!isSidebarCollapsed && <span>人数与餐费分析</span>}
-                  </button>
-                </div>
 
                 <div>
                   {!isSidebarCollapsed && (
@@ -907,18 +885,14 @@ export default function App() {
               {!isSidebarCollapsed ? (
                 <>
                   <div className="text-[10px] text-slate-500 mb-1 font-bold font-sans">
-                    {activeGroup === "ANALYTICS" 
-                      ? "全客群月度采购支出" 
-                      : activeGroup === "LEDGER"
-                        ? "台账原料累计入库"
-                        : "当前受众全月采购支出"}
+                    {activeGroup === "LEDGER"
+                      ? "台账原料累计入库"
+                      : "当前受众全月采购支出"}
                   </div>
                   <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight truncate">
-                    ¥{(activeGroup === "ANALYTICS" 
-                      ? allGroupsReportTotal 
-                      : activeGroup === "LEDGER"
-                        ? allLedgersTotalAmount
-                        : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+                    ¥{(activeGroup === "LEDGER"
+                      ? allLedgersTotalAmount
+                      : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
                   </div>
                 </>
               ) : (
@@ -946,55 +920,46 @@ export default function App() {
           ) : (
             <>
               <div className="flex items-center px-4 bg-white border-b border-slate-200 justify-between shrink-0 h-12">
-                {activeGroup === "ANALYTICS" ? (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      📊 后厨决策分析中心：每日就餐人数与全客群人均单耗走势看板
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-1 overflow-x-auto h-full scrollbar-none">
-                    {activeCategoriesList.map((cat) => {
-                      const isSelected = activeCategory === cat.key;
-                      return (
-                        <button
-                          key={cat.key}
-                          onClick={() => {
-                            setActiveCategory(cat.key);
-                            LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
-                          }}
-                          className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${
-                            isSelected
-                              ? "border-emerald-500 text-emerald-600 font-extrabold"
-                              : "border-transparent text-slate-400 hover:text-slate-600"
-                          }`}
-                        >
-                          {cat.label}品类
-                        </button>
-                      );
-                    })}
-                
-                    <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
-                
-                    <button
-                      onClick={() => {
-                        setActiveCategory(null);
-                        LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
-                      }}
-                      className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${
-                        activeCategory === null
-                          ? "border-emerald-600 text-emerald-700 font-extrabold"
-                          : "border-transparent text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      合计汇总表
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center space-x-1 overflow-x-auto h-full scrollbar-none">
+                  {activeCategoriesList.map((cat) => {
+                    const isSelected = activeCategory === cat.key;
+                    return (
+                      <button
+                        key={cat.key}
+                        onClick={() => {
+                          setActiveCategory(cat.key);
+                          LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
+                        }}
+                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${
+                          isSelected
+                            ? "border-emerald-500 text-emerald-600 font-extrabold"
+                            : "border-transparent text-slate-400 hover:text-slate-600"
+                        }`}
+                      >
+                        {cat.label}品类
+                      </button>
+                    );
+                  })}
+              
+                  <div className="h-4 w-[1px] bg-slate-200 mx-2 shrink-0" />
+              
+                  <button
+                    onClick={() => {
+                      setActiveCategory(null);
+                      LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
+                    }}
+                    className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${
+                      activeCategory === null
+                        ? "border-emerald-600 text-emerald-700 font-extrabold"
+                        : "border-transparent text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    合计汇总表
+                  </button>
+                </div>
 
                 {/* 账期选择器 */}
-                {activeGroup !== "LEDGER" && activeGroup !== "ANALYTICS" && (
+                {activeGroup !== "LEDGER" && (
                   <div className="flex items-center space-x-2 shrink-0 ml-4">
                     <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 animate-fade-in">
                       <CalendarDays size={14} className="text-slate-400" />
@@ -1020,16 +985,6 @@ export default function App() {
           {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
           <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
             
-            {activeGroup === "ANALYTICS" ? (
-              /* 情形 A: 多维度决策分析，不放在任何受众下面，一屏展示极其纯粹 */
-              <HeadcountPanel
-                reports={reports}
-                activeGroup={activeGroup}
-                activeGroupsList={activeGroupsList}
-                onHeadcountUpdate={handleHeadcountUpdate}
-                isAdminMode={isAdminMode}
-              />
-            ) : (
               /* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */
               <>
                 {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
@@ -1075,6 +1030,16 @@ export default function App() {
                   >
                     🧠 AI膳食配餐分析 {activeSubTools.AI ? "已开启" : "已隐藏"}
                   </button>
+                  <button 
+                    onClick={() => setActiveSubTools(prev => ({ ...prev, HEADCOUNT: !prev.HEADCOUNT }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                      activeSubTools.HEADCOUNT 
+                        ? "bg-teal-600 border-teal-700 text-white font-bold shadow-xs" 
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    👥 人数与餐费分析 {activeSubTools.HEADCOUNT ? "已开启" : "已隐藏"}
+                  </button>
                   
                   <span className="ml-auto text-[10px] text-slate-400 font-medium px-2">
                     📄 每日采购细表默认展示中
@@ -1113,8 +1078,20 @@ export default function App() {
                     activeGroupReport={currentReport}
                   />
                 )}
+
+                {/* 4. 每日就餐人数与人均餐费多维度分析组件 (按需控制显示) */}
+                {currentReport && activeSubTools.HEADCOUNT && (
+                  <ErrorBoundary fallbackTitle="就餐人数与餐费分析模块发生故障">
+                    <HeadcountPanel
+                      reports={reports}
+                      activeGroup={activeGroup}
+                      activeGroupsList={activeGroupsList}
+                      onHeadcountUpdate={handleHeadcountUpdate}
+                      isAdminMode={isAdminMode}
+                    />
+                  </ErrorBoundary>
+                )}
               </>
-            )}
 
           </div>
         </>
