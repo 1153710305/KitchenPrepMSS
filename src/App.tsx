@@ -124,6 +124,23 @@ export default function App() {
   /** 库存总览面板显示状态 */
   const [isInventoryOpen, setIsInventoryOpen] = useState<boolean>(false);
 
+  /** 关怀模式：页面字号与按钮大小控制状态，支持 "normal" | "large" | "huge" */
+  const [fontSizeMode, setFontSizeMode] = useState<"normal" | "large" | "huge">(() => {
+    return (localStorage.getItem("KPMSS_FONT_SIZE_MODE") as any) || "normal";
+  });
+
+  // 动态同步 html 节点上的关怀大字模式类名
+  useEffect(() => {
+    localStorage.setItem("KPMSS_FONT_SIZE_MODE", fontSizeMode);
+    const htmlEl = document.documentElement;
+    htmlEl.classList.remove("theme-elder-large", "theme-elder-huge");
+    if (fontSizeMode === "large") {
+      htmlEl.classList.add("theme-elder-large");
+    } else if (fontSizeMode === "huge") {
+      htmlEl.classList.add("theme-elder-huge");
+    }
+  }, [fontSizeMode]);
+
   // ================= 2026-06-30 新增：餐位分组折叠及子功能按需控制状态 =================
   /** 活动餐位分组用户是否手动折叠（左侧侧边栏折叠状态） */
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -723,7 +740,9 @@ export default function App() {
 
   // ================= 前台报表交互展示屏 =================
   return (
-    <div className="flex flex-col h-screen w-full bg-[#f1f5f9] text-slate-800 font-sans select-none overflow-hidden">
+    <div className={`flex flex-col h-screen w-full bg-[#f1f5f9] text-slate-800 font-sans select-none overflow-hidden ${
+      fontSizeMode === "large" ? "theme-elder-large" : fontSizeMode === "huge" ? "theme-elder-huge" : ""
+    }`}>
 
       {/* 顶部主横幅控制中心 (符合高密度设计风格 Deep Slate Colors) */}
       <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-slate-900 text-white border-b border-slate-700 shrink-0 relative z-50">
@@ -744,6 +763,38 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+
+          {/* 关怀模式字号调节 */}
+          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-slate-300 font-bold shrink-0 select-none">
+            <span className="text-[9px] sm:text-[10px] px-1.5 text-slate-400 font-bold">字号</span>
+            <button
+              onClick={() => setFontSizeMode("normal")}
+              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+                fontSizeMode === "normal" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
+              }`}
+              title="系统标准字号"
+            >
+              标准
+            </button>
+            <button
+              onClick={() => setFontSizeMode("large")}
+              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+                fontSizeMode === "large" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
+              }`}
+              title="中大字号关怀模式，适合视力欠佳用户"
+            >
+              大
+            </button>
+            <button
+              onClick={() => setFontSizeMode("huge")}
+              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+                fontSizeMode === "huge" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
+              }`}
+              title="特大字号关怀模式，适合中老年用户"
+            >
+              超大
+            </button>
+          </div>
 
           {/* 库存总览快速入口 */}
           <button

@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+/** 
+ * @description 关怀模式：通过调整 html 的根字体大小，使整套以 rem 为单位的字号与间距系统完美自适应放大 
+ */
+html.theme-elder-large {
+  font-size: 18.5px !important; /* 放大约 15% */
+}
+
+html.theme-elder-huge {
+  font-size: 21.5px !important; /* 放大约 35% */
+}
