@@ -56,44 +56,44 @@ interface ThemeStyle {
  */
 const THEME_MAP: Record<string, ThemeStyle> = {
   sky: {
-    primaryBg: "bg-sky-500",
-    primaryText: "text-sky-700",
-    lightBg: "bg-sky-50/50",
-    borderHover: "hover:border-sky-300",
-    badgeClass: "bg-sky-500 text-white shadow-sky-50",
-    accentText: "text-sky-800",
-    accentBg: "bg-sky-100/50",
-    btnActive: "bg-sky-500 text-white font-bold"
+    primaryBg: "bg-sky-600",
+    primaryText: "text-sky-900",
+    lightBg: "bg-sky-100/60",
+    borderHover: "hover:border-sky-400",
+    badgeClass: "bg-sky-600 text-white shadow-sky-50",
+    accentText: "text-sky-950 font-black",
+    accentBg: "bg-sky-200/50",
+    btnActive: "bg-sky-600 text-white font-bold"
   },
   emerald: {
-    primaryBg: "bg-emerald-500",
-    primaryText: "text-emerald-700",
-    lightBg: "bg-emerald-50/50",
-    borderHover: "hover:border-emerald-300",
-    badgeClass: "bg-emerald-500 text-white shadow-emerald-50",
-    accentText: "text-emerald-800",
-    accentBg: "bg-emerald-100/50",
-    btnActive: "bg-emerald-500 text-white font-bold"
+    primaryBg: "bg-emerald-600",
+    primaryText: "text-emerald-900",
+    lightBg: "bg-emerald-100/60",
+    borderHover: "hover:border-emerald-400",
+    badgeClass: "bg-emerald-600 text-white shadow-emerald-50",
+    accentText: "text-emerald-950 font-black",
+    accentBg: "bg-emerald-200/50",
+    btnActive: "bg-emerald-600 text-white font-bold"
   },
   purple: {
-    primaryBg: "bg-violet-500",
-    primaryText: "text-violet-700",
-    lightBg: "bg-violet-50/50",
-    borderHover: "hover:border-violet-300",
-    badgeClass: "bg-violet-500 text-white shadow-violet-50",
-    accentText: "text-violet-800",
-    accentBg: "bg-violet-100/50",
-    btnActive: "bg-violet-500 text-white font-bold"
+    primaryBg: "bg-violet-600",
+    primaryText: "text-violet-900",
+    lightBg: "bg-violet-100/60",
+    borderHover: "hover:border-violet-400",
+    badgeClass: "bg-violet-600 text-white shadow-violet-50",
+    accentText: "text-violet-950 font-black",
+    accentBg: "bg-violet-200/50",
+    btnActive: "bg-violet-600 text-white font-bold"
   },
   charcoal: {
-    primaryBg: "bg-slate-600",
-    primaryText: "text-slate-700",
-    lightBg: "bg-slate-50",
-    borderHover: "hover:border-slate-400",
-    badgeClass: "bg-slate-600 text-white shadow-slate-50",
-    accentText: "text-slate-800",
-    accentBg: "bg-slate-100",
-    btnActive: "bg-slate-600 text-white font-bold"
+    primaryBg: "bg-slate-700",
+    primaryText: "text-slate-900",
+    lightBg: "bg-slate-150",
+    borderHover: "hover:border-slate-500",
+    badgeClass: "bg-slate-700 text-white shadow-slate-50",
+    accentText: "text-slate-950 font-black",
+    accentBg: "bg-slate-200",
+    btnActive: "bg-slate-700 text-white font-bold"
   }
 };
 
@@ -114,12 +114,12 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
 
-  // 主题样式管理，默认天空蓝 "sky"
+  // 主题样式管理，默认翡翠绿 "emerald"
   const [theme, setTheme] = useState<"sky" | "emerald" | "purple" | "charcoal">(() => {
-    return (localStorage.getItem("prep_table_theme") as any) || "sky";
+    return (localStorage.getItem("prep_table_theme") as any) || "emerald";
   });
 
-  const activeTheme = THEME_MAP[theme] || THEME_MAP.sky;
+  const activeTheme = THEME_MAP[theme] || THEME_MAP.emerald;
 
   const handleThemeChange = (newTheme: "sky" | "emerald" | "purple" | "charcoal") => {
     setTheme(newTheme);
@@ -555,29 +555,29 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           </div>
                         </th>
                       ))}
-                      <th colSpan={2} className="p-3 text-center border-b border-gray-100 bg-indigo-50/50 text-indigo-800">全月累加</th>
+                      <th colSpan={2} className="p-3 text-center border-b border-slate-300 bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
                     </tr>
                     
                     {/* 二级头: [数量/单价/金额] 三胞胎 */}
-                    <tr className="bg-gray-50/40 text-[10px] text-gray-500">
-                      <th className="p-2.5 border-b border-r border-slate-300 sticky left-0 bg-gray-50 z-20">食材细分项目</th>
+                    <tr className="bg-slate-100 text-[10px] text-slate-700 font-bold border-b border-slate-350">
+                      <th className="p-2.5 border-b border-r border-slate-350 sticky left-0 bg-slate-100 z-20">食材细分项目</th>
                       {days.map((day) => (
                         <React.Fragment key={`sub-dt-${day}`}>
-                          <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/50">数量</th>
-                          <th className="px-1 py-1 text-center border-b border-r border-slate-200 font-normal bg-slate-100/30">单价</th>
-                          <th className={`px-1 py-1 text-center border-b border-r border-slate-300 font-semibold ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
+                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 font-semibold bg-slate-100/70 text-slate-800">数量</th>
+                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 font-semibold bg-slate-100/50 text-slate-800">单价</th>
+                          <th className={`px-1 py-1 text-center border-b border-r border-slate-350 font-black ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
                         </React.Fragment>
                       ))}
-                      <th className="p-2 text-center border-b border-r border-slate-300 font-normal bg-slate-100">月总用量</th>
-                      <th className="p-2 text-center border-b border-r border-slate-300 font-semibold text-indigo-700 bg-indigo-50/50">月总开销</th>
+                      <th className="p-2 text-center border-b border-r border-slate-350 font-bold bg-slate-100 text-slate-800">月总用量</th>
+                      <th className="p-2 text-center border-b border-r border-slate-350 font-black text-indigo-900 bg-indigo-100">月总开销</th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-300">
                     {filteredItems.map((item) => {
                       const monthlySummary = getItemMonthlySummary(item, days);
                       return (
-                        <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-300">
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-350">
                           
                           {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
                           <td className="p-3 sticky left-0 bg-white border-r-2 border-slate-400 z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -590,7 +590,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                                 return (
                                   <>
                                     <span className="text-slate-900 text-xs font-black">{displayName}</span>
-                                    <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
+                                    <span className="text-[10px] font-bold text-slate-600 block mt-0.5">
                                       单位: {displayUnit} {displayRemark && `(${displayRemark})`}
                                     </span>
                                   </>
@@ -615,13 +615,13 @@ export const TableGrid: React.FC<TableGridProps> = ({
                             const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
                             return (
                               <React.Fragment key={`cell-${item.id}-${day}`}>
-                                <td className="p-2 border-b border-r border-slate-200 text-center font-mono text-xs text-slate-800 bg-white">
+                                <td className="p-2 border-b border-r border-slate-300 text-center font-mono text-xs font-semibold text-slate-900 bg-white">
                                   {entry.quantity || 0}
                                 </td>
-                                <td className="p-2 border-b border-r border-slate-200 text-center font-mono text-xs text-slate-800 bg-slate-50/40">
+                                <td className="p-2 border-b border-r border-slate-300 text-center font-mono text-xs font-semibold text-slate-900 bg-slate-50">
                                   ¥{entry.price || 0}
                                 </td>
-                                <td className={`p-2 border-b border-r border-slate-300 text-center text-xs font-bold font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
+                                <td className={`p-2 border-b border-r border-slate-350 text-center text-xs font-black font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
                                   {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                                 </td>
                               </React.Fragment>
@@ -629,10 +629,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
                           })}
 
                           {/* 全月累加列 */}
-                          <td className="p-3 border-r border-slate-300 text-center font-black font-mono text-xs text-slate-800 bg-slate-100/50">
+                          <td className="p-3 border-r border-slate-350 text-center font-black font-mono text-xs text-slate-900 bg-slate-100/60">
                             {monthlySummary.totalQty} {item.unit}
                           </td>
-                          <td className="p-3 text-center font-black font-mono text-xs text-indigo-900 bg-indigo-100/30">
+                          <td className="p-3 text-center font-black font-mono text-xs text-indigo-950 bg-indigo-100/50">
                             ¥{monthlySummary.totalCost}
                           </td>
 
