@@ -12,6 +12,99 @@ import { FOOD_CATEGORY_LABELS } from "../constants.ts";
 import { LEDGER_HEADERS } from "../ledgerConstants.ts";
 import { FoodCategory } from "../types.ts";
 
+/**
+ * @description 感官性状多选气泡组件
+ */
+function SensorySelector({ 
+  value, 
+  onChange, 
+  disabled 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  
+  /** 备选感官性状字典项 */
+  const options = [
+    "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好", 
+    "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满", 
+    "光泽度好", "颜色鲜艳"
+  ];
+  
+  /** 解析当前逗号或顿号分割的选中值 */
+  const selectedValues = value ? value.split("、").filter(Boolean) : [];
+  
+  const handleToggle = (opt: string) => {
+    let next: string[];
+    if (selectedValues.includes(opt)) {
+      next = selectedValues.filter(v => v !== opt);
+    } else {
+      next = [...selectedValues, opt];
+    }
+    onChange(next.join("、"));
+  };
+
+  React.useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative inline-block w-full">
+      <input
+        type="text"
+        value={value}
+        onClick={() => !disabled && setIsOpen(true)}
+        placeholder={disabled ? "未开启录入" : "合格 (点击选择)"}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none cursor-pointer text-xs focus:border-emerald-400"
+      />
+      {isOpen && !disabled && (
+        <div className="absolute left-0 mt-1 p-2.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 w-64 max-h-48 overflow-y-auto">
+          <div className="text-[10px] text-slate-400 font-bold mb-2 pb-1 border-b border-slate-100 flex justify-between items-center select-none">
+            <span>感官性状 (多选)</span>
+            <button 
+              type="button" 
+              onClick={() => onChange("")} 
+              className="text-rose-500 hover:text-rose-600 font-black cursor-pointer text-[10px]"
+            >
+              清空
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {options.map((opt) => {
+              const isSelected = selectedValues.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleToggle(opt)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-emerald-500 border-emerald-500 text-white font-bold"
+                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface LedgerStyle1TableProps {
   currentLedgerItems: LedgerItem[];
   filteredLedgerItems: LedgerItem[];
@@ -406,27 +499,34 @@ export function LedgerStyle1Table({
 
                     {/* 食品索证 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
-                        value={recordToRender.certification || ""}
-                        placeholder={isRecordingMode ? "已索证" : "未开启录入"}
-                        disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { certification: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.certification, isRecordingMode ? "已索证" : "未开启录入") }}
-                      />
+                      {isRecordingMode ? (
+                        <select
+                          value={recordToRender.certification || ""}
+                          onChange={(e) => handleDraftCellChange(item.id, { certification: e.target.value })}
+                          className="bg-white border border-slate-200 px-2 py-1 rounded outline-none w-24 text-xs cursor-pointer focus:border-emerald-400"
+                        >
+                          <option value="">-- 选择 --</option>
+                          <option value="有">有</option>
+                          <option value="无">无</option>
+                        </select>
+                      ) : (
+                        <input 
+                          type="text"
+                          value={recordToRender.certification || ""}
+                          placeholder="未开启录入"
+                          disabled={true}
+                          className="bg-slate-50 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                          style={{ width: getInputWidth(recordToRender.certification, "未开启录入") }}
+                        />
+                      )}
                     </td>
  
                     {/* 感官性状 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
+                      <SensorySelector
                         value={recordToRender.sensoryProperty || ""}
-                        placeholder={isRecordingMode ? "合格/合格率" : "未开启录入"}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { sensoryProperty: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.sensoryProperty, isRecordingMode ? "合格/合格率" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { sensoryProperty: val })}
                       />
                     </td>
  
@@ -458,16 +558,32 @@ export function LedgerStyle1Table({
 
                     {/* 保质期 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
-                        value={recordToRender.shelfLife || ""}
-                        placeholder={isRecordingMode ? "如: 6个月" : "未开启录入"}
-                        disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { shelfLife: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.shelfLife, isRecordingMode ? "如: 6个月" : "未开启录入") }}
-                        title="保质期 (选填)"
-                      />
+                      {isRecordingMode ? (
+                        <select
+                          value={recordToRender.shelfLife || ""}
+                          onChange={(e) => handleDraftCellChange(item.id, { shelfLife: e.target.value })}
+                          className="bg-white border border-slate-200 px-2 py-1 rounded outline-none w-28 text-xs cursor-pointer focus:border-emerald-400"
+                        >
+                          <option value="">-- 选择 --</option>
+                          <option value="2天">2天</option>
+                          <option value="15天">15天</option>
+                          <option value="1个月">1个月</option>
+                          <option value="3个月">3个月</option>
+                          <option value="6个月">6个月</option>
+                          <option value="1年">1年</option>
+                          <option value="一年以上">一年以上</option>
+                          <option value="保质期较短">保质期较短</option>
+                        </select>
+                      ) : (
+                        <input 
+                          type="text"
+                          value={recordToRender.shelfLife || ""}
+                          placeholder="未开启录入"
+                          disabled={true}
+                          className="bg-slate-50 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                          style={{ width: getInputWidth(recordToRender.shelfLife, "未开启录入") }}
+                        />
+                      )}
                     </td>
 
                     {/* 采购/入库时间（默认选定日期，允许手动修改） */}

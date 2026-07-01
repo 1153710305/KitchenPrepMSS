@@ -4,8 +4,100 @@
  */
 
 import { Award } from "lucide-react";
+import React from "react";
 import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../ledgerConstants.ts";
+
+/**
+ * @description 感官性状多选气泡组件 (样式二专享)
+ */
+function SensorySelector({ 
+  value, 
+  onChange, 
+  disabled 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  
+  const options = [
+    "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好", 
+    "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满", 
+    "光泽度好", "颜色鲜艳"
+  ];
+  
+  const selectedValues = value ? value.split("、").filter(Boolean) : [];
+  
+  const handleToggle = (opt: string) => {
+    let next: string[];
+    if (selectedValues.includes(opt)) {
+      next = selectedValues.filter(v => v !== opt);
+    } else {
+      next = [...selectedValues, opt];
+    }
+    onChange(next.join("、"));
+  };
+
+  React.useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative inline-block w-full">
+      <input
+        type="text"
+        value={value}
+        onClick={() => !disabled && setIsOpen(true)}
+        placeholder={disabled ? "锁定" : "合格 (点击选择)"}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none cursor-pointer text-xs focus:border-emerald-500"
+      />
+      {isOpen && !disabled && (
+        <div className="absolute left-0 mt-1 p-2.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 w-64 max-h-48 overflow-y-auto text-left">
+          <div className="text-[10px] text-slate-400 font-bold mb-2 pb-1 border-b border-slate-100 flex justify-between items-center select-none">
+            <span>感官性状 (多选)</span>
+            <button 
+              type="button" 
+              onClick={() => onChange("")} 
+              className="text-rose-500 hover:text-rose-600 font-black cursor-pointer text-[10px]"
+            >
+              清空
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {options.map((opt) => {
+              const isSelected = selectedValues.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleToggle(opt)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-emerald-500 border-emerald-500 text-white font-bold"
+                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * @description 单原料日出入库流水账组件入参接口
@@ -219,25 +311,39 @@ export function LedgerStyle2Flow({
 
                   {/* 保质期 */}
                   <td className="px-2 py-1.5">
-                    <input 
-                      type="text"
-                      value={recordToRender.shelfLife || ""}
-                      placeholder={isRowEditable ? "如: 12个月" : "锁定"}
-                      disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { shelfLife: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                    />
+                    {isRowEditable ? (
+                      <select
+                        value={recordToRender.shelfLife || ""}
+                        onChange={(e) => handleDraftCellChange(activeItem.id, { shelfLife: e.target.value })}
+                        className="w-full bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs cursor-pointer focus:border-emerald-500"
+                      >
+                        <option value="">-- 选择 --</option>
+                        <option value="2天">2天</option>
+                        <option value="15天">15天</option>
+                        <option value="1个月">1个月</option>
+                        <option value="3个月">3个月</option>
+                        <option value="6个月">6个月</option>
+                        <option value="1年">1年</option>
+                        <option value="一年以上">一年以上</option>
+                        <option value="保质期较短">保质期较短</option>
+                      </select>
+                    ) : (
+                      <input 
+                        type="text"
+                        value={recordToRender.shelfLife || ""}
+                        placeholder="锁定"
+                        disabled={true}
+                        className="w-full bg-slate-50/30 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      />
+                    )}
                   </td>
 
                   {/* 感官性状 */}
                   <td className="px-2 py-1.5">
-                    <input 
-                      type="text"
+                    <SensorySelector
                       value={recordToRender.sensoryProperty || ""}
-                      placeholder={isRowEditable ? "合格" : "锁定"}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { sensoryProperty: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { sensoryProperty: val })}
                     />
                   </td>
 
