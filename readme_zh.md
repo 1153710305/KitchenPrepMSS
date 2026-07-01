@@ -516,3 +516,8 @@ pm2 startup
   3. 出库人和接收人数据输入时，均无缝同步记录到台账的每日出入库条目的 `outHandler` 和 `outRecipient` 字段中；
   4. 之前完成的出库单打印模块 [LedgerPrintDoc.tsx] 会自动读取当日这两个字段并同步展现到表格对应列中，若没填则保持留白，契合物理单据签字流程。
 
+### 2026-07-01 - [V5.6.1] 修复管理后台白屏与 autocomplete 黄色警告
+- **修复**：
+  1. 移除了 [AdminBackend.tsx] 里对未定义属性 `onRefreshGroups` 的引用，直接使用组件的自刷新与全局广播机制，解决了进入后台报错 `ReferenceError: onRefreshGroups is not defined` 导致的白屏问题；
+  2. 修复 Chrome 等浏览器在口令校验遮罩层针对 password 类型 input 标签报出的 `Input elements should have autocomplete attributes` 黄色提示，在 [App.tsx] 密码输入框中补齐 `autoComplete="new-password"`。
+

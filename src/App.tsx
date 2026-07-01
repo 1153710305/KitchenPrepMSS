@@ -951,6 +951,7 @@ export default function App() {
                   value={enteredPassword}
                   onChange={(e) => setEnteredPassword(e.target.value)}
                   className="w-full bg-slate-50 text-xs text-slate-800 p-2.5 border border-slate-300 rounded focus:border-emerald-500 outline-none transition-all focus:bg-white"
+                  autoComplete="new-password"
                   autoFocus
                   required
                 />

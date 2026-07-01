@@ -491,7 +491,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           
           {/* 一级人群管理 Tab 页 */}
           {activeTab === "groups" && (
-            <AdminGroupsTab onRefresh={onRefreshGroups} />
+            <AdminGroupsTab />
           )}
 
           {/* 食材大类管理 Tab 页 */}
