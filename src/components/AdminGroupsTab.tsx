@@ -39,11 +39,11 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
     }
 
     try {
-      if (editingGroupKey) {
-        await PrepReportService.updateDynamicGroup(editingGroupKey, key, label);
-      } else {
-        await PrepReportService.addDynamicGroup(key, label);
+      if (editingGroupKey && editingGroupKey !== key) {
+        // 如果标识 Key 被用户修改了，先从底层清除老旧客群分类，再存入新的，防止产生双客群冲突
+        await PrepReportService.deleteGroup(editingGroupKey);
       }
+      await PrepReportService.saveGroup(key, label, "🍽️");
 
       const freshGroups = PrepReportService.getActiveGroups();
       setGroups(freshGroups);
@@ -66,7 +66,7 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
   const handleDeleteGroup = async (key: string) => {
     if (window.confirm(`确定要删除人群标签「${key}」吗？\n警告：删除后该人群对应的备餐数据将无法映射，关联的明细项目将失去父节点分类！`)) {
       try {
-        await PrepReportService.deleteDynamicGroup(key);
+        await PrepReportService.deleteGroup(key);
         const freshGroups = PrepReportService.getActiveGroups();
         setGroups(freshGroups);
         if (editingGroupKey === key) {
