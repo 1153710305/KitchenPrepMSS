@@ -985,8 +985,8 @@ export default function App() {
           {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
           <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
             
-              /* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */
-              <>
+            {/* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */}
+            <>
                 {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
                 <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200/60 shrink-0">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">辅助工具栏:</span>
