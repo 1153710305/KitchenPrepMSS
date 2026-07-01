@@ -176,11 +176,7 @@ export function LedgerPrintStyle2({
         </tbody>
       </table>
 
-      {/* 底部签字栏 */}
-      <div className="flex justify-between text-xs mt-4 px-1 print:mt-6">
-        <span>主管审核：____________________</span>
-        <span>打印日期：{selectedDate}</span>
-      </div>
+
     </div>
   );
 }

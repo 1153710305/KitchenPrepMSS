@@ -349,6 +349,18 @@ function PrintOutDoc({
                   const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
                   const displayName = dictItem?.name ?? item.name;
                   const displayUnit = dictItem?.unit ?? item.unit;
+
+                  /**
+                   * @description 判断当前原料是否设置了有效的换算单位与换算比例
+                   */
+                  const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
+                  /** 优先展示换算单位，若无则展示普通单位 */
+                  const displayPrintUnit = hasConversion ? dictItem.conversionUnit : displayUnit;
+                  /** 优先展示换算计算后的数量，若无则展示普通出库数量 */
+                  const displayPrintQty = (hasConversion && item.record.outQuantity)
+                    ? Number((item.record.outQuantity * dictItem.conversionRatio).toFixed(2))
+                    : (item.record.outQuantity || "");
+
                   return (
                     <tr key={item.id} style={{ height: "26px" }} className="text-center">
                       {isFirstInGroup && (
@@ -362,10 +374,10 @@ function PrintOutDoc({
                       )}
                       <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>{rowIndex}</td>
                       <td className="border border-black text-left px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
-                        {displayName}（{displayUnit}）
+                        {displayName}（{displayPrintUnit}）
                       </td>
                       <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
-                        {item.record.outQuantity || ""}
+                        {displayPrintQty}
                       </td>
                       {isFirstInGroup && (
                         <td
