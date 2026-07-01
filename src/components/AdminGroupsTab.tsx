@@ -15,9 +15,20 @@ interface AdminGroupsTabProps {
 // 辅助函数：生成一级受众的唯一识别 Key
 const generateUniqueGroupKey = () => "GROUP_" + Math.random().toString(36).substr(2, 6).toUpperCase() + "_" + Math.floor(Math.random() * 100);
 
+/**
+ * @description 后台受众群体备选头像/图标 Emoji 库
+ */
+const EMOJIS = [
+  "🏫", "👶", "👦", "🏢", "🍽️", "🍲", 
+  "🍜", "🍱", "🥖", "👴", "👧", "👩", 
+  "👨", "👩‍🍳", "👨‍🍳", "🌾", "🍎", "🥦", 
+  "🥩", "🥛", "🎂", "☕", "🥤", "🏡", 
+  "🏠", "📈", "🎨", "⚽", "🚀", "🧸"
+];
+
 export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
   const [groups, setGroups] = useState<DynamicGroup[]>(() => PrepReportService.getActiveGroups());
-  
+
   // Form states
   const [groupKeyInput, setGroupKeyInput] = useState<string>(() => generateUniqueGroupKey());
   const [groupLabelInput, setGroupLabelInput] = useState<string>("");
@@ -102,13 +113,12 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
           {groups.map((g) => {
             const isEditing = editingGroupKey === g.key;
             return (
-              <div 
+              <div
                 key={g.key}
-                className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${
-                  isEditing 
-                    ? "bg-teal-50 border-teal-300 shadow-xs" 
+                className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${isEditing
+                    ? "bg-teal-50 border-teal-300 shadow-xs"
                     : "bg-slate-50 border-slate-100 hover:bg-slate-100/80"
-                }`}
+                  }`}
               >
                 <div className="min-w-0">
                   <span className="font-extrabold text-slate-800 truncate block">{g.label}</span>
@@ -176,23 +186,23 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">受众图标/头像 Emoji</label>
-              <select
-                value={groupEmojiInput}
-                onChange={(e) => setGroupEmojiInput(e.target.value)}
-                className="w-full bg-white text-xs text-slate-850 p-2 border border-slate-300 rounded focus:border-teal-500 outline-none cursor-pointer"
-              >
-                <option value="🏫">🏫 校园学校 (教师)</option>
-                <option value="👶">👶 幼儿婴童 (幼儿)</option>
-                <option value="👦">👦 学生群体 (中小学)</option>
-                <option value="🏢">🏢 机关单位 (职工)</option>
-                <option value="🍽️">🍽️ 食堂公共 (普通受众)</option>
-                <option value="🍲">🍲 热汤砂锅 (风味)</option>
-                <option value="🍜">🍜 面点主食 (特色)</option>
-                <option value="🍱">🍱 精致快餐 (套餐)</option>
-                <option value="🥖">🥖 面包糕点 (烘焙)</option>
-                <option value="👴">👴 银发养老 (老年)</option>
-              </select>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1.5">受众图标/头像 Emoji</label>
+              <div className="grid grid-cols-5 gap-1.5 p-1.5 border border-slate-200 rounded-lg bg-slate-50 max-h-[105px] overflow-y-auto scrollbar-thin">
+                {EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setGroupEmojiInput(emoji)}
+                    className={`h-8 w-8 flex items-center justify-center text-lg rounded-md transition-all cursor-pointer ${
+                      groupEmojiInput === emoji
+                        ? "bg-teal-500 text-white scale-110 shadow-sm font-bold"
+                        : "bg-white border border-slate-200/60 hover:bg-slate-100/80 text-slate-800"
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

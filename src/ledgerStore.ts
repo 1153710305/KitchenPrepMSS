@@ -109,7 +109,7 @@ export class LedgerService {
 
   private static generateSeeds(): void {
     LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账...");
-    
+
     const alignedGroups = [
       { key: "KID", name: "幼儿备餐" },
       { key: "STUDENT", name: "在校生备餐" },
@@ -122,7 +122,7 @@ export class LedgerService {
       createdAt: new Date().toISOString()
     }));
 
-    // 首次启动时，清空台账的初始原料数据，设为空，不自动载入大米、盐等默认记录，满足“清空首次启动时的台账的初始数据”
+    // 首次启动时，清空台账的初始原料数据，设为空，不自动载入、盐等默认记录，满足“清空首次启动时的台账的初始数据”
     const initialItems: LedgerItem[] = [];
 
     this.ledgers = initialLedgers;
@@ -187,10 +187,10 @@ export class LedgerService {
 
         this.notifyListeners();
         LogBroker.publish("INFO", "LedgerService", `【新增台账】成功新增台账「${normalizedName}」，并关联导入 ${PRESET_LEDGER_MATERIALS.length} 项初始采购原料`);
-        
+
         // 双向同步：通知备餐系统添加人群
         PrepReportService.syncGroupFromLedger(newId, normalizedName);
-        
+
         resolve(newLedger);
       }, LEDGER_API_LATENCY);
     });
@@ -233,10 +233,10 @@ export class LedgerService {
         this.ledgers = updatedLedgers;
         this.notifyListeners();
         LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${normalizedName}」`);
-        
+
         // 双向同步：通知备餐系统修改人群
         PrepReportService.syncGroupFromLedger(id, normalizedName);
-        
+
         resolve();
       }, LEDGER_API_LATENCY);
     });
@@ -261,10 +261,10 @@ export class LedgerService {
 
         this.notifyListeners();
         LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger.name}」以及其下的所有原料出入库及库存账单`);
-        
+
         // 双向同步：通知备餐系统移出人群
         PrepReportService.syncDeleteGroupFromLedger(id);
-        
+
         resolve();
       }, LEDGER_API_LATENCY);
     });
@@ -286,10 +286,10 @@ export class LedgerService {
         name,
         createdAt: new Date().toISOString()
       };
-      
+
       // 新建一级人群对应台账时，不要有默认采购原料项目，直接设为空，满足“不要有默认记录，不要显示任何原料”
       const newItems: LedgerItem[] = [];
-      
+
       this.ledgers = [...this.ledgers, newLedger];
       this.ledgerItems = [...this.ledgerItems, ...newItems];
       this.notifyListeners();
@@ -495,10 +495,10 @@ export class LedgerService {
         }
 
         const item = this.ledgerItems[itemIndex];
-        
+
         // 深度复制并克隆 dailyRecords 属性
         const updatedDailyRecords = { ...item.dailyRecords };
-        
+
         // 初始化或获取原有记录
         const oldRecord: DailyStockRecord = updatedDailyRecords[dateStr] || {
           inQuantity: 0,
@@ -519,16 +519,16 @@ export class LedgerService {
         mergedRecord.inPrice = Math.max(0, mergedRecord.inPrice ?? 0);
         mergedRecord.inAmount = Math.round(mergedRecord.inQuantity * mergedRecord.inPrice * 100) / 100;
         mergedRecord.outQuantity = Math.max(0, mergedRecord.outQuantity ?? 0);
-        
+
         if (mergedRecord.note !== undefined) {
           mergedRecord.note = mergedRecord.note.trim();
         }
 
         // 清理空记录以节省空间
-        const hasData = 
-          mergedRecord.inQuantity > 0 || 
-          mergedRecord.inPrice > 0 || 
-          mergedRecord.outQuantity > 0 || 
+        const hasData =
+          mergedRecord.inQuantity > 0 ||
+          mergedRecord.inPrice > 0 ||
+          mergedRecord.outQuantity > 0 ||
           (mergedRecord.note && mergedRecord.note.trim()) ||
           (mergedRecord.certification && mergedRecord.certification.trim()) ||
           (mergedRecord.sensoryProperty && mergedRecord.sensoryProperty.trim()) ||
