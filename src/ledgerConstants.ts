@@ -189,6 +189,26 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   /**
    * 出库单表格至少要保证的最少行数（不足时以空行填充）
    */
-  minPrintRows: 25
+  minPrintRows: 25,
+
+  /**
+   * @description 出库单打印的字体家族设置（宋体）
+   */
+  outDocFontFamily: "SimSun, '宋体', serif",
+
+  /**
+   * @description 出库单表格内容字号大小
+   */
+  outDocContentFontSize: "12px",
+
+  /**
+   * @description 出库单标题中“出库单”字号大小
+   */
+  outDocTitleFontSize: "18px",
+
+  /**
+   * @description 出库单标题中括号部分的字号大小
+   */
+  outDocSubTitleFontSize: "14px"
 };
 
