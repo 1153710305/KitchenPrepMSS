@@ -13,7 +13,7 @@ interface AdminGroupsTabProps {
 }
 
 export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
-  const [groups, setGroups] = useState<DynamicGroup[]>(() => PrepReportService.getGroups());
+  const [groups, setGroups] = useState<DynamicGroup[]>(() => PrepReportService.getActiveGroups());
   
   // Form states
   const [groupKeyInput, setGroupKeyInput] = useState<string>("");
@@ -45,7 +45,7 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
         await PrepReportService.addDynamicGroup(key, label);
       }
 
-      const freshGroups = PrepReportService.getGroups();
+      const freshGroups = PrepReportService.getActiveGroups();
       setGroups(freshGroups);
       setGroupKeyInput("");
       setGroupLabelInput("");
@@ -67,7 +67,7 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
     if (window.confirm(`确定要删除人群标签「${key}」吗？\n警告：删除后该人群对应的备餐数据将无法映射，关联的明细项目将失去父节点分类！`)) {
       try {
         await PrepReportService.deleteDynamicGroup(key);
-        const freshGroups = PrepReportService.getGroups();
+        const freshGroups = PrepReportService.getActiveGroups();
         setGroups(freshGroups);
         if (editingGroupKey === key) {
           setEditingGroupKey(null);

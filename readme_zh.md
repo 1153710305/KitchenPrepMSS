@@ -541,3 +541,8 @@ pm2 startup
   3. **极致性能效果**：
      首屏加载的主 JS 包体积从 **1,292.87 kB** 直降到 **111.03 kB**（缩减 91.4%），配合浏览器长效缓存，部署在服务器上时的首次进入页面耗时将呈数量级减少。
 
+### 2026-07-01 - [V5.8.1] 修复管理后台添加人群页面的 getGroups 运行时异常
+- **修复**：
+  1. 修复了 [AdminGroupsTab.tsx] 中调用不存在方法 `PrepReportService.getGroups()` 导致的 TypeError 页面白屏报错；
+  2. 全面将其修正替换为正确的 `PrepReportService.getActiveGroups()` 数据服务接口。
+
