@@ -85,6 +85,26 @@ export function LedgerStyle1Table({
   setEditMaterialUnit,
   setEditMaterialStock,
 }: LedgerStyle1TableProps) {
+  /**
+   * @description 动态计算输入框自适应宽度（防止输入框过窄，随用户打字自适应伸展）
+   */
+  const getInputWidth = (val: any, placeholder?: string, isDate?: boolean) => {
+    if (isDate) return "115px";
+    const valStr = val === undefined || val === null ? "" : String(val);
+    const content = valStr || placeholder || "";
+    let charLen = 0;
+    for (let i = 0; i < content.length; i++) {
+      if (content.charCodeAt(i) > 127) {
+        charLen += 2;
+      } else {
+        charLen += 1.15;
+      }
+    }
+    const minWidth = placeholder && (placeholder.includes("0") || placeholder.includes("¥")) ? 75 : 105;
+    const calculated = charLen * 7.5 + 20;
+    return `${Math.max(minWidth, calculated)}px`;
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       {/* ===== 多维度筛选工具栏 ===== */}
@@ -340,7 +360,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "0" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { inQuantity: Number(e.target.value) })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        style={{ width: getInputWidth(recordToRender.inQuantity, isRecordingMode ? "0" : "未开启录入") }}
                       />
                       {(() => {
                         const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
@@ -365,7 +386,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "¥0.00" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { inPrice: Number(e.target.value) })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        style={{ width: getInputWidth(recordToRender.inPrice, isRecordingMode ? "¥0.00" : "未开启录入") }}
                       />
                     </td>
 
@@ -377,7 +399,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "0" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { outQuantity: Number(e.target.value) })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded text-right font-mono outline-none"
+                        style={{ width: getInputWidth(recordToRender.outQuantity, isRecordingMode ? "0" : "未开启录入") }}
                       />
                     </td>
 
@@ -389,7 +412,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "已索证" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { certification: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.certification, isRecordingMode ? "已索证" : "未开启录入") }}
                       />
                     </td>
  
@@ -401,7 +425,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "合格/合格率" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { sensoryProperty: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.sensoryProperty, isRecordingMode ? "合格/合格率" : "未开启录入") }}
                       />
                     </td>
  
@@ -413,7 +438,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "经销商地址及名称" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.supplier, isRecordingMode ? "经销商地址及名称" : "未开启录入") }}
                       />
                     </td>
 
@@ -424,7 +450,8 @@ export function LedgerStyle1Table({
                         value={recordToRender.produceDate || ""}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { produceDate: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                        style={{ width: getInputWidth(recordToRender.produceDate, "", true) }}
                         title="生产日期 (选填)"
                       />
                     </td>
@@ -437,7 +464,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "如: 6个月" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { shelfLife: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.shelfLife, isRecordingMode ? "如: 6个月" : "未开启录入") }}
                         title="保质期 (选填)"
                       />
                     </td>
@@ -449,7 +477,8 @@ export function LedgerStyle1Table({
                         value={recordToRender.purchaseDate || selectedDate}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { purchaseDate: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-emerald-400"
+                        style={{ width: getInputWidth(recordToRender.purchaseDate || selectedDate, "", true) }}
                         title="采购入库时间（默认为当日，可手动修改）"
                       />
                     </td>
@@ -461,7 +490,8 @@ export function LedgerStyle1Table({
                         value={recordToRender.outDate || selectedDate}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { outDate: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-indigo-400"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-xs outline-none focus:border-indigo-400"
+                        style={{ width: getInputWidth(recordToRender.outDate || selectedDate, "", true) }}
                         title="出库时间（默认为当日，可手动修改）"
                       />
                     </td>
@@ -474,7 +504,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "采购经办" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { buyer: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.buyer, isRecordingMode ? "采购经办" : "未开启录入") }}
                       />
                     </td>
  
@@ -486,7 +517,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "检验验收" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { inspector: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.inspector, isRecordingMode ? "检验验收" : "未开启录入") }}
                       />
                     </td>
  
@@ -498,7 +530,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "库管签字" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { keeper: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.keeper, isRecordingMode ? "库管签字" : "未开启录入") }}
                       />
                     </td>
 
@@ -510,7 +543,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "出库人" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { outHandler: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.outHandler, isRecordingMode ? "出库人" : "未开启录入") }}
                       />
                     </td>
 
@@ -522,7 +556,8 @@ export function LedgerStyle1Table({
                         placeholder={isRecordingMode ? "接收人" : "未开启录入"}
                         disabled={!isRecordingMode}
                         onChange={(e) => handleDraftCellChange(item.id, { outRecipient: e.target.value })}
-                        className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                        style={{ width: getInputWidth(recordToRender.outRecipient, isRecordingMode ? "接收人" : "未开启录入") }}
                       />
                     </td>
                   </tr>
