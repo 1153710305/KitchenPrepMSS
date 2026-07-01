@@ -4,6 +4,7 @@
  */
 
 import { Ledger, LedgerItem } from "../ledgerTypes.ts";
+import { LEDGER_PRINT_STYLE2_CONFIG } from "../ledgerConstants.ts";
 
 /**
  * @description 单原料日流水打印入参接口
@@ -26,7 +27,7 @@ interface LedgerPrintStyle2Props {
 }
 
 /**
- * @description 【图二】单原料自定义日期段流水卡片打印预览模板组件
+ * @description 【图二】单原料自定义日期段流水卡片打印预览模板组件 (样式二)
  */
 export function LedgerPrintStyle2({
   activeLedger,
@@ -69,11 +70,11 @@ export function LedgerPrintStyle2({
   });
 
   return (
-    <div>
+    <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize, color: "#000" }} className="text-center">
       {/* 1. 大标题居中 */}
       <div className="text-center mb-1">
         <h2 className="text-xl font-black tracking-widest">
-          宾县第二小学食堂食品原材料购销台账
+          {LEDGER_PRINT_STYLE2_CONFIG.titlePrefix}{activeLedger?.name || ""}
         </h2>
       </div>
 
@@ -82,7 +83,7 @@ export function LedgerPrintStyle2({
         <span>日期：（  {style2StartDate} 至 {style2EndDate}  ）</span>
       </div>
 
-      <table className="w-full text-center border-collapse border border-black text-[11px] mb-6" style={{ tableLayout: "fixed" }}>
+      <table className="w-full text-center border-collapse border border-black text-xs mb-6" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: "12%" }} />
           <col style={{ width: "9%" }} />
@@ -141,7 +142,7 @@ export function LedgerPrintStyle2({
               if (!hasActivity || !record) return null;
 
               return (
-                <tr key={dStr} style={{ height: "28px" }}>
+                <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize }}>
                   <td className="border border-black font-mono text-[10px]">{dStr}</td>
                   <td className="border border-black font-mono">{record.inQuantity || ""}</td>
                   <td className="border border-black">{record.buyer || ""}</td>
@@ -163,7 +164,7 @@ export function LedgerPrintStyle2({
               <>
                 {renderedRows}
                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ height: "28px" }}>
+                  <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize }}>
                     {Array.from({ length: 10 }).map((_, j) => (
                       <td key={j} className="border border-black"></td>
                     ))}
