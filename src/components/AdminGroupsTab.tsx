@@ -120,9 +120,13 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
                     : "bg-slate-50 border-slate-100 hover:bg-slate-100/80"
                   }`}
               >
-                <div className="min-w-0">
-                  <span className="font-extrabold text-slate-800 truncate block">{g.label}</span>
-                  <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">标识: {g.key}</span>
+                <div className="flex items-center space-x-3 min-w-0">
+                  {/* 受众分类所带的 Emoji 头像 */}
+                  <span className="text-2xl shrink-0 select-none">{g.emoji || "🏫"}</span>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-slate-800 truncate block">{g.label}</span>
+                    <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">标识: {g.key}</span>
+                  </div>
                 </div>
 
                 <div className="flex items-center space-x-1 shrink-0">
@@ -186,17 +190,17 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1.5">受众图标/头像 Emoji</label>
-              <div className="grid grid-cols-5 gap-1.5 p-1.5 border border-slate-200 rounded-lg bg-slate-50 max-h-[105px] overflow-y-auto scrollbar-thin">
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">受众图标/头像 Emoji</label>
+              <div className="flex items-center gap-1.5 p-1 border border-slate-300 rounded bg-slate-50 h-[38px] overflow-x-auto scrollbar-none whitespace-nowrap">
                 {EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => setGroupEmojiInput(emoji)}
-                    className={`h-8 w-8 flex items-center justify-center text-lg rounded-md transition-all cursor-pointer ${
+                    className={`h-7 w-7 flex items-center justify-center text-base rounded transition-all cursor-pointer shrink-0 ${
                       groupEmojiInput === emoji
-                        ? "bg-teal-500 text-white scale-110 shadow-sm font-bold"
-                        : "bg-white border border-slate-200/60 hover:bg-slate-100/80 text-slate-800"
+                        ? "bg-teal-500 text-white scale-105 shadow-xs font-bold"
+                        : "bg-white border border-slate-200/60 hover:bg-slate-100/85 text-slate-800"
                     }`}
                   >
                     {emoji}
