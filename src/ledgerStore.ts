@@ -33,6 +33,18 @@ export class LedgerService {
   private static ledgerItems: LedgerItem[] = [];
   /** 状态变动侦听器列表 */
   private static changeListeners: LedgerChangeListener[] = [];
+  
+  /** 
+   * @description 台账录入常用辅助人员与供货商字典配置，包含供货商、采购员、检验员、保管员、出库人、接收人 
+   */
+  private static helperDict = {
+    suppliers: ["合作基地直供", "宏发粮油批发", "绿野蔬菜配送", "科尔沁肉业"],
+    buyers: ["张采购", "李采购", "陈采购"],
+    inspectors: ["王检验", "赵检验", "孙检验"],
+    keepers: ["李保管", "钱保管", "周保管"],
+    outHandlers: ["吴发料", "郑发料", "冯发料"],
+    outRecipients: ["赵领料", "孙领料", "马领料"]
+  };
 
   /**
    * @description 订阅台账与原料的状态变更
@@ -72,6 +84,23 @@ export class LedgerService {
     SyncHelper.triggerSyncToServer();
   }
 
+
+
+  /**
+   * @description 获取当前台账录入人员与供货商字典配置列表
+   */
+  public static getHelperDict() {
+    return this.helperDict;
+  }
+
+  /**
+   * @description 更新当前台账录入人员与供货商字典配置列表并广播同步
+   */
+  public static updateHelperDict(dict: typeof LedgerService.helperDict) {
+    this.helperDict = dict;
+    this.notifyListeners();
+  }
+
   /**
    * @description 启动并自检缓存。若没有，则自动生成四个默认种子台账，并导入默认采购原料项目
    */
@@ -93,6 +122,9 @@ export class LedgerService {
           if (serverData && serverData.ledgers && serverData.ledgerItems) {
             this.ledgers = serverData.ledgers;
             this.ledgerItems = serverData.ledgerItems;
+            if (serverData.ledgerHelperDict) {
+              this.helperDict = serverData.ledgerHelperDict;
+            }
             LogBroker.publish("INFO", "LedgerService", "成功从服务器同步载入原料购销台账及原料项目明细");
           } else {
             // 服务器上无台账数据，降级初始化演示台账

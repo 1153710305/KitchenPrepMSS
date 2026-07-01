@@ -11,6 +11,7 @@ import { LogBroker, getDaysInMonth, convertAllGroupsToCsv, matchPinyin } from ".
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
+import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
 import {
   Users,
   Settings,
@@ -78,9 +79,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
   // --- 导航状态 ---
   /** 
-   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'maintenance'代表数据维护 
+   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'maintenance'代表数据维护，'ledger_helpers'代表台账常用字典配置 
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance" | "ledger_helpers">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -462,6 +463,17 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
               </button>
 
               <button
+                onClick={() => setActiveTab("ledger_helpers")}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "ledger_helpers"
+                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
+              >
+                <Settings size={15} className="mr-3 shrink-0" />
+                <span>台账人员与供货商</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab("maintenance")}
                 className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "maintenance"
                   ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
@@ -728,6 +740,11 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 </div>
               </section>
             </div>
+          )}
+
+          {/* 台账常用人员与供货商字典 Tab 页 */}
+          {activeTab === "ledger_helpers" && (
+            <AdminLedgerHelpersTab />
           )}
 
         </main>

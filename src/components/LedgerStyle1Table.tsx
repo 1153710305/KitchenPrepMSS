@@ -6,11 +6,59 @@
 import React from "react";
 import { Search, Filter, X, Trash2 } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
+import { LedgerService } from "../ledgerStore.ts";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { FOOD_CATEGORY_LABELS } from "../constants.ts";
 import { LEDGER_HEADERS } from "../ledgerConstants.ts";
 import { FoodCategory } from "../types.ts";
+
+/**
+ * @description 常用台账字段选择器（支持显示已有的自定义内容）
+ */
+function HelperSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  placeholder,
+  className = "w-28"
+}: {
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  className?: string;
+}) {
+  if (disabled) {
+    return (
+      <input
+        type="text"
+        value={value || ""}
+        placeholder={placeholder}
+        disabled={true}
+        className="bg-slate-50 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none w-full"
+      />
+    );
+  }
+  // 如果值存在但不在字典候选项里，则合并到首位展示以防止已有数值丢失
+  const allOpts = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <select
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      className={`bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs cursor-pointer focus:border-emerald-400 ${className}`}
+    >
+      <option value="">-- 选择 --</option>
+      {allOpts.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 /**
  * @description 感官性状多选气泡组件
@@ -532,14 +580,13 @@ export function LedgerStyle1Table({
  
                     {/* 供货商及地址 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.supplier || ""}
-                        placeholder={isRecordingMode ? "经销商地址及名称" : "未开启录入"}
+                        options={LedgerService.getHelperDict().suppliers}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { supplier: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.supplier, isRecordingMode ? "经销商地址及名称" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { supplier: val })}
+                        placeholder="未开启录入"
+                        className="w-48"
                       />
                     </td>
 
@@ -614,66 +661,61 @@ export function LedgerStyle1Table({
  
                     {/* 采购员 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.buyer || ""}
-                        placeholder={isRecordingMode ? "采购经办" : "未开启录入"}
+                        options={LedgerService.getHelperDict().buyers}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { buyer: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.buyer, isRecordingMode ? "采购经办" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { buyer: val })}
+                        placeholder="未开启录入"
+                        className="w-28"
                       />
                     </td>
  
                     {/* 检验员 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.inspector || ""}
-                        placeholder={isRecordingMode ? "检验验收" : "未开启录入"}
+                        options={LedgerService.getHelperDict().inspectors}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { inspector: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.inspector, isRecordingMode ? "检验验收" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { inspector: val })}
+                        placeholder="未开启录入"
+                        className="w-28"
                       />
                     </td>
  
                     {/* 保管员 */}
                     <td className="px-3 py-2">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.keeper || ""}
-                        placeholder={isRecordingMode ? "库管签字" : "未开启录入"}
+                        options={LedgerService.getHelperDict().keepers}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { keeper: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.keeper, isRecordingMode ? "库管签字" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { keeper: val })}
+                        placeholder="未开启录入"
+                        className="w-28"
                       />
                     </td>
 
                     {/* 发料出库人 */}
                     <td className="px-3 py-2 bg-indigo-50/10">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.outHandler || ""}
-                        placeholder={isRecordingMode ? "出库人" : "未开启录入"}
+                        options={LedgerService.getHelperDict().outHandlers}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { outHandler: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.outHandler, isRecordingMode ? "出库人" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { outHandler: val })}
+                        placeholder="未开启录入"
+                        className="w-28"
                       />
                     </td>
 
                     {/* 领用接收人 */}
                     <td className="px-3 py-2 bg-indigo-50/10">
-                      <input 
-                        type="text"
+                      <HelperSelect
                         value={recordToRender.outRecipient || ""}
-                        placeholder={isRecordingMode ? "接收人" : "未开启录入"}
+                        options={LedgerService.getHelperDict().outRecipients}
                         disabled={!isRecordingMode}
-                        onChange={(e) => handleDraftCellChange(item.id, { outRecipient: e.target.value })}
-                        className="bg-white disabled:bg-slate-50 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
-                        style={{ width: getInputWidth(recordToRender.outRecipient, isRecordingMode ? "接收人" : "未开启录入") }}
+                        onChange={(val) => handleDraftCellChange(item.id, { outRecipient: val })}
+                        placeholder="未开启录入"
+                        className="w-28"
                       />
                     </td>
                   </tr>

@@ -7,6 +7,53 @@ import { Award } from "lucide-react";
 import React from "react";
 import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../ledgerConstants.ts";
+import { LedgerService } from "../ledgerStore.ts";
+
+/**
+ * @description 常用台账字段选择器（样式二专享）
+ */
+function HelperSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  placeholder,
+  className = "w-full"
+}: {
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  className?: string;
+}) {
+  if (disabled) {
+    return (
+      <input
+        type="text"
+        value={value || ""}
+        placeholder={placeholder}
+        disabled={true}
+        className="w-full bg-slate-50/30 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none text-xs"
+      />
+    );
+  }
+  const allOpts = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <select
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      className={`bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs cursor-pointer focus:border-emerald-500 ${className}`}
+    >
+      <option value="">-- 选择 --</option>
+      {allOpts.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 /**
  * @description 感官性状多选气泡组件 (样式二专享)
@@ -288,13 +335,12 @@ export function LedgerStyle2Flow({
                   
                   {/* 采购员 */}
                   <td className="px-2 py-1.5">
-                    <input 
-                      type="text"
+                    <HelperSelect
                       value={recordToRender.buyer || ""}
-                      placeholder={isRowEditable ? "填采购员" : "锁定"}
+                      options={LedgerService.getHelperDict().buyers}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { buyer: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { buyer: val })}
+                      placeholder="锁定"
                     />
                   </td>
 
@@ -349,13 +395,12 @@ export function LedgerStyle2Flow({
 
                   {/* 检验员 */}
                   <td className="px-2 py-1.5">
-                    <input 
-                      type="text"
+                    <HelperSelect
                       value={recordToRender.inspector || ""}
-                      placeholder={isRowEditable ? "填检验员" : "锁定"}
+                      options={LedgerService.getHelperDict().inspectors}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { inspector: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { inspector: val })}
+                      placeholder="锁定"
                     />
                   </td>
 
@@ -378,37 +423,34 @@ export function LedgerStyle2Flow({
 
                   {/* 保管员 */}
                   <td className="px-2 py-1.5">
-                    <input 
-                      type="text"
+                    <HelperSelect
                       value={recordToRender.keeper || ""}
-                      placeholder={isRowEditable ? "保管签字" : "锁定"}
+                      options={LedgerService.getHelperDict().keepers}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { keeper: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { keeper: val })}
+                      placeholder="锁定"
                     />
                   </td>
 
                   {/* 出库人 */}
                   <td className="px-2 py-1.5 bg-indigo-50/5">
-                    <input 
-                      type="text"
+                    <HelperSelect
                       value={recordToRender.outHandler || ""}
-                      placeholder={isRowEditable ? "出库人" : "锁定"}
+                      options={LedgerService.getHelperDict().outHandlers}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { outHandler: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { outHandler: val })}
+                      placeholder="锁定"
                     />
                   </td>
 
                   {/* 接收人 */}
                   <td className="px-2 py-1.5 bg-indigo-50/5">
-                    <input 
-                      type="text"
+                    <HelperSelect
                       value={recordToRender.outRecipient || ""}
-                      placeholder={isRowEditable ? "接收人" : "锁定"}
+                      options={LedgerService.getHelperDict().outRecipients}
                       disabled={!isRowEditable}
-                      onChange={(e) => handleDraftCellChange(activeItem.id, { outRecipient: e.target.value })}
-                      className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { outRecipient: val })}
+                      placeholder="锁定"
                     />
                   </td>
                 </tr>

@@ -185,7 +185,9 @@ export default function App() {
         activeCategories: PrepReportService.getActiveCategories(),
         ledgers: LedgerService.getLedgers(),
         ledgerItems: LedgerService.getLedgerItems(),
-        rawMaterialsDict: RawMaterialsDictService.getItems()
+        rawMaterialsDict: RawMaterialsDictService.getItems(),
+        /** 同步台账常用人员与供货商字典 */
+        ledgerHelperDict: LedgerService.getHelperDict()
       };
     });
 
