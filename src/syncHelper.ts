@@ -35,6 +35,19 @@ export interface BackendData {
  */
 export class SyncHelper {
   /**
+   * @description 全局初始化安全锁，只有在首屏 Promise.all 完美拉取就绪后才允许上传，防止引导时空内存覆盖服务器数据
+   */
+  private static isInitialized = false;
+
+  /**
+   * @description 开启或关闭全局初始化同步锁
+   */
+  public static setInitialized(val: boolean): void {
+    this.isInitialized = val;
+    console.log(`[SYNC HELPER] 全局初始化数据状态锁定已更新为: ${val ? "已就绪(解开限制)" : "未初始化(强力拦截)"}`);
+  }
+
+  /**
    * @description 动态注册的内存数据提取器，用来获取当前全模块最完整的最新内存数据
    */
   private static memoryFetcher: (() => BackendData) | null = null;
@@ -77,6 +90,11 @@ export class SyncHelper {
    * @returns {void}
    */
   public static triggerSyncToServer(customData?: BackendData): void {
+    if (!this.isInitialized) {
+      console.warn("[SYNC HELPER] 系统尚未初始化完成，拦截空内存数据同步云端，保护云端数据安全");
+      return;
+    }
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }

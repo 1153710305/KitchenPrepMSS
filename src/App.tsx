@@ -175,6 +175,7 @@ export default function App() {
         }
 
         setIsLoading(false);
+        SyncHelper.setInitialized(true);
         LogBroker.publish("INFO", "App", "系统已完成备餐、台账以及大字典服务数据模型的全局并行加载初始化");
       }
     }).catch(err => {
