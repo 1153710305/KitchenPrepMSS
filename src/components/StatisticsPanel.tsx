@@ -96,7 +96,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
       });
       return {
         name: `${day}号`,
-        "备菜开支": Math.round(costSum * 100) / 100
+        "备餐开支": Math.round(costSum * 100) / 100
       };
     });
   }, [report.items, days, selectedCategory]);
@@ -169,7 +169,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                         contentStyle={{ backgroundColor: "#1e293b", borderRadius: "12px", border: "none", color: "#fff" }}
                         itemStyle={{ color: "#38bdf8" }}
                       />
-                      <Area type="monotone" dataKey="备菜开支" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSpend)" />
+                      <Area type="monotone" dataKey="备餐开支" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSpend)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -186,7 +186,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-gray-400 block">备菜细分大类总数</span>
+                  <span className="text-[11px] text-gray-400 block">备餐细分大类总数</span>
                   <span className="text-lg font-bold text-gray-800 flex items-center gap-1.5 mt-0.5">
                     <ShoppingBag size={15} className="text-sky-500" />
                     {report.items.length} 个项目
@@ -194,7 +194,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <span className="text-[11px] text-gray-400 block">单日备菜平均耗资</span>
+                  <span className="text-[11px] text-gray-400 block">单日备餐平均耗资</span>
                   <span className="text-lg font-bold text-sky-700 flex items-center gap-0.5 mt-0.5">
                     ¥{(Math.round((totalMonthlySpend / days.length) * 100) / 100).toFixed(2)}
                   </span>

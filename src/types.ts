@@ -39,7 +39,7 @@ export enum FoodCategory {
  * @description 每日具体配餐录入项
  */
 export interface DailyEntry {
-  /** 备菜数量 */
+  /** 备餐数量 */
   quantity: number;
   /** 单价 (元) */
   price: number;
@@ -77,7 +77,7 @@ export interface GroupMonthlyReport {
   year: number;
   /** 月度 (1-12) */
   month: number;
-  /** 细分备菜明细行列表 */
+  /** 细分备餐明细行列表 */
   items: PreparedItem[];
   /** 每日就餐人数 (1号到31号日度数据)，以天数 "1" 到 "31" 作为 Key */
   dailyHeadcount?: Record<string, number>;

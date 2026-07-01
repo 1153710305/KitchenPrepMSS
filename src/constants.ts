@@ -82,7 +82,7 @@ export const LOGIN_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD || "guest";
  * @description 界面通用的中文文本字面量硬编码，集中管理方便修改
  */
 export const UI_TEXT = {
-  systemTitle: "食堂备菜管理和统计系统",
+  systemTitle: "食堂备餐管理和统计系统",
   systemSubtitle: "智能高效的日度矩阵记账及膳食营养辅助决策面板",
   exportBtn: "导出月度数据 (JSON)",
   importBtn: "导入备份数据",
@@ -114,7 +114,7 @@ export const UI_TEXT = {
   aiAssistantTitle: "AI 食堂精细化膳食与成本规划师",
   aiToggleClassic: "传统常规分析",
   aiToggleStream: "极速对话流式模式",
-  aiAnalyzeBtn: "运行 AI 智能备菜审计与配餐预测",
+  aiAnalyzeBtn: "运行 AI 智能备餐审计与配餐预测",
   aiPromptHelper: "智能提示词方案",
   sysLogTitle: "管理端实时进程与性能监控日志",
   logClearBtn: "清空控制台日志"

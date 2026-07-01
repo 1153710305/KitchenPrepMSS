@@ -33,7 +33,7 @@ export function getDatesBetween(startDate: string, endDate: string): string[] {
   const start = new Date(startDate);
   const end = new Date(endDate);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return dates;
-  
+
   const current = new Date(start);
   while (current <= end) {
     const y = current.getFullYear();
@@ -48,8 +48,8 @@ export function getDatesBetween(startDate: string, endDate: string): string[] {
 import { pinyin } from "pinyin-pro";
 
 /**
- * @description 计算单条备菜行内指定天数的金额
- * @param quantity 备菜数量
+ * @description 计算单条备餐行内指定天数的金额
+ * @param quantity 备餐数量
  * @param price 单价 (元)
  * @returns 计算后的实收金额，精度保留 2 位小数
  */
@@ -68,10 +68,10 @@ export function calculateEntryAmount(quantity: number, price: number): number {
 export function matchPinyin(targetText: string, querySearch: string): boolean {
   const query = querySearch.trim().toLowerCase();
   if (!query) return true;
-  
+
   const text = targetText.trim().toLowerCase();
   if (text.includes(query)) return true;
-  
+
   try {
     // 获取无音调全拼，如 "da mi"
     const fullPinyin = pinyin(text, { toneType: "none" }).toLowerCase().replace(/\s+/g, "");
@@ -84,13 +84,13 @@ export function matchPinyin(targetText: string, querySearch: string): boolean {
     // 降级防呆
     return text.includes(query);
   }
-  
+
   return false;
 }
 
 /**
- * @description 获取某一行备菜明细行当月的所有天数的总数量与总金额
- * @param item 细分品类备菜实体
+ * @description 获取某一行备餐明细行当月的所有天数的总数量与总金额
+ * @param item 细分品类备餐实体
  * @param days 当月包含的所有天数
  * @returns 包含总数量(totalQty) 和总金额(totalCost) 两个统计属性的对象
  */
@@ -135,7 +135,7 @@ export function createSystemLog(
     message,
     details
   };
-  
+
   // 同时输出在浏览器的控制台，方便排查
   if (level === "ERROR") {
     console.error(`[${log.timestamp}] [${module}] ${message}`, details || "");
@@ -144,7 +144,7 @@ export function createSystemLog(
   } else {
     console.log(`[${log.timestamp}] [${module}] ${message}`);
   }
-  
+
   return log;
 }
 
@@ -179,7 +179,7 @@ export class LogBroker {
     details?: string
   ): void {
     const log = createSystemLog(level, module, message, details);
-    
+
     // 异步将日志上传至后端写入本地文件
     fetch("/api/log", {
       method: "POST",
@@ -210,13 +210,13 @@ export function validateImportedReport(rawJsonData: string): any {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("导入的数据必须是有效的 JSON 对象。");
   }
-  
+
   // 验证必填字段
   if (Array.isArray(parsed)) {
     // 如果是旧报表数组格式，检验每一项
     parsed.forEach((item, index) => {
       if (!item.id || !item.name || !item.category || !item.targetGroup) {
-        throw new Error(`数组索引 ${index} 处的备菜条目缺少核心必填字段。`);
+        throw new Error(`数组索引 ${index} 处的备餐条目缺少核心必填字段。`);
       }
     });
   } else if (parsed.reports || parsed.items) {
@@ -228,8 +228,8 @@ export function validateImportedReport(rawJsonData: string): any {
 }
 
 /**
- * @description 将指定品类的细分备菜矩阵导出为标准的 Excel 可兼容 CSV 文本格式
- * @param items 该类目的备菜行列表
+ * @description 将指定品类的细分备餐矩阵导出为标准的 Excel 可兼容 CSV 文本格式
+ * @param items 该类目的备餐行列表
  * @param days 当前月份的所有天数 (如 1号 到 31号)
  * @param categoryLabel 品类中文名称
  * @returns 导出用的 CSV 纯文本
@@ -241,7 +241,7 @@ export function convertItemsToCsv(
 ): string {
   // UTF-8 BOM，防止 Excel 打开中文乱码
   let csvContent = "\uFEFF";
-  
+
   // 第一行头：品类与对应天
   const header1 = ["品类/日期"];
   days.forEach((day) => {
@@ -249,7 +249,7 @@ export function convertItemsToCsv(
   });
   header1.push("总数量", "总金额");
   csvContent += header1.map((col) => `"${col}"`).join(",") + "\n";
-  
+
   // 第二行头：数量、单价、金额
   const header2 = ["细分项目名称"];
   days.forEach(() => {
@@ -257,13 +257,13 @@ export function convertItemsToCsv(
   });
   header2.push("月累加", "月总金额(元)");
   csvContent += header2.map((col) => `"${col}"`).join(",") + "\n";
-  
+
   // 填充正文内容行
   items.forEach((item) => {
     const row = [`${item.name} (${item.unit})`];
     let rowQtySum = 0;
     let rowCostSum = 0;
-    
+
     days.forEach((day) => {
       const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
       row.push(
@@ -274,14 +274,14 @@ export function convertItemsToCsv(
       rowQtySum += entry.quantity || 0;
       rowCostSum += entry.amount || 0;
     });
-    
+
     row.push(
       String(Math.round(rowQtySum * 100) / 100),
       String(Math.round(rowCostSum * 100) / 100)
     );
     csvContent += row.map((col) => `"${col.replace(/"/g, '""')}"`).join(",") + "\n";
   });
-  
+
   return csvContent;
 }
 
@@ -301,7 +301,7 @@ export function convertAllGroupsToCsv(
 ): string {
   // UTF-8 BOM，防止 Excel 打开中文乱码
   let csvContent = "\uFEFF";
-  
+
   // 第一行表头：基础信息与对应的每一天号数
   const header1 = ["餐卡人群", "食材大类", "细分项目名称", "单位"];
   days.forEach((day) => {
@@ -309,7 +309,7 @@ export function convertAllGroupsToCsv(
   });
   header1.push("全月累加数量", "全月总金额(元)");
   csvContent += header1.map((col) => `"${col}"`).join(",") + "\n";
-  
+
   // 第二行表头：具体属性列指示
   const header2 = ["", "", "", ""];
   days.forEach(() => {
@@ -317,7 +317,7 @@ export function convertAllGroupsToCsv(
   });
   header2.push("数量", "金额(元)");
   csvContent += header2.map((col) => `"${col}"`).join(",") + "\n";
-  
+
   // 按照活跃的人设客群 + 食材大类 逐级排序填充内容行
   activeGroups.forEach((group) => {
     const report = reports.find((r) => r.targetGroup === group.key);
@@ -325,7 +325,7 @@ export function convertAllGroupsToCsv(
 
     activeCategories.forEach((cat) => {
       const catItems = report.items.filter((item) => item.category === cat.key);
-      
+
       catItems.forEach((item) => {
         const row = [
           group.label, // 餐卡人群
@@ -333,10 +333,10 @@ export function convertAllGroupsToCsv(
           item.name,   // 食材名称
           item.unit    // 单位
         ];
-        
+
         let rowQtySum = 0;
         let rowCostSum = 0;
-        
+
         days.forEach((day) => {
           const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
           row.push(
@@ -347,17 +347,17 @@ export function convertAllGroupsToCsv(
           rowQtySum += entry.quantity || 0;
           rowCostSum += entry.amount || 0;
         });
-        
+
         row.push(
           String(Math.round(rowQtySum * 100) / 100),
           String(Math.round(rowCostSum * 100) / 100)
         );
-        
+
         csvContent += row.map((col) => `"${col.replace(/"/g, '""')}"`).join(",") + "\n";
       });
     });
   });
-  
+
   return csvContent;
 }
 

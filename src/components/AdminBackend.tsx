@@ -380,7 +380,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `食堂全餐位客群备菜账目月度汇总明细_${year}年${month}月_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `食堂全餐位客群备餐账目月度汇总明细_${year}年${month}月_${new Date().toISOString().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
       LogBroker.publish("INFO", "AdminBackend", `配置后台：成功将所有餐卡客群的日度记账矩阵汇总打包导出为 Excel CSV。`);
@@ -633,7 +633,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                   <button
                     onClick={handleExportAllGroupsCsv}
                     className="flex flex-col items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="一键将所有餐卡人群在所有类目下的31日备菜矩阵打包导出为一份Excel兼容的CSV大宽表"
+                    title="一键将所有餐卡人群在所有类目下的31日备餐矩阵打包导出为一份Excel兼容的CSV大宽表"
                   >
                     <div className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
                       <FileSpreadsheet size={18} />

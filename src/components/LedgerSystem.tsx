@@ -194,15 +194,39 @@ export function LedgerSystem() {
     return ledgers.find((l) => l.id === activeLedgerId) || null;
   }, [ledgers, activeLedgerId]);
 
-  /** 过滤出属于当前选中台账的采购原料项目（全量，供录入操作使用，且校验必须存在于大字典中）*/
+  /** 过滤并整合出当前选中台账应该显示的采购原料项目（非录入模式下仅展示台账已持有的正式原料，录入模式下默认平铺所有字典原料以直接编辑）*/
   const currentLedgerItems = useMemo(() => {
     const dictItems = RawMaterialsDictService.getItems();
-    return ledgerItems.filter((item) => {
-      // 安全校验：原料项目必须在原料大底库中存在，防止已注销的原料脏数据影响出入库录入
+    // 找出已保存在数据库本台账下的正式原料
+    const dbItems = ledgerItems.filter((item) => {
       const exists = dictItems.some((d) => d.name === item.name);
       return item.ledgerId === activeLedgerId && exists;
     });
-  }, [ledgerItems, activeLedgerId]);
+
+    // 如果非录入模式，则保持只展示正式存在的原料
+    if (!isRecordingMode) {
+      return dbItems;
+    }
+
+    const dbItemsMap = new Map(dbItems.map((item) => [item.name, item]));
+
+    // 录入模式下，动态合并已有的和临时的（带 temp_ 前缀 ID）以实现平铺所有大字典原料采购项
+    return dictItems.map((dictItem) => {
+      if (dbItemsMap.has(dictItem.name)) {
+        return dbItemsMap.get(dictItem.name)!;
+      }
+      return {
+        id: `temp_${dictItem.name}`,
+        ledgerId: activeLedgerId,
+        name: dictItem.name,
+        unit: dictItem.unit,
+        spec: dictItem.remark || "",
+        initialStock: 0,
+        currentStock: 0,
+        dailyRecords: {}
+      } as LedgerItem;
+    });
+  }, [ledgerItems, activeLedgerId, isRecordingMode]);
 
   /**
    * 叠加所有筛选条件后的展示项目列表（仅供样式一渲染，不参与录入逻辑）
@@ -529,13 +553,23 @@ export function LedgerSystem() {
         console.error("加载台账缓存失败:", err);
       }
     } else {
-      // 否则从当前已存的 dailyRecords 中读取数据作为初始草稿
-      currentLedgerItems.forEach((item) => {
-        const record = item.dailyRecords[selectedDate];
+      // 否则从当前已存的 dailyRecords 中读取数据作为初始草稿（使用全字典原料，方便录入时默认全部呈现）
+      const dictItems = RawMaterialsDictService.getItems();
+      const dbItemsMap = new Map(
+        ledgerItems
+          .filter((item) => item.ledgerId === activeLedgerId)
+          .map((item) => [item.name, item])
+      );
+
+      dictItems.forEach((dictItem) => {
+        const dbItem = dbItemsMap.get(dictItem.name);
+        const record = dbItem?.dailyRecords[selectedDate];
+        const itemId = dbItem ? dbItem.id : `temp_${dictItem.name}`;
+        
         if (record) {
-          initialDraft[item.id] = { ...record };
+          initialDraft[itemId] = { ...record };
         } else {
-          initialDraft[item.id] = {
+          initialDraft[itemId] = {
             inQuantity: 0,
             inPrice: 0,
             inAmount: 0,
@@ -583,10 +617,10 @@ export function LedgerSystem() {
       }
       // 自动计算换算比例对应的换算后单位数量数值（如袋数*50）
       if (updatedRecord.inQuantity !== undefined) {
-        // 根据 itemId 找出对应的原料采购项
-        const item = ledgerItems.find((i) => i.id === itemId);
-        if (item) {
-          const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
+        // 直接从 itemId 或已有的 items 中分析出原料名字，支持 temp_ 临时前缀原料
+        const rawName = itemId.startsWith("temp_") ? itemId.replace("temp_", "") : (ledgerItems.find(i => i.id === itemId)?.name || "");
+        if (rawName) {
+          const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === rawName);
           if (dictItem && dictItem.conversionRatio) {
             updatedRecord.conversionUnitQuantity = Number((updatedRecord.inQuantity * dictItem.conversionRatio).toFixed(2));
           } else {
@@ -605,14 +639,55 @@ export function LedgerSystem() {
 
   /**
    * @description 确认提交并同步数据，保存至数据库并清空本地 LocalStorage 缓存
+   * 如果编辑的原料为临时原料（temp_），且用户填写的该原料记录有至少一条有效数据，则先将其正式安全地添加到该台账中再保存记录
    */
   const handleConfirmRecording = async () => {
     try {
       (window as any).__setGlobalLoading?.("正在向服务端同步并写入今日采购及出入库台账，请稍候...");
-      // 遍历所有项目，调用 LedgerService.updateDailyRecord 批量持久化保存
-      const promises = Object.entries(draftRecords).map(([itemId, record]) => {
-        return LedgerService.updateDailyRecord(itemId, selectedDate, record);
-      });
+      
+      const promises: Promise<void>[] = [];
+
+      // 验证记录是否含有至少一项有效数据值（不为空且不为0）
+      const hasAtLeastOneContent = (rec: DailyStockRecord) => {
+        return (
+          (rec.inQuantity !== undefined && rec.inQuantity > 0) ||
+          (rec.outQuantity !== undefined && rec.outQuantity > 0) ||
+          !!rec.note?.trim() ||
+          !!rec.certification?.trim() ||
+          !!rec.sensoryProperty?.trim() ||
+          !!rec.supplier?.trim() ||
+          !!rec.buyer?.trim() ||
+          !!rec.inspector?.trim() ||
+          !!rec.keeper?.trim() ||
+          !!rec.outHandler?.trim() ||
+          !!rec.outRecipient?.trim()
+        );
+      };
+
+      // 遍历所有项目
+      for (const [itemId, record] of Object.entries(draftRecords)) {
+        if (itemId.startsWith("temp_")) {
+          // 如果是有编辑记录的临时原料，需先添加到本台账下
+          if (hasAtLeastOneContent(record)) {
+            const rawName = itemId.replace("temp_", "");
+            const dictItem = RawMaterialsDictService.getItems().find(d => d.name === rawName);
+            if (dictItem) {
+              const newItem = await LedgerService.addLedgerItem(
+                activeLedgerId,
+                dictItem.name,
+                dictItem.unit,
+                dictItem.remark || "",
+                0
+              );
+              // 使用真实新生成的原料 ID 更新记录
+              promises.push(LedgerService.updateDailyRecord(newItem.id, selectedDate, record));
+            }
+          }
+        } else {
+          // 已经是数据库中正式存在的原料，直接更新
+          promises.push(LedgerService.updateDailyRecord(itemId, selectedDate, record));
+        }
+      }
 
       await Promise.all(promises);
 

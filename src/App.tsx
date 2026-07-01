@@ -384,8 +384,8 @@ export default function App() {
    * @description 单元格数值变动，通过底层Service无卡顿保存并更新内存状态物
    * @param itemId 行食材ID标识
    * @param day 日索引("1"-"31")
-   * @param quantity 备菜数量数值
-   * @param price 备菜单价值
+   * @param quantity 备餐数量数值
+   * @param price 备餐单价值
    */
   const handleCellUpdate = (itemId: string, day: string, quantity: number, price: number) => {
     // 针对高强度记账性能进行了全流程非阻塞优化：单元格细节输入采用 TableGrid onBlur 机制打印操作日志
@@ -646,7 +646,7 @@ export default function App() {
               <Lock className="text-white" size={24} />
             </div>
             <h2 className="text-lg md:text-xl font-black text-white tracking-tight pt-2">
-              食堂备菜管理与统计系统
+              食堂用餐服务管理系统
             </h2>
             <p className="text-xs text-slate-400">
               智能高效的日度矩阵记账及膳食营养辅助决策面板
@@ -737,7 +737,7 @@ export default function App() {
 
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded flex items-center justify-center font-extrabold text-base sm:text-lg text-white shrink-0">K</div>
           <h1 className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold tracking-tight truncate">
-            食堂备菜管理系统 <span className="hidden md:inline text-slate-400 font-normal text-xs sm:text-sm ml-2">v2.5</span>
+            食堂用餐服务管理系统 <span className="hidden md:inline text-slate-400 font-normal text-xs sm:text-sm ml-2">v2.5</span>
           </h1>
         </div>
 

@@ -14,7 +14,7 @@ import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { LedgerService } from "../ledgerStore.ts";
 
 /**
- * @description 备菜网格组件的输入参数协议
+ * @description 备餐网格组件的输入参数协议
  */
 interface TableGridProps {
   /** 当前选定聚焦的餐类人群报告 */
@@ -679,10 +679,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
                         key={`focus-btn-${day}`}
                         onClick={() => setFocusDay(day)}
                         className={`px-3.5 py-2 shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${isSelected
-                            ? `${activeTheme.primaryBg} text-white border-transparent shadow-md`
-                            : hasDataOnDay
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
+                          ? `${activeTheme.primaryBg} text-white border-transparent shadow-md`
+                          : hasDataOnDay
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
                           }`}
                       >
                         <div className="text-[10px] opacity-75 font-normal">周天</div>

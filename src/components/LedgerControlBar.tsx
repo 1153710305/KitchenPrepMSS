@@ -12,7 +12,6 @@ import {
   Printer 
 } from "lucide-react";
 import { LedgerItem } from "../ledgerTypes.ts";
-import { LedgerAddMaterialInlineForm } from "./LedgerAddMaterialInlineForm.tsx";
 
 interface LedgerControlBarProps {
   activeTab: "entry" | "invoice";
@@ -127,19 +126,8 @@ export function LedgerControlBar({
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200/80">
         {activeTab === "entry" ? (
           <div className="flex flex-wrap items-center justify-between w-full gap-3">
-            {/* 左侧：原料新增动作与辅助筛选 */}
+            {/* 左侧：辅助筛选 */}
             <div className="flex flex-wrap items-center gap-3">
-              <LedgerAddMaterialInlineForm
-                activeLedgerId={activeLedgerId}
-                newMaterialName={newMaterialName}
-                setNewMaterialName={setNewMaterialName}
-                addMaterialSearchQuery={addMaterialSearchQuery}
-                setAddMaterialSearchQuery={setAddMaterialSearchQuery}
-                isAddDropdownOpen={isAddDropdownOpen}
-                setIsAddDropdownOpen={setIsAddDropdownOpen}
-                setSaveToast={setSaveToast}
-                triggerError={triggerError}
-              />
 
               {ledgerStyle === "style2" && currentLedgerItems.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 text-xs">
