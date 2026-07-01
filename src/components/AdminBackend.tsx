@@ -294,8 +294,11 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       "安全核销：清空当月记账数据",
       "🚨 警告：该操作将清空全人群、全餐饮分类下共计31天的全部日度记账单元格数值（用料用量、参考单价、计算总价均物理归零），保留食材和客群名录骨架。此操作不可逆，确定继续？",
       () => {
+        (window as any).__setGlobalLoading?.("正在核销清空当月所有客群记账底数据，请稍候...");
         PrepReportService.clearAllMonthlyCells().then(() => {
           LogBroker.publish("WARN", "AdminBackend", "已完成底册各类别极速记账单元格全清置零。");
+        }).finally(() => {
+          (window as any).__setGlobalLoading?.(null);
         });
       },
       "danger"
@@ -310,9 +313,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       "出厂复位：重新恢复演示种子",
       "您确定要执行系统复位并导入示例数据吗？这会抹除您当前建立的所有客群标签、大类分类及所有自定义录入，并重新装载预设的标准中式后厨演示人设与各品类示范月度底账！",
       () => {
+        (window as any).__setGlobalLoading?.("正在出厂复位并装载系统预设演示种子数据，请稍候...");
         PrepReportService.factoryReset().then((data) => {
           onResetToSeeds(data);
           LogBroker.publish("INFO", "AdminBackend", "配置后台：全局销毁本地缓存并重绘了出厂预置种子。");
+        }).finally(() => {
+          (window as any).__setGlobalLoading?.(null);
         });
       },
       "warn"
@@ -327,9 +333,12 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
       "安全核销：清空购销台账数据",
       "🚨 警告：该操作将物理清除整个原料购销库存系统下的所有台账、采购原料采购项目、以及所有的历史出入库与当前库存数据，使台账全库归零！此操作不可逆，确定继续？",
       () => {
+        (window as any).__setGlobalLoading?.("正在核销并清除台账购销与库存全库数据，请稍候...");
         LedgerService.clearAllLedgerData().then(() => {
           setConfirmModal((prev) => ({ ...prev, isOpen: false }));
           LogBroker.publish("WARN", "AdminBackend", "已完成购销库存台账的物理清空全库操作。");
+        }).finally(() => {
+          (window as any).__setGlobalLoading?.(null);
         });
       },
       "danger"

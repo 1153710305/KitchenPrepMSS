@@ -608,6 +608,7 @@ export function LedgerSystem() {
    */
   const handleConfirmRecording = async () => {
     try {
+      (window as any).__setGlobalLoading?.("正在向服务端同步并写入今日采购及出入库台账，请稍候...");
       // 遍历所有项目，调用 LedgerService.updateDailyRecord 批量持久化保存
       const promises = Object.entries(draftRecords).map(([itemId, record]) => {
         return LedgerService.updateDailyRecord(itemId, selectedDate, record);
@@ -628,6 +629,8 @@ export function LedgerSystem() {
     } catch (err: any) {
       setErrorMessage(err.message || "批量保存台账记录失败");
       setTimeout(() => setErrorMessage(null), 3000);
+    } finally {
+      (window as any).__setGlobalLoading?.(null);
     }
   };
 

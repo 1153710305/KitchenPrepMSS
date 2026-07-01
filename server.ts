@@ -479,8 +479,13 @@ app.post("/api/gemini/analyze", async (req, res): Promise<any> => {
  */
 app.get("/api/storage/load", async (req, res) => {
   try {
+    const localPath = (StorageService as any).localDbPath;
+    const isFirstBoot = StorageService.storageType === "local" ? !fs.existsSync(localPath) : false;
     const data = await StorageService.load();
-    res.json(data);
+    res.json({
+      ...data,
+      isFirstBoot
+    });
   } catch (err: any) {
     console.error("[API LOAD ERROR] 读取数据失败:", err);
     res.status(500).json({ error: "读取存储数据失败: " + err.message });

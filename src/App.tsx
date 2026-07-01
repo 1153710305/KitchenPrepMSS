@@ -41,6 +41,19 @@ import {
 export default function App() {
   // ================= 状态声明部分 =================
 
+  /** 全局耗时等待锁定提示文本，若为 null 则不锁屏 */
+  const [globalLoadingText, setGlobalLoadingText] = useState<string | null>(null);
+
+  // 挂载全局 Loading 辅助器，使非 Context 组件、后台、台账均可秒级调用锁屏防呆
+  useEffect(() => {
+    (window as any).__setGlobalLoading = (text: string | null) => {
+      setGlobalLoadingText(text);
+    };
+    return () => {
+      (window as any).__setGlobalLoading = undefined;
+    };
+  }, []);
+
   /** 当前加载好的月度多客群报表数组 */
   const [reports, setReports] = useState<GroupMonthlyReport[]>([]);
   /** 当前激活聚焦决策的一级餐位人群唯一标识Key，默认 TEACHER */
@@ -155,6 +168,13 @@ export default function App() {
       SyncHelper.loadFromServer()
     ]).then(([prepData, ledgerData, serverData]) => {
       if (active) {
+        // 如果是系统初次启动且 data 目录下没有物理 db.json 数据，清空浏览器本地残留缓存，确保数据完全一致
+        if (serverData && (serverData as any).isFirstBoot) {
+          console.warn("[SECURITY CLEAR] 监测到系统首航初次启动，强力清洗浏览器旧版缓存，确保与服务器种子一致");
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+
         setReports(prepData);
         setLedgerItemsList(ledgerData.items);
         
@@ -1103,6 +1123,20 @@ export default function App() {
             <InventoryPanel onClose={() => setIsInventoryOpen(false)} />
           </ErrorBoundary>
         </Suspense>
+      )}
+
+      {/* 全局锁定遮罩，防止耗时异步期间用户多重误触操作 */}
+      {globalLoadingText && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex flex-col items-center justify-center space-y-4 select-none cursor-wait">
+          <div className="bg-white/95 border border-slate-200/50 p-8 rounded-2xl max-w-sm w-full mx-4 shadow-2xl flex flex-col items-center space-y-4">
+            <div className="relative flex items-center justify-center">
+              <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
+              <span className="absolute text-[10px] font-black text-emerald-700 animate-pulse">KPMSS</span>
+            </div>
+            <p className="text-xs font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
+            <span className="text-[10px] text-slate-400 font-medium text-center">系统正在处理，此期间已锁定避免误操作，请稍候...</span>
+          </div>
+        </div>
       )}
     </div>
   );

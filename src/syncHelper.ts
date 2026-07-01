@@ -72,9 +72,11 @@ export class SyncHelper {
       }
       const data: BackendData = await response.json();
       
-      // 如果后端返回了空对象或无效数据，直接返回 null 以让本地使用预设种子
-      if (!data || Object.keys(data).length === 0) {
-        return null;
+      if (!data) return null;
+      // 过滤掉只有 isFirstBoot 而无其他数据属性的空状态壳，使其能在首航返回 null 并加载本地默认种子
+      const hasRealPayload = Object.keys(data).some(k => k !== "isFirstBoot");
+      if (!hasRealPayload) {
+        return { isFirstBoot: (data as any).isFirstBoot } as any;
       }
 
       return data;
