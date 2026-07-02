@@ -21,6 +21,7 @@ import { LedgerAddMaterialModal } from "./LedgerAddMaterialModal.tsx";
 import { LedgerPrintModal } from "./LedgerPrintModal.tsx";
 import { LedgerSidebar } from "./LedgerSidebar.tsx";
 import { LedgerControlBar } from "./LedgerControlBar.tsx";
+import { useLedgerData } from "../../hooks/useLedgerData.ts";
 import {
   Calendar,
   AlertCircle,
@@ -34,13 +35,10 @@ import {
  */
 export function LedgerSystem() {
   // ================= 状态声明部分 =================
-  
-  /** 系统中所有的台账列表 */
-  const [ledgers, setLedgers] = useState<Ledger[]>([]);
-  /** 所有的采购原料项目列表 */
-  const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([]);
-  /** 当前选中的台账唯一标识ID */
-  const [activeLedgerId, setActiveLedgerId] = useState<string>("");
+
+  // 台账列表、原料项目列表及当前选中台账ID的加载与订阅逻辑，统一由 useLedgerData 提供
+  const { ledgers, ledgerItems, activeLedgerId, setActiveLedgerId } = useLedgerData();
+
   /** 当前选中的台账展现样式，style1总表(日清单)，style2单原料流水(月卡片) */
   const [ledgerStyle, setLedgerStyle] = useState<"style1" | "style2">("style1");
   /** 样式二下当前选中聚焦进行流水查看的原料ID */
@@ -138,28 +136,6 @@ export function LedgerSystem() {
   }, [isAddMaterialOpen, editingMaterialId]);
 
   // ================= 数据加载及订阅变动 =================
-
-  useEffect(() => {
-    // 依赖全局统一首屏初始化，此处直接同步内存默认值，避免重复拉取
-    const currentLedgers = LedgerService.getLedgers();
-    if (currentLedgers.length > 0) {
-      setActiveLedgerId((prev) => prev || currentLedgers[0].id);
-    }
-
-    const unsubscribe = LedgerService.subscribe((updatedLedgers, updatedItems) => {
-      setLedgers(updatedLedgers);
-      setLedgerItems(updatedItems);
-      // 使用函数式更新，避免 activeLedgerId 的 stale closure 问题
-      setActiveLedgerId((currentId) => {
-        if (updatedLedgers.length > 0 && !updatedLedgers.some((l) => l.id === currentId)) {
-          return updatedLedgers[0].id;
-        }
-        return currentId;
-      });
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   // 监听全局点击事件，点击外部收起添加原料的联想下拉框
   useEffect(() => {
