@@ -87,15 +87,15 @@ export function LedgerControlBar({
   activeLedgerId
 }: LedgerControlBarProps) {
   return (
-    <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-3 shrink-0 font-sans">
+    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0 font-sans">
       {/* 顶层：页面 Tab 切换 + 核心说明 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center bg-slate-200/60 p-1 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("entry")}
             className={`px-4.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-              activeTab === "entry" 
-                ? "bg-white text-slate-800 shadow-sm" 
+              activeTab === "entry"
+                ? "bg-white text-slate-800 shadow-sm"
                 : "text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -104,8 +104,8 @@ export function LedgerControlBar({
           <button
             onClick={() => setActiveTab("invoice")}
             className={`px-4.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-              activeTab === "invoice" 
-                ? "bg-white text-slate-800 shadow-sm" 
+              activeTab === "invoice"
+                ? "bg-white text-slate-800 shadow-sm"
                 : "text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -127,30 +127,11 @@ export function LedgerControlBar({
       </div>
 
       {/* 下层：基于不同 Tab 展示专享的高逻辑操作台 */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200/80">
+      <div className="flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200/80">
         {activeTab === "entry" ? (
-          <div className="flex flex-wrap items-center justify-between w-full gap-3">
-            {/* 左侧：辅助筛选 */}
-            <div className="flex flex-wrap items-center gap-3">
-
-              {ledgerStyle === "style2" && currentLedgerItems.length > 0 && (
-                <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 text-xs">
-                  <span className="font-bold text-slate-500 shrink-0">采购项目:</span>
-                  <select
-                    value={activeItemId}
-                    onChange={(e) => setActiveItemId(e.target.value)}
-                    className="bg-transparent outline-none cursor-pointer font-bold text-slate-700 max-w-[120px]"
-                  >
-                    {currentLedgerItems.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* 右侧：记账行为控制与登记表打印（层级分明） */}
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 w-full">
+            {/* 记账行为控制：作为最高优先级操作，始终置于最左侧首位，方便用户第一眼定位 */}
+            <div className="flex items-center gap-2 order-1">
               {!isRecordingMode ? (
                 <>
                   <button
@@ -197,6 +178,22 @@ export function LedgerControlBar({
                 </>
               )}
             </div>
+
+            {/* 辅助筛选：仅样式二（单原料日流水）显示当前聚焦的采购项目切换，跟随在主操作按钮之后 */}
+            {ledgerStyle === "style2" && currentLedgerItems.length > 0 && (
+              <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 text-xs order-2">
+                <span className="font-bold text-slate-500 shrink-0">采购项目:</span>
+                <select
+                  value={activeItemId}
+                  onChange={(e) => setActiveItemId(e.target.value)}
+                  className="bg-transparent outline-none cursor-pointer font-bold text-slate-700 max-w-[120px]"
+                >
+                  {currentLedgerItems.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between w-full gap-3">

@@ -120,8 +120,10 @@ export function LedgerStyle1Table({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* ===== 多维度筛选工具栏 ===== */}
+      {/* ===== 多维度筛选工具栏（含样式标签，与下方筛选条件合并为单行，节省纵向空间） ===== */}
       <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center gap-2">
+        {/* 样式标签 */}
+        <span className="text-[11px] font-bold text-slate-500 shrink-0">【图一样式】原料购销日总表明细</span>
         {/* 名称搜索框 */}
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
           <Search size={12} className="text-slate-400 shrink-0" />
@@ -193,11 +195,7 @@ export function LedgerStyle1Table({
           {hasActiveFilters && <span className="ml-1 text-amber-600">（已过滤）</span>}
         </span>
       </div>
-      <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-        <span className="text-[11px] font-bold text-slate-500">【图一样式】原料购销日总表明细</span>
-        <span className="text-[9px] text-slate-400 font-medium">修改任意格后失去焦点自动同步物理库存</span>
-      </div>
-      
+
       <div className="relative">
         {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内，方便查看过长记录行时随时左右移动查看 */}
         <div className="sticky top-2 z-20 h-0 pointer-events-none">

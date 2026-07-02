@@ -688,7 +688,7 @@ export function LedgerSystem() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
         
         {/* 页眉日期及样式选择栏 */}
-        <div className="p-4 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0">
+        <div className="p-3 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-2 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
