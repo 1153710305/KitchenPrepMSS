@@ -4,147 +4,11 @@
  */
 
 import { Award } from "lucide-react";
-import React from "react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
-
-/**
- * @description 常用台账字段选择器（样式二专享）
- */
-function HelperSelect({
-  value,
-  options,
-  onChange,
-  disabled,
-  placeholder,
-  className = "w-full"
-}: {
-  value: string;
-  options: string[];
-  onChange: (val: string) => void;
-  disabled?: boolean;
-  placeholder: string;
-  className?: string;
-}) {
-  if (disabled) {
-    return (
-      <input
-        type="text"
-        value={value || ""}
-        placeholder={placeholder}
-        disabled={true}
-        className="w-full bg-slate-50/30 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none text-xs"
-      />
-    );
-  }
-  const allOpts = value && !options.includes(value) ? [value, ...options] : options;
-  return (
-    <select
-      value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
-      className={`bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs cursor-pointer focus:border-emerald-500 ${className}`}
-    >
-      <option value="">-- 选择 --</option>
-      {allOpts.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-/**
- * @description 感官性状多选气泡组件 (样式二专享)
- */
-function SensorySelector({ 
-  value, 
-  onChange, 
-  disabled 
-}: { 
-  value: string; 
-  onChange: (val: string) => void; 
-  disabled?: boolean;
-}) {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  
-  const options = [
-    "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好", 
-    "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满", 
-    "光泽度好", "颜色鲜艳"
-  ];
-  
-  const selectedValues = value ? value.split("、").filter(Boolean) : [];
-  
-  const handleToggle = (opt: string) => {
-    let next: string[];
-    if (selectedValues.includes(opt)) {
-      next = selectedValues.filter(v => v !== opt);
-    } else {
-      next = [...selectedValues, opt];
-    }
-    onChange(next.join("、"));
-  };
-
-  React.useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, []);
-
-  return (
-    <div ref={containerRef} className="relative inline-block w-full">
-      <input
-        type="text"
-        value={value}
-        onClick={() => !disabled && setIsOpen(true)}
-        placeholder={disabled ? "锁定" : "合格 (点击选择)"}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white disabled:bg-slate-50/30 disabled:text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none cursor-pointer text-xs focus:border-emerald-500"
-      />
-      {isOpen && !disabled && (
-        <div className="absolute left-0 mt-1 p-2.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 w-64 max-h-48 overflow-y-auto text-left">
-          <div className="text-[10px] text-slate-400 font-bold mb-2 pb-1 border-b border-slate-100 flex justify-between items-center select-none">
-            <span>感官性状 (多选)</span>
-            <button 
-              type="button" 
-              onClick={() => onChange("")} 
-              className="text-rose-500 hover:text-rose-600 font-black cursor-pointer text-[10px]"
-            >
-              清空
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {options.map((opt) => {
-              const isSelected = selectedValues.includes(opt);
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => handleToggle(opt)}
-                  className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-emerald-500 border-emerald-500 text-white font-bold"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { HelperSelect } from "../shared/HelperSelect.tsx";
+import { SensorySelector } from "../shared/SensorySelector.tsx";
 
 /**
  * @description 单原料日出入库流水账组件入参接口
@@ -341,6 +205,9 @@ export function LedgerStyle2Flow({
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { buyer: val })}
                       placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
 
@@ -390,6 +257,9 @@ export function LedgerStyle2Flow({
                       value={recordToRender.sensoryProperty || ""}
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { sensoryProperty: val })}
+                      disabledPlaceholder="锁定"
+                      disabledClassName="disabled:bg-slate-50/30"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
 
@@ -401,6 +271,9 @@ export function LedgerStyle2Flow({
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { inspector: val })}
                       placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
 
@@ -429,6 +302,9 @@ export function LedgerStyle2Flow({
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { keeper: val })}
                       placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
 
@@ -440,6 +316,9 @@ export function LedgerStyle2Flow({
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { outHandler: val })}
                       placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
 
@@ -451,6 +330,9 @@ export function LedgerStyle2Flow({
                       disabled={!isRowEditable}
                       onChange={(val) => handleDraftCellChange(activeItem.id, { outRecipient: val })}
                       placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
                     />
                   </td>
                 </tr>
