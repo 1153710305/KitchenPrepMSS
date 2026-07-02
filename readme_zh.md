@@ -739,4 +739,13 @@ pm2 startup
   4. **数据模型保留**：`GroupMonthlyReport.dailyHeadcount` 字段及 [store.ts] 中相关的默认填充逻辑予以保留未删，因其嵌入在多处共享的报表创建核心函数中，为避免影响其他正常功能而不做侵入式改造，且兼容既有已落盘数据；如需彻底清理该字段可后续单独评估；
   5. **验证**：`tsc --noEmit`、`vite build`、`esbuild` 后端打包均通过（无新增报错，与改动前存量报错一致）；已启动本地开发服务器逐一验证登录、教师/幼儿/在校生备餐记账表、管理后台一二级受众与字典管理、原料购销台账、库存总览等功能均正常，并确认 `/api/gemini/analyze` 接口现已返回 404。
 
+### 2026-07-02 - [V5.32.0] 彻底删除管理后台"数据维护核销"Tab 及其全部关联代码
+- **需求**：应管理员要求，完全删除管理配置后台的"数据维护核销"功能（原本包含按人群导出全表 CSV、导出/导入 JSON 备份、清空当月录入数据、恢复演示种子数据、清空采销台账数据、恢复采销台账初始预设共 7 个操作按钮），删除所有相关代码，同时保证不影响其他功能正常使用，不产生安全风险或性能问题。
+- **重构方案**：
+  1. **Tab 与导航清理**：从 [AdminBackend.tsx] 中移除"数据维护核销"侧边栏导航按钮、`activeTab` 状态类型中的 `"maintenance"` 分支，以及整个对应的 Tab 渲染区块；共享的自定义确认弹窗 `showConfirm`/`confirmModal`（同时被"二级大类管理"的删除确认复用）予以保留未动；
+  2. **处理函数清理**：删除 `handleExportBackup`、`handleImportBackup`、`handleClearMonth`、`handleResetToSeeds`、`handleClearLedgerAll`、`handleResetLedgerSeeds`、`handleExportAllGroupsCsv` 共 7 个仅服务于该 Tab 的处理函数，及 [App.tsx] 中传给 `<AdminBackend>` 的 `onResetToSeeds`、`onImportBackup` 回调 props（`AdminBackendProps` 接口同步精简，`reports`、`activeGroupsList` 两个不再被用到的入参也一并移除）；
+  3. **数据层同步清理**：由于 `PrepReportService.clearAllMonthlyCells()`、`factoryReset()`、`importReports()`（[store.ts]）与 `LedgerService.factoryResetLedger()`、`clearAllLedgerData()`（[ledgerStore.ts]）、`convertAllGroupsToCsv()`（[utils.ts]）在删除该 Tab 后已无任何调用方，均作为独立自包含方法一并物理删除；`factoryReset`/`factoryResetLedger` 内部调用的私有种子生成方法 `generateInitialSeeds()`/`generateSeeds()` 因仍被首次启动引导逻辑使用而予以保留；同时清理了仅因这些方法存在才被读取、实际已无其他用途的 `STORAGE_KEY`、`GROUPS_STORAGE_KEY`、`CATEGORIES_STORAGE_KEY`（store.ts）及 `LEDGERS_LIST_KEY`、`LEDGER_ITEMS_KEY`（ledgerStore.ts）等本地缓存 Key 常量；
+  4. **影响说明**：此次删除后，系统内不再提供 JSON 全量数据备份导出/导入、按人群 CSV 汇总导出、一键清空/恢复出厂种子等管理端数据维护能力；TableGrid 每张表格自身的"导出本月细表 (CSV)"单表导出功能（`convertItemsToCsv`）未受影响，正常保留；
+  5. **验证**：`tsc --noEmit`、`vite build` 均通过（AdminBackend 打包体积由 41.5kb 降至 30.7kb，无新增报错）；本地启动开发服务器逐一验证管理后台剩余四个 Tab（一级受众管理、二级大类管理、原料字典管理、台账人员与供货商）均正常渲染、数据未受影响，且"二级大类管理"的物理删除确认弹窗（共用同一套 `showConfirm` 逻辑）功能完好。
+
 

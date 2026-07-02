@@ -5,9 +5,8 @@
 
 import React, { useState } from "react";
 import { PrepReportService } from "../store.ts";
-import { LedgerService } from "../ledgerStore.ts";
-import { DynamicGroup, DynamicCategory, GroupMonthlyReport, FoodCategory } from "../types.ts";
-import { LogBroker, getDaysInMonth, convertAllGroupsToCsv, matchPinyin } from "../utils.ts";
+import { DynamicCategory, FoodCategory } from "../types.ts";
+import { LogBroker, matchPinyin } from "../utils.ts";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
@@ -25,27 +24,17 @@ import {
   ShieldAlert,
   Sparkles,
   ChevronLeft,
-  FileSpreadsheet,
-  FileJson,
-  RotateCcw
+  FileSpreadsheet
 } from "lucide-react";
 
 /**
  * @description 管理后台配置页入参接口 (AdminBackendProps)
  */
 interface AdminBackendProps {
-  /** 当前系统的完整月度报表集 */
-  reports: GroupMonthlyReport[];
-  /** 当前激活的一级人群列表 */
-  activeGroupsList: DynamicGroup[];
   /** 当前激活的二级食材大类列表 */
   activeCategoriesList: DynamicCategory[];
   /** 退出后台回到备餐主大厅的回调 */
   onClose: () => void;
-  /** 初始化演示数据的重算回调 */
-  onResetToSeeds: (data: GroupMonthlyReport[]) => void;
-  /** 安全导入备份包的重算回调 */
-  onImportBackup: (data: GroupMonthlyReport[]) => void;
 }
 
 /**
@@ -68,20 +57,16 @@ interface ConfirmModalState {
  * @description 智能食堂配置管理后台组件，支持一级餐位人群及二级食材大类的增删改查(CRUD)，附带实时监控日志与行政核销中心
  */
 export const AdminBackend: React.FC<AdminBackendProps> = ({
-  reports,
-  activeGroupsList,
   activeCategoriesList,
-  onClose,
-  onResetToSeeds,
-  onImportBackup
+  onClose
 }) => {
   // ================= 状态声明部分 =================
 
   // --- 导航状态 ---
-  /** 
-   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'maintenance'代表数据维护，'ledger_helpers'代表台账常用字典配置 
+  /**
+   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'ledger_helpers'代表台账常用字典配置
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "maintenance" | "ledger_helpers">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "ledger_helpers">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -242,154 +227,6 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
     setCatError(null);
   };
 
-  // ================= 数据维护与备份迁移方法 =================
-
-  /**
-   * @description 导出全人群备餐备份包 (JSON本地文件)
-   */
-  const handleExportBackup = () => {
-    try {
-      const dataStr = JSON.stringify(reports, null, 2);
-      const blob = new Blob([dataStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `食堂备餐账目全套备份_${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      LogBroker.publish("INFO", "AdminBackend", `配置后台：已成功生成并下载全套 JSON 数据备份包。`);
-    } catch (err: any) {
-      LogBroker.publish("ERROR", "AdminBackend", "生成备份数据包失败：", err.message);
-    }
-  };
-
-  /**
-   * @description 导入已存的预算及食材配置备份包 (JSON)
-   * @param e 控件文件改变事件
-   */
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0 && parsed[0].targetGroup) {
-          PrepReportService.importReports(parsed).then(() => {
-            onImportBackup(parsed);
-            LogBroker.publish("INFO", "AdminBackend", "配置后台：已安全覆盖导入备餐底盘，重绘前端。");
-          });
-        } else {
-          throw new Error("识别标志缺失：JSON数据并非合规的食堂月度备份。");
-        }
-      } catch (err: any) {
-        alert(`导入数据失败：${err.message}`);
-        LogBroker.publish("ERROR", "AdminBackend", "数据包反序列化校验拦截:", err.message);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  /**
-   * @description 统一清空全受众人群当月预算与账目记录 (用 React 弹窗完美代替 confirm)
-   */
-  const handleClearMonth = () => {
-    showConfirm(
-      "安全核销：清空当月记账数据",
-      "🚨 警告：该操作将清空全人群、全餐饮分类下共计31天的全部日度记账单元格数值（用料用量、参考单价、计算总价均物理归零），保留食材和客群名录骨架。此操作不可逆，确定继续？",
-      () => {
-        (window as any).__setGlobalLoading?.("正在核销清空当月所有客群记账底数据，请稍候...");
-        PrepReportService.clearAllMonthlyCells().then(() => {
-          LogBroker.publish("WARN", "AdminBackend", "已完成底册各类别极速记账单元格全清置零。");
-        }).finally(() => {
-          (window as any).__setGlobalLoading?.(null);
-        });
-      },
-      "danger"
-    );
-  };
-
-  /**
-   * @description 恢复演示内置蔬菜、粮油及肉类出厂默认数据种子 (用 React 弹窗替代 confirm)
-   */
-  const handleResetToSeeds = () => {
-    showConfirm(
-      "出厂复位：重新恢复演示种子",
-      "您确定要执行系统复位并导入示例数据吗？这会抹除您当前建立的所有客群标签、大类分类及所有自定义录入，并重新装载预设的标准中式食堂演示人设与各品类示范月度底账！",
-      () => {
-        (window as any).__setGlobalLoading?.("正在出厂复位并装载系统预设演示种子数据，请稍候...");
-        PrepReportService.factoryReset().then((data) => {
-          onResetToSeeds(data);
-          LogBroker.publish("INFO", "AdminBackend", "配置后台：全局销毁本地缓存并重绘了出厂预置种子。");
-        }).finally(() => {
-          (window as any).__setGlobalLoading?.(null);
-        });
-      },
-      "warn"
-    );
-  };
-
-  /**
-   * @description 物理彻底清空购销库存台账全量数据 (用 React 弹窗替代 confirm)
-   */
-  const handleClearLedgerAll = () => {
-    showConfirm(
-      "安全核销：清空购销台账数据",
-      "🚨 警告：该操作将物理清除整个原料购销库存系统下的所有台账、采购原料采购项目、以及所有的历史出入库与当前库存数据，使台账全库归零！此操作不可逆，确定继续？",
-      () => {
-        (window as any).__setGlobalLoading?.("正在核销并清除台账购销与库存全库数据，请稍候...");
-        LedgerService.clearAllLedgerData().then(() => {
-          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-          LogBroker.publish("WARN", "AdminBackend", "已完成购销库存台账的物理清空全库操作。");
-        }).finally(() => {
-          (window as any).__setGlobalLoading?.(null);
-        });
-      },
-      "danger"
-    );
-  };
-
-  /**
-   * @description 恢复购销台账系统至出厂初始种子数据 (用 React 弹窗替代 confirm)
-   */
-  const handleResetLedgerSeeds = () => {
-    showConfirm(
-      "出厂复位：恢复购销台账预设",
-      "您确定要执行购销台账系统复位并导入初始预设吗？这会抹除您当前建立的所有台账、自定义采购原料以及录入的出入库数据，并重新装载幼儿、教师、幼儿晚餐、在校生四个默认台账及预设原料种子！",
-      () => {
-        LedgerService.factoryResetLedger().then(() => {
-          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-          LogBroker.publish("INFO", "AdminBackend", "配置后台：已重新合成并加载购销台账系统的出厂种子数据。");
-        });
-      },
-      "warn"
-    );
-  };
-
-  /**
-   * @description 将所有的表格汇总并导出为 Excel 兼容 CSV 宽表格
-   */
-  const handleExportAllGroupsCsv = () => {
-    try {
-      const year = reports[0]?.year || new Date().getFullYear();
-      const month = reports[0]?.month || new Date().getMonth() + 1;
-      const days = getDaysInMonth(year, month);
-      const csvText = convertAllGroupsToCsv(reports, days, activeGroupsList, activeCategoriesList);
-      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `食堂全餐位客群备餐账目月度汇总明细_${year}年${month}月_${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      LogBroker.publish("INFO", "AdminBackend", `配置后台：成功将所有餐卡客群的日度记账矩阵汇总打包导出为 Excel CSV。`);
-    } catch (err: any) {
-      LogBroker.publish("ERROR", "AdminBackend", "导出餐卡人群汇总大宽表发生错误：", err.message);
-    }
-  };
-
   // ================= 界面渲染视图部分 =================
   return (
     <div className="flex flex-col h-screen bg-slate-100 w-full font-sans select-none overflow-hidden">
@@ -471,17 +308,6 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
               >
                 <Settings size={15} className="mr-3 shrink-0" />
                 <span>台账人员与供货商</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("maintenance")}
-                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "maintenance"
-                  ? "bg-teal-50 border-teal-500 text-teal-700 font-bold"
-                  : "text-slate-600 hover:bg-slate-50 border-transparent"
-                  }`}
-              >
-                <ShieldAlert size={15} className="mr-3 shrink-0" />
-                <span>数据维护核销</span>
               </button>
 
             </nav>
@@ -623,123 +449,6 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           {/* 原料大底库字典管理 Tab 页 */}
           {activeTab === "dictionary" && (
             <AdminDictTab activeCategoriesList={activeCategoriesList} />
-          )}
-
-          {/* 数据维护与行政核销中心 Tab 页 */}
-          {activeTab === "maintenance" && (
-            <div className="space-y-6 max-w-4xl animate-fade-in">
-              <section className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <div className="flex items-center space-x-2.5">
-                    <ShieldAlert className="text-amber-600" size={18} />
-                    <h3 className="text-sm font-bold text-slate-900">数据行政维护与多维备份核销中心 (Administrative Data Care & Backups)</h3>
-                  </div>
-                  <span className="text-[10px] bg-amber-50 text-amber-700 font-mono px-2.5 py-0.5 rounded-full font-extrabold tracking-wide">
-                    ADMIN-AUTHORIZED INSTRUCTIONS ONLY
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-                  {/* CSV 导出汇总 */}
-                  <button
-                    onClick={handleExportAllGroupsCsv}
-                    className="flex flex-col items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="一键将所有餐卡人群在所有类目下的31日备餐矩阵打包导出为一份Excel兼容的CSV大宽表"
-                  >
-                    <div className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <FileSpreadsheet size={18} />
-                    </div>
-                    <span className="text-xs font-bold">按人群导出全表 (CSV)</span>
-                    <span className="text-[9px] text-emerald-600 font-medium">适合 Excel 宏观核算与多维透视</span>
-                  </button>
-
-                  {/* JSON 备份导出 */}
-                  <button
-                    onClick={handleExportBackup}
-                    className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="导出当前食堂全量人群、分类以及记账数值的JSON备份包"
-                  >
-                    <div className="w-9 h-9 bg-slate-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <FileJson size={18} />
-                    </div>
-                    <span className="text-xs font-bold">导出备份数据 (JSON)</span>
-                    <span className="text-[9px] text-slate-500">用于跨设备或异地系统备份还原</span>
-                  </button>
-
-                  {/* JSON 备份导入 */}
-                  <label
-                    className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="导入此前下载好的 JSON 格式数据备份文件包"
-                  >
-                    <div className="w-9 h-9 bg-slate-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <RotateCcw size={18} className="rotate-180" />
-                    </div>
-                    <span className="text-xs font-bold">导入备份数据 (JSON)</span>
-                    <span className="text-[9px] text-slate-500">自动解析、安全校验并覆盖底册</span>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportBackup}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {/* 清空当月录入 (用 React 自定义弹框完美支持 iframe) */}
-                  <button
-                    onClick={handleClearMonth}
-                    className="flex flex-col items-center justify-center p-4 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 text-rose-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="一键将所有受众人群、所有大品类的全部日度数量、单价、金额物理归零清屏"
-                  >
-                    <div className="w-9 h-9 bg-rose-500 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <Trash2 size={18} />
-                    </div>
-                    <span className="text-xs font-bold text-rose-700">清空当月录入数据</span>
-                    <span className="text-[9px] text-rose-500 font-semibold">月度账单结转或重新起草</span>
-                  </button>
-
-                  {/* 恢复演示种子数据 (用 React 自定义弹框完美支持 iframe) */}
-                  <button
-                    onClick={handleResetToSeeds}
-                    className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="清除当前所有配置，拉回系统出厂预设的教工、幼儿等三大类品目和示例账目"
-                  >
-                    <div className="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <Sparkles size={18} />
-                    </div>
-                    <span className="text-xs font-bold text-amber-700">恢复演示种子数据</span>
-                    <span className="text-[9px] text-amber-500 font-semibold">一键重置、装载标准中式食堂样本</span>
-                  </button>
-
-                  {/* 清空原料购销台账数据 */}
-                  <button
-                    onClick={handleClearLedgerAll}
-                    className="flex flex-col items-center justify-center p-4 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 text-rose-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="一键将所有原料台账下的入库、出库、金额以及当前库存物理清除清空"
-                  >
-                    <div className="w-9 h-9 bg-rose-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <Trash2 size={18} />
-                    </div>
-                    <span className="text-xs font-bold text-rose-700">清空购销台账数据</span>
-                    <span className="text-[9px] text-rose-500 font-semibold">物理清空全库、重新开始台账录入</span>
-                  </button>
-
-                  {/* 恢复购销台账种子预设 */}
-                  <button
-                    onClick={handleResetLedgerSeeds}
-                    className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-800 rounded-lg cursor-pointer transition-all text-center space-y-2 h-32 shadow-2xs group"
-                    title="清除所有自定义台账和原料，恢复幼儿、教师、幼儿晚餐、在校生四个初始台账及预设原料"
-                  >
-                    <div className="w-9 h-9 bg-amber-600 rounded-full flex items-center justify-center text-white group-hover:scale-105 transition-all">
-                      <Sparkles size={18} />
-                    </div>
-                    <span className="text-xs font-bold text-amber-700">恢复购销台账初始预设</span>
-                    <span className="text-[9px] text-amber-500 font-semibold">装载幼儿/教师等四大初始购销台账</span>
-                  </button>
-
-                </div>
-              </section>
-            </div>
           )}
 
           {/* 台账常用人员与供货商字典 Tab 页 */}

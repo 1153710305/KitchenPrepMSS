@@ -373,7 +373,11 @@
 
 ### 🚀 2026-07-02 - [V5.31.0] 彻底删除AI膳食成本规划及三大统计图表/人数餐费分析功能，同步下线服务端Gemini提示词集成
 - **提示词变更状态**：**有变动（提示词文件整体下线）**。
-- **说明**：应管理员要求，彻底删除“日开支走势”、“品类资金占比”、“重点监控”、“AI后厨精细化膳食与成本规划”、“人数与餐费分析”五个功能及其全部相关代码。由于 [prompts.ts] 中的 `AI_PROMPTS`（系统角色定位提示词 `systemInstruction` 与结构化分析提示词模板 `analysisPromptTemplate`）仅服务于已删除的“AI后厨精细化膳食与成本规划”功能，随该功能一并整体删除该文件；服务端 [server.ts] 中调用这些提示词的 `/api/gemini/analyze` 接口、`getGeminiClient` 客户端初始化逻辑及 `@google/genai` 依赖包也一并移除。前台同步删除 [StatisticsPanel.tsx]、[AiAssistant.tsx]、[HeadcountPanel.tsx] 三个组件及 [App.tsx] 中对应的引入、状态与渲染分支，`recharts`、`react-markdown` 两个仅服务于被删组件的依赖包也一并从 package.json 中卸载。本次为纯功能下线，此前各版本记录的提示词内容作为历史存档继续保留在本文件靠前的章节中不做删改，仅在此追加说明该提示词现已随功能一起停用。
+- **说明**：应管理员要求，彻底删除”日开支走势”、”品类资金占比”、”重点监控”、”AI后厨精细化膳食与成本规划”、”人数与餐费分析”五个功能及其全部相关代码。由于 [prompts.ts] 中的 `AI_PROMPTS`（系统角色定位提示词 `systemInstruction` 与结构化分析提示词模板 `analysisPromptTemplate`）仅服务于已删除的”AI后厨精细化膳食与成本规划”功能，随该功能一并整体删除该文件；服务端 [server.ts] 中调用这些提示词的 `/api/gemini/analyze` 接口、`getGeminiClient` 客户端初始化逻辑及 `@google/genai` 依赖包也一并移除。前台同步删除 [StatisticsPanel.tsx]、[AiAssistant.tsx]、[HeadcountPanel.tsx] 三个组件及 [App.tsx] 中对应的引入、状态与渲染分支，`recharts`、`react-markdown` 两个仅服务于被删组件的依赖包也一并从 package.json 中卸载。本次为纯功能下线，此前各版本记录的提示词内容作为历史存档继续保留在本文件靠前的章节中不做删改，仅在此追加说明该提示词现已随功能一起停用。
+
+### 🚀 2026-07-02 - [V5.32.0] 彻底删除管理后台”数据维护核销”Tab 及其全部关联代码
+- **提示词变更状态**：**无变动 (No Changes)**。
+- **说明**：本次删除管理配置后台的”数据维护核销”Tab（JSON备份导出/导入、CSV汇总导出、清空/恢复出厂种子等 7 个数据维护操作）及其在 [AdminBackend.tsx]、[App.tsx]、[store.ts]、[ledgerStore.ts]、[utils.ts] 中的全部关联代码，属于纯管理端功能与数据层方法的下线清理，未涉及任何 AI 提示词或 `src/prompts.ts` 的改动，保持 100% 绿灯兼容。分支说明：本次改动固定在新建的 `dev` 分支上，未合并进 `main`（`main` 分支保留其独立的台账打印样式修复历史）。
 
 
 

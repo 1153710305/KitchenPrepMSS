@@ -703,12 +703,8 @@ export default function App() {
       }>
         <ErrorBoundary fallbackTitle="管理行政后台运行异常">
           <AdminBackend
-            reports={reports}
-            activeGroupsList={activeGroupsList}
             activeCategoriesList={activeCategoriesList}
             onClose={() => setIsAdminMode(false)}
-            onResetToSeeds={(data) => setReports(data)}
-            onImportBackup={(data) => setReports(data)}
           />
         </ErrorBoundary>
       </Suspense>

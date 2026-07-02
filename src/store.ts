@@ -9,21 +9,6 @@ import { calculateEntryAmount, LogBroker } from "./utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { LedgerService } from "./ledgerStore.ts";
 
-/** 
- * @description 本地 LocalStorage 物理缓存 Key 
- */
-const STORAGE_KEY = "KITCHEN_PREP_REPORTS_V1";
-
-/**
- * @description 一级人群缓存 Key
- */
-const GROUPS_STORAGE_KEY = "KITCHEN_TARGET_GROUPS_V1";
-
-/**
- * @description 二级分类缓存 Key
- */
-const CATEGORIES_STORAGE_KEY = "KITCHEN_FOOD_CATEGORIES_V1";
-
 /**
  * @description 自动模拟服务层接口呼叫时延 (毫秒)
  */
@@ -701,71 +686,6 @@ export class PrepReportService {
   }
 
   /**
-   * @description 清空当月所有卡片（Immutable 重制零值）
-   */
-  public static async clearAllMonthlyCells(): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const updatedReports = this.reports.map((report) => {
-          const updatedItems = report.items.map((item) => {
-            const updatedDailyData = { ...item.dailyData };
-            Object.keys(updatedDailyData).forEach((day) => {
-              updatedDailyData[day] = { quantity: 0, price: 0, amount: 0 };
-            });
-            return {
-              ...item,
-              dailyData: updatedDailyData
-            };
-          });
-          return {
-            ...report,
-            items: updatedItems
-          };
-        });
-
-        this.reports = updatedReports;
-        this.saveToStorage();
-        LogBroker.publish("WARN", "PrepReportService", "已触发当期月备采表全局数据归零！");
-        resolve();
-      }, MOCK_API_LATENCY);
-    });
-  }
-
-  /**
-   * @description 彻底重置物理，销毁LocalStorage并退回到演示种子大厅
-   */
-  public static async factoryReset(): Promise<GroupMonthlyReport[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(GROUPS_STORAGE_KEY);
-        localStorage.removeItem(CATEGORIES_STORAGE_KEY);
-
-        this.activeGroups = [
-          { key: "TEACHER", label: "教师备餐", emoji: "🏫" },
-          { key: "KID", label: "幼儿备餐", emoji: "👶" },
-          { key: "LOW_GRADE", label: "低年级备餐", emoji: "🎒" },
-          { key: "HIGH_GRADE", label: "高年级备餐", emoji: "🎓" }
-        ];
-        this.activeCategories = [
-          { key: "VEGETABLE", label: "蔬菜" },
-          { key: "GRAIN_OIL", label: "粮油" },
-          { key: "SEASONING", label: "调料" },
-          { key: "MEAT", label: "肉类" },
-          { key: "LOW_CONSUMP", label: "低耗品" },
-          { key: "FRUIT", label: "水果" }
-        ];
-
-        localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(this.activeGroups));
-        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.activeCategories));
-
-        this.generateInitialSeeds();
-        resolve(this.reports);
-      }, MOCK_API_LATENCY);
-    });
-  }
-
-  /**
    * @description 新增或编辑一级人群配置并落盘
    * @param key 标识键
    * @param label 显示中文标签
@@ -963,21 +883,6 @@ export class PrepReportService {
       } catch (err) {
         reject(err);
       }
-    });
-  }
-
-  /**
-   * @description 安全覆盖式导入备份文件，让用户可以在其它设备恢复录入
-   * @param newReports 导入的新月度报表集
-   */
-  public static async importReports(newReports: GroupMonthlyReport[]): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.reports = newReports;
-        this.saveToStorage();
-        LogBroker.publish("INFO", "PrepReportService", "全局主存储空间已成功覆写导入的数据。");
-        resolve();
-      }, MOCK_API_LATENCY);
     });
   }
 

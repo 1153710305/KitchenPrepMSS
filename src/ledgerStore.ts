@@ -11,10 +11,6 @@ import { PrepReportService } from "./store.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 import { FoodCategory } from "./types.ts";
 
-/** 本地 LocalStorage 缓存台账列表的 Key */
-const LEDGERS_LIST_KEY = "KITCHEN_LEDGERS_LIST_V2";
-/** 本地 LocalStorage 缓存采购项目原料列表的 Key */
-const LEDGER_ITEMS_KEY = "KITCHEN_LEDGER_ITEMS_V2";
 /** 模拟接口响应延迟 */
 const LEDGER_API_LATENCY = 100;
 
@@ -633,35 +629,6 @@ export class LedgerService {
       } catch (err) {
         reject(err);
       }
-    });
-  }
-
-  /**
-   * @description 彻底恢复出厂设置：销毁全部台账缓存并回归种子大厅
-   */
-  public static async factoryResetLedger(): Promise<{ ledgers: Ledger[]; items: LedgerItem[] }> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localStorage.removeItem(LEDGERS_LIST_KEY);
-        localStorage.removeItem(LEDGER_ITEMS_KEY);
-        this.generateSeeds();
-        resolve({ ledgers: this.ledgers, items: this.ledgerItems });
-      }, LEDGER_API_LATENCY);
-    });
-  }
-
-  /**
-   * @description 物理彻底清空整个购销台账的数据
-   */
-  public static async clearAllLedgerData(): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.ledgers = [];
-        this.ledgerItems = [];
-        this.notifyListeners();
-        LogBroker.publish("WARN", "LedgerService", "已手动清空全部购销台账和库存数据");
-        resolve();
-      }, LEDGER_API_LATENCY);
     });
   }
 
