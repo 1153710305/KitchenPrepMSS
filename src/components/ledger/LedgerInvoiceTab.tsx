@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DailyStockRecord } from "../ledgerTypes.ts";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 
 /**
  * @description 当日出入库单组件入参接口

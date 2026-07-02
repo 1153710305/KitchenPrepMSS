@@ -5,7 +5,7 @@
 
 import React from "react";
 import { X } from "lucide-react";
-import { SearchableSelect } from "./SearchableSelect.tsx";
+import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 
 interface LedgerAddMaterialModalProps {
   isOpen: boolean;

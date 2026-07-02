@@ -5,8 +5,8 @@
 
 import React, { useState } from "react";
 import { Users, Edit2, Trash2, Sparkles, ShieldAlert, Check, PlusCircle } from "lucide-react";
-import { PrepReportService } from "../store.ts";
-import { DynamicGroup } from "../types.ts";
+import { PrepReportService } from "../../services/store.ts";
+import { DynamicGroup } from "../../types/types.ts";
 
 interface AdminGroupsTabProps {
   onRefresh?: () => void;

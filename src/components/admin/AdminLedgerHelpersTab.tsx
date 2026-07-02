@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { LedgerService } from "../ledgerStore.ts";
+import { LedgerService } from "../../services/ledgerStore.ts";
 import { Plus, Trash2, ShieldCheck, HelpCircle } from "lucide-react";
 
 /**

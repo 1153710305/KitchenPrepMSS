@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Ledger, LedgerItem } from "../ledgerTypes.ts";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
-import { FOOD_CATEGORY_LABELS } from "../constants.ts";
-import { FoodCategory } from "../types.ts";
-import { LEDGER_PRINT_OUT_CONFIG } from "../ledgerConstants.ts";
+import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { FoodCategory } from "../../types/types.ts";
+import { LEDGER_PRINT_OUT_CONFIG } from "../../constants/ledgerConstants.ts";
 
 /**
  * @description 打印凭证组件入参接口

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "./constants.ts";
-import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "./types.ts";
-import { calculateEntryAmount, LogBroker } from "./utils.ts";
+import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/constants.ts";
+import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
+import { calculateEntryAmount, LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { LedgerService } from "./ledgerStore.ts";
 

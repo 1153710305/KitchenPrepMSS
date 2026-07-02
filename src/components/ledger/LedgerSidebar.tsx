@@ -5,8 +5,8 @@
 
 import React from "react";
 import { Bookmark, Check, X } from "lucide-react";
-import { Ledger } from "../ledgerTypes.ts";
-import { LEDGER_UI_TEXT } from "../ledgerConstants.ts";
+import { Ledger } from "../../types/ledgerTypes.ts";
+import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";
 
 interface LedgerSidebarProps {
   ledgers: Ledger[];

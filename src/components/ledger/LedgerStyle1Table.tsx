@@ -5,13 +5,13 @@
 
 import React from "react";
 import { Search, Filter, X, Trash2 } from "lucide-react";
-import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
-import { LedgerService } from "../ledgerStore.ts";
-import { SearchableSelect } from "./SearchableSelect.tsx";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
-import { FOOD_CATEGORY_LABELS } from "../constants.ts";
-import { LEDGER_HEADERS } from "../ledgerConstants.ts";
-import { FoodCategory } from "../types.ts";
+import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { LedgerService } from "../../services/ledgerStore.ts";
+import { SearchableSelect } from "../shared/SearchableSelect.tsx";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
+import { FoodCategory } from "../../types/types.ts";
 
 /**
  * @description 常用台账字段选择器（支持显示已有的自定义内容）

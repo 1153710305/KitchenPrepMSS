@@ -4,14 +4,14 @@
  */
 
 import React, { useState, useMemo, useRef } from "react";
-import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../types.ts";
-import { PrepReportService } from "../store.ts";
-import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../constants.ts";
-import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin, convertItemsToCsv } from "../utils.ts";
+import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
+import { PrepReportService } from "../../services/store.ts";
+import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../../constants/constants.ts";
+import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
 import { Trash, Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
-import { SearchableSelect } from "./SearchableSelect.tsx";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
-import { LedgerService } from "../ledgerStore.ts";
+import { SearchableSelect } from "../shared/SearchableSelect.tsx";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { LedgerService } from "../../services/ledgerStore.ts";
 
 /**
  * @description 备餐网格组件的输入参数协议

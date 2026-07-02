@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Ledger, LedgerItem } from "../ledgerTypes.ts";
-import { LEDGER_PRINT_STYLE2_CONFIG } from "../ledgerConstants.ts";
+import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { LEDGER_PRINT_STYLE2_CONFIG } from "../../constants/ledgerConstants.ts";
 
 /**
  * @description 单原料日流水打印入参接口

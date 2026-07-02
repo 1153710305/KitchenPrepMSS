@@ -5,9 +5,9 @@
 
 import { Award } from "lucide-react";
 import React from "react";
-import { LedgerItem, DailyStockRecord } from "../ledgerTypes.ts";
-import { LEDGER_UI_TEXT } from "../ledgerConstants.ts";
-import { LedgerService } from "../ledgerStore.ts";
+import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";
+import { LedgerService } from "../../services/ledgerStore.ts";
 
 /**
  * @description 常用台账字段选择器（样式二专享）

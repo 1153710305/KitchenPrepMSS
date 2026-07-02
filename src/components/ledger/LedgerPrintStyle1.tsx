@@ -1,5 +1,5 @@
-import { FoodCategory, Ledger, LedgerItem } from "../ledgerTypes.ts";
-import { LEDGER_PRINT_STYLE1_CONFIG } from "../ledgerConstants.ts";
+import { FoodCategory, Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
 
 /**
  * @description 购销总表打印预览模板组件入参接口

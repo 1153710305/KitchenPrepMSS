@@ -11,7 +11,7 @@ import {
   Download, 
   Printer 
 } from "lucide-react";
-import { LedgerItem } from "../ledgerTypes.ts";
+import { LedgerItem } from "../../types/ledgerTypes.ts";
 
 interface LedgerControlBarProps {
   activeTab: "entry" | "invoice";

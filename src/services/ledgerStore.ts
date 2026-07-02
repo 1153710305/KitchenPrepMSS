@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Ledger, LedgerItem, DailyStockRecord } from "./ledgerTypes.ts";
-import { PRESET_LEDGER_MATERIALS } from "./ledgerConstants.ts";
-import { LogBroker } from "./utils.ts";
+import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
+import { PRESET_LEDGER_MATERIALS } from "../constants/ledgerConstants.ts";
+import { LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { PrepReportService } from "./store.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
-import { FoodCategory } from "./types.ts";
+import { FoodCategory } from "../types/types.ts";
 
 /** 模拟接口响应延迟 */
 const LEDGER_API_LATENCY = 100;

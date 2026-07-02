@@ -4,8 +4,8 @@
  */
 
 import { AlertCircle } from "lucide-react";
-import { Ledger, LedgerItem, FoodCategory } from "../ledgerTypes.ts";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { Ledger, LedgerItem, FoodCategory } from "../../types/ledgerTypes.ts";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
 import { LedgerPrintStyle2 } from "./LedgerPrintStyle2.tsx";
 

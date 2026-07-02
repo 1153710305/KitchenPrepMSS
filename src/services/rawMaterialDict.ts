@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FoodCategory } from "./types.ts";
-import { LogBroker } from "./utils.ts";
+import { FoodCategory } from "../types/types.ts";
+import { LogBroker } from "../utils.ts";
 import { LedgerService } from "./ledgerStore.ts";
 import { PrepReportService } from "./store.ts";
 import { SyncHelper } from "./syncHelper.ts";

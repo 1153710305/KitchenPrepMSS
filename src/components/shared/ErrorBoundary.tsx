@@ -5,7 +5,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { ShieldAlert, RefreshCw } from "lucide-react";
-import { LogBroker } from "../utils.ts";
+import { LogBroker } from "../../utils.ts";
 
 interface Props {
   children: ReactNode;

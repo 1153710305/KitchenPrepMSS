@@ -4,19 +4,19 @@
  */
 
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
-import { FoodCategory, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "./types.ts";
-import { UI_TEXT, ADMIN_PASSWORD, LOGIN_PASSWORD, TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants.ts";
-import { PrepReportService } from "./store.ts";
-import { TableGrid } from "./components/TableGrid.tsx";
+import { FoodCategory, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "./types/types.ts";
+import { UI_TEXT, ADMIN_PASSWORD, LOGIN_PASSWORD, TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants/constants.ts";
+import { PrepReportService } from "./services/store.ts";
+import { TableGrid } from "./components/inventory/TableGrid.tsx";
 import { LogBroker } from "./utils.ts";
-import { LedgerService } from "./ledgerStore.ts";
-import { SyncHelper } from "./syncHelper.ts";
-import { RawMaterialsDictService } from "./rawMaterialDict.ts";
-import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
+import { LedgerService } from "./services/ledgerStore.ts";
+import { SyncHelper } from "./services/syncHelper.ts";
+import { RawMaterialsDictService } from "./services/rawMaterialDict.ts";
+import { ErrorBoundary } from "./components/shared/ErrorBoundary.tsx";
 
-const AdminBackend = lazy(() => import("./components/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
-const LedgerSystem = lazy(() => import("./components/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
-const InventoryPanel = lazy(() => import("./components/InventoryPanel.tsx").then(m => ({ default: m.InventoryPanel })));
+const AdminBackend = lazy(() => import("./components/admin/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
+const LedgerSystem = lazy(() => import("./components/ledger/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
+const InventoryPanel = lazy(() => import("./components/inventory/InventoryPanel.tsx").then(m => ({ default: m.InventoryPanel })));
 import {
   Settings,
   RefreshCw,

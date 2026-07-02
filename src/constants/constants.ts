@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FoodCategory, TargetGroup } from "./types.ts";
+import { FoodCategory, TargetGroup } from "../types/types.ts";
 
 /**
  * @description 目标人群的中文字典映射

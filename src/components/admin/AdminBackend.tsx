@@ -4,9 +4,9 @@
  */
 
 import React, { useState } from "react";
-import { PrepReportService } from "../store.ts";
-import { DynamicCategory } from "../types.ts";
-import { LogBroker } from "../utils.ts";
+import { PrepReportService } from "../../services/store.ts";
+import { DynamicCategory } from "../../types/types.ts";
+import { LogBroker } from "../../utils.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
 import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";

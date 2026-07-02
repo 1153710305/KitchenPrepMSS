@@ -4,8 +4,8 @@
  */
 
 import { Printer, X } from "lucide-react";
-import { FoodCategory } from "../types.ts";
-import { FOOD_CATEGORY_LABELS } from "../constants.ts";
+import { FoodCategory } from "../../types/types.ts";
+import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 
 interface LedgerPrintModalProps {
   isOpen: boolean;
