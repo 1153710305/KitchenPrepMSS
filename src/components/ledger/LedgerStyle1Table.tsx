@@ -8,7 +8,7 @@
  */
 
 import React from "react";
-import { Search, Filter, X, Trash2 } from "lucide-react";
+import { Search, Filter, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
@@ -112,6 +112,12 @@ export function LedgerStyle1Table({
     return `${Math.max(minWidth, calculated)}px`;
   };
 
+  /** 总表横向滚动容器引用，供左右移动按钮调用 */
+  const tableScrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollTable = (dir: number) => {
+    tableScrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       {/* ===== 多维度筛选工具栏 ===== */}
@@ -192,7 +198,29 @@ export function LedgerStyle1Table({
         <span className="text-[9px] text-slate-400 font-medium">修改任意格后失去焦点自动同步物理库存</span>
       </div>
       
-      <div className="overflow-x-auto">
+      <div className="relative">
+        {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内，方便查看过长记录行时随时左右移动查看 */}
+        <div className="sticky top-2 z-20 h-0 pointer-events-none">
+          <div className="flex justify-between px-1.5">
+            <button
+              type="button"
+              onClick={() => scrollTable(-1)}
+              className="pointer-events-auto p-1.5 bg-white/90 hover:bg-white border border-slate-200 rounded-full shadow-md text-slate-500 hover:text-emerald-600 cursor-pointer transition-all"
+              title="向左移动查看更多字段"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTable(1)}
+              className="pointer-events-auto p-1.5 bg-white/90 hover:bg-white border border-slate-200 rounded-full shadow-md text-slate-500 hover:text-emerald-600 cursor-pointer transition-all"
+              title="向右移动查看更多字段"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div ref={tableScrollRef} className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs min-w-[1380px]">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
@@ -590,6 +618,7 @@ export function LedgerStyle1Table({
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

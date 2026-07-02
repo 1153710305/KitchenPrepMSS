@@ -7,7 +7,8 @@
  * @description 台账"样式二"单原料日流水组件：聚焦单个原料，以自定义时间段纵向展示其逐日出入库记录卡片。
  */
 
-import { Award } from "lucide-react";
+import { useRef } from "react";
+import { Award, ChevronLeft, ChevronRight } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
@@ -61,6 +62,12 @@ export function LedgerStyle2Flow({
   setStyle2StartDate,
   setStyle2EndDate
 }: LedgerStyle2FlowProps) {
+  /** 月度流水表格横向滚动容器引用，供左右移动按钮调用 */
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const scrollTable = (dir: number) => {
+    tableScrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
+
   if (!activeItemId) {
     return (
       <div className="text-center py-12 bg-white border border-slate-200 rounded-xl text-slate-400 italic">
@@ -147,7 +154,29 @@ export function LedgerStyle2Flow({
       </div>
 
       {/* 月度流水网格 */}
-      <div className="overflow-x-auto">
+      <div className="relative">
+        {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内，方便查看过长记录行时随时左右移动查看 */}
+        <div className="sticky top-2 z-20 h-0 pointer-events-none">
+          <div className="flex justify-between px-1.5">
+            <button
+              type="button"
+              onClick={() => scrollTable(-1)}
+              className="pointer-events-auto p-1.5 bg-white/90 hover:bg-white border border-slate-200 rounded-full shadow-md text-slate-500 hover:text-emerald-600 cursor-pointer transition-all"
+              title="向左移动查看更多字段"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTable(1)}
+              className="pointer-events-auto p-1.5 bg-white/90 hover:bg-white border border-slate-200 rounded-full shadow-md text-slate-500 hover:text-emerald-600 cursor-pointer transition-all"
+              title="向右移动查看更多字段"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div ref={tableScrollRef} className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs min-w-[1000px]">
           <thead>
             <tr className="bg-slate-100/50 text-slate-500 border-b border-slate-200 text-center font-bold">
@@ -264,6 +293,7 @@ export function LedgerStyle2Flow({
                       disabledPlaceholder="锁定"
                       disabledClassName="disabled:bg-slate-50/30"
                       focusBorderClassName="focus:border-emerald-500"
+                      minWidthPx={192}
                     />
                   </td>
 
@@ -344,6 +374,7 @@ export function LedgerStyle2Flow({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

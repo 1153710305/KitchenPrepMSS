@@ -25,6 +25,8 @@ interface SensorySelectorProps {
   disabledClassName?: string;
   /** 聚焦态边框色样式类（用于兼容台账样式一/样式二的视觉差异，默认对应样式一） */
   focusBorderClassName?: string;
+  /** 展示框最小宽度（px），默认约等于台账表格两列常规输入框的宽度，防止选中内容被裁切看不全 */
+  minWidthPx?: number;
 }
 
 export function SensorySelector({
@@ -33,7 +35,8 @@ export function SensorySelector({
   disabled,
   disabledPlaceholder = "未开启录入",
   disabledClassName = "disabled:bg-slate-50",
-  focusBorderClassName = "focus:border-emerald-400"
+  focusBorderClassName = "focus:border-emerald-400",
+  minWidthPx = 224
 }: SensorySelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -68,8 +71,20 @@ export function SensorySelector({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  /**
+   * @description 根据已选性状文字内容自适应计算展示框宽度，最窄不低于两列常规输入框宽度（minWidthPx）
+   * 注：显式的 px 宽度是让表格自动布局（table-layout: auto）感知到该列真实所需宽度的关键，
+   * 单纯的 w-full 百分比宽度不会撑开所在的表格列，会导致已选内容被裁切看不全。
+   */
+  const displayContent = value || (disabled ? disabledPlaceholder : "合格 (点击选择)");
+  let charLen = 0;
+  for (let i = 0; i < displayContent.length; i++) {
+    charLen += displayContent.charCodeAt(i) > 127 ? 2 : 1.15;
+  }
+  const widthPx = Math.max(minWidthPx, charLen * 7.5 + 24);
+
   return (
-    <div ref={containerRef} className="relative inline-block w-full">
+    <div ref={containerRef} className="relative inline-block" style={{ width: `${widthPx}px` }}>
       <input
         type="text"
         value={value}
