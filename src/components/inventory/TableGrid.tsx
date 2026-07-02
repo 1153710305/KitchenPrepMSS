@@ -7,12 +7,14 @@ import React, { useState, useMemo, useRef } from "react";
 import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../../constants/constants.ts";
-import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
-import { Trash, Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
+import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
+import { Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { useTableTheme } from "../../hooks/useTableTheme.ts";
+import { TableGridMatrixView } from "./TableGridMatrixView.tsx";
+import { TableGridFocusView } from "./TableGridFocusView.tsx";
 
 /**
  * @description 备餐网格组件的输入参数协议
@@ -466,258 +468,29 @@ export const TableGrid: React.FC<TableGridProps> = ({
         <>
           {/* ================ (1) 大宽表日历矩阵 ================ */}
           {viewMode === "MATRIX" && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
-                <table className="w-full border-collapse text-left text-xs text-gray-500">
-                  <thead className="bg-gray-50/75 text-gray-600 text-[11px] font-semibold">
-                    {/* 一级头: 日期编号号 */}
-                    <tr>
-                      <th className="p-3 border-b border-r border-gray-100 sticky left-0 bg-gray-50 min-w-[124px] z-20">日期/品类</th>
-                      {days.map((day) => (
-                        <th
-                          key={`col-day-${day}`}
-                          colSpan={3}
-                          className={`px-2 py-1.5 text-center border-b border-r border-gray-100 ${activeTheme.lightBg} ${activeTheme.primaryText}`}
-                        >
-                          <div className="flex items-center justify-center">
-                            <span>{day}号</span>
-                          </div>
-                        </th>
-                      ))}
-                      <th colSpan={2} className="p-3 text-center border-b border-slate-300 bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
-                    </tr>
-
-                    {/* 二级头: [数量/单价/金额] 三胞胎 */}
-                    <tr className="bg-slate-100 text-[10px] text-slate-700 font-bold border-b border-slate-350">
-                      <th className="p-2.5 border-b border-r border-slate-350 sticky left-0 bg-slate-100 z-20">食材细分项目</th>
-                      {days.map((day) => (
-                        <React.Fragment key={`sub-dt-${day}`}>
-                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 font-semibold bg-slate-100/70 text-slate-800">数量</th>
-                          <th className="px-1 py-1 text-center border-b border-r border-slate-300 font-semibold bg-slate-100/50 text-slate-800">单价</th>
-                          <th className={`px-1 py-1 text-center border-b border-r border-slate-350 font-black ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
-                        </React.Fragment>
-                      ))}
-                      <th className="p-2 text-center border-b border-r border-slate-350 font-bold bg-slate-100 text-slate-800">月总用量</th>
-                      <th className="p-2 text-center border-b border-r border-slate-350 font-black text-indigo-900 bg-indigo-100">月总开销</th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-300">
-                    {filteredItems.map((item) => {
-                      const monthlySummary = getItemMonthlySummary(item, days);
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-350">
-
-                          {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                          <td className="p-3 sticky left-0 bg-white border-r-2 border-slate-400 z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            <span className="truncate max-w-[110px] text-xs font-bold" title={item.name}>
-                              {(() => {
-                                const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                                const displayName = dictItem ? dictItem.name : item.name;
-                                const displayUnit = dictItem ? dictItem.unit : item.unit;
-                                const displayRemark = dictItem?.remark || "";
-                                return (
-                                  <>
-                                    <span className="text-slate-900 text-xs font-black">{displayName}</span>
-                                    <span className="text-[10px] font-bold text-slate-600 block mt-0.5">
-                                      单位: {displayUnit} {displayRemark && `(${displayRemark})`}
-                                    </span>
-                                  </>
-                                );
-                              })()}
-                            </span>
-
-                            {/* 悬浮删除原料项按钮（只读模式下隐藏，防止在餐位分组页误删） */}
-                            {!readOnly && (
-                              <button
-                                onClick={() => onDeleteItem(item.id)}
-                                className="opacity-0 group-hover/cell:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-1.5"
-                                title="删除此原料行"
-                              >
-                                <Trash size={12} />
-                              </button>
-                            )}
-                          </td>
-
-                          {/* 渲染31天每日录入小卡格 */}
-                          {days.map((day) => {
-                            const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
-                            return (
-                              <React.Fragment key={`cell-${item.id}-${day}`}>
-                                <td className="p-2 border-b border-r border-slate-300 text-center font-mono text-xs font-semibold text-slate-900 bg-white">
-                                  {entry.quantity || 0}
-                                </td>
-                                <td className="p-2 border-b border-r border-slate-300 text-center font-mono text-xs font-semibold text-slate-900 bg-slate-50">
-                                  ¥{entry.price || 0}
-                                </td>
-                                <td className={`p-2 border-b border-r border-slate-350 text-center text-xs font-black font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
-                                  {entry.amount > 0 ? `¥${entry.amount}` : "0"}
-                                </td>
-                              </React.Fragment>
-                            );
-                          })}
-
-                          {/* 全月累加列 */}
-                          <td className="p-3 border-r border-slate-350 text-center font-black font-mono text-xs text-slate-900 bg-slate-100/60">
-                            {monthlySummary.totalQty} {item.unit}
-                          </td>
-                          <td className="p-3 text-center font-black font-mono text-xs text-indigo-950 bg-indigo-100/50">
-                            ¥{monthlySummary.totalCost}
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-
-                    {/* 表底累加汇总：各单日大类整体耗资 */}
-                    <tr className="bg-slate-200 font-extrabold text-slate-900 border-t-2 border-slate-400">
-                      <td className="p-3 sticky left-0 bg-slate-200 text-slate-900 border-r border-slate-300 font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-xs">
-                        【{PrepReportService.getActiveCategories().find(c => c.key === selectedCategory)?.label || selectedCategory}】每日开支合计
-                      </td>
-                      {days.map((day) => (
-                        <React.Fragment key={`tot-cell-${day}`}>
-                          <td colSpan={2} className="px-1 py-3 text-[10px] text-slate-500 text-center font-bold uppercase">合计金额:</td>
-                          <td className={`px-1 py-3 text-center text-xs font-black border-r border-slate-300 ${activeTheme.accentText} ${activeTheme.accentBg} font-mono`}>
-                            ¥{dayTotals[day]}
-                          </td>
-                        </React.Fragment>
-                      ))}
-                      <th colSpan={2} className="p-3 text-center text-indigo-950 bg-indigo-200/50 font-black text-xs">
-                        ¥{Math.round(Object.values(dayTotals).reduce((s, v) => s + v, 0) * 100) / 100}
-                      </th>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <TableGridMatrixView
+              days={days}
+              filteredItems={filteredItems}
+              dayTotals={dayTotals}
+              activeTheme={activeTheme}
+              selectedCategory={selectedCategory}
+              readOnly={readOnly}
+              onDeleteItem={onDeleteItem}
+            />
           )}
 
           {/* ================ (2) 单日聚焦卡片 ================ */}
           {viewMode === "FOCUS" && (
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs space-y-6">
-
-              {/* 日期选择横轴 slider */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2.5">
-                  横向日历刻度盘 (聚焦今日并极速记账)：
-                </label>
-                <div className="flex gap-2 pb-3 overflow-x-auto scrollbar-thin">
-                  {days.map((day) => {
-                    const hasDataOnDay = dayTotals[day] > 0;
-                    const isSelected = focusDay === day;
-                    return (
-                      <button
-                        key={`focus-btn-${day}`}
-                        onClick={() => setFocusDay(day)}
-                        className={`px-3.5 py-2 shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${isSelected
-                          ? `${activeTheme.primaryBg} text-white border-transparent shadow-md`
-                          : hasDataOnDay
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                            : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
-                          }`}
-                      >
-                        <div className="text-[10px] opacity-75 font-normal">周天</div>
-                        <div>{day}号</div>
-                        {hasDataOnDay && (
-                          <div className={`w-1.5 h-1.5 rounded-full mx-auto mt-1 ${isSelected ? "bg-white" : "bg-emerald-500"}`} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 当天聚焦记账盘 */}
-              <div>
-                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className={`p-2 ${activeTheme.lightBg} ${activeTheme.primaryText} rounded-xl font-bold font-mono`}>
-                      {focusDay}号
-                    </span>
-                    <div>
-                      <h4 className="font-bold text-gray-800 text-sm">【{focusDay}号】耗粮记账明细</h4>
-                      <p className="text-xs text-gray-400">在该日期下，垂直修改所有原材料的价格与数量</p>
-                    </div>
-                  </div>
-
-
-                </div>
-
-                {/* 聚焦日卡片网络流 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredItems.map((item) => {
-                    const entry = item.dailyData[focusDay] || { quantity: 0, price: 0, amount: 0 };
-                    return (
-                      <div
-                        key={`focus-card-${item.id}`}
-                        className={`p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50/20 to-white ${activeTheme.borderHover} transition-all flex flex-col justify-between group`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            {(() => {
-                              const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                              const displayName = dictItem ? dictItem.name : item.name;
-                              const displayUnit = dictItem ? dictItem.unit : item.unit;
-                              const displayRemark = dictItem?.remark || "";
-                              return (
-                                <>
-                                  <span className="text-[10px] text-gray-400 font-mono tracking-wider block">
-                                    原料项 / 单位：{displayUnit} {displayRemark && `(${displayRemark})`}
-                                  </span>
-                                  <h5 className="font-bold text-gray-800 text-sm">{displayName}</h5>
-                                </>
-                              );
-                            })()}
-                          </div>
-
-                          {/* 垃圾桶删除行按钮（只读模式下隐藏，防止在餐位分组页误删） */}
-                          {!readOnly && (
-                            <button
-                              onClick={() => onDeleteItem(item.id)}
-                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg cursor-pointer transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                              title="从备餐细表中移除该原料项目"
-                            >
-                              <Trash size={13} />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* 修改区 */}
-                        <div className="grid grid-cols-2 gap-3 mt-4 text-center">
-                          <div className="bg-slate-50 p-2 rounded-lg">
-                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">
-                              备载数量 ({RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit || item.unit})
-                            </label>
-                            <span className="text-xs font-mono font-bold text-slate-700">{entry.quantity || 0}</span>
-                          </div>
-                          <div className="bg-slate-50 p-2 rounded-lg">
-                            <label className="text-[10px] text-slate-400 block mb-0.5 font-semibold">单价 (元)</label>
-                            <span className="text-xs font-mono font-bold text-slate-700">¥{entry.price || 0}</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-gray-50 flex justify-between items-center text-xs">
-                          <span className="text-gray-400">日结金额合计:</span>
-                          <span className={`font-extrabold ${activeTheme.primaryText} font-mono`}>
-                            ¥{entry.amount.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* 今日总金额结算 */}
-                <div className={`mt-6 p-4 ${activeTheme.lightBg} border border-slate-100 rounded-xl flex items-center justify-between text-xs`}>
-                  <span className="text-gray-500 font-medium">【{focusDay}号】单日大类累计消耗开支：</span>
-                  <span className={`text-base font-extrabold ${activeTheme.primaryText} font-mono`}>
-                    ¥{dayTotals[focusDay].toFixed(2)} 元
-                  </span>
-                </div>
-
-              </div>
-
-            </div>
+            <TableGridFocusView
+              days={days}
+              filteredItems={filteredItems}
+              dayTotals={dayTotals}
+              activeTheme={activeTheme}
+              focusDay={focusDay}
+              setFocusDay={setFocusDay}
+              readOnly={readOnly}
+              onDeleteItem={onDeleteItem}
+            />
           )}
         </>
       )}
