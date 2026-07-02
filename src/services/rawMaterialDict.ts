@@ -33,9 +33,6 @@ export interface RawMaterialDictItem {
   isDefault?: boolean;
 }
 
-/** 本地 LocalStorage 缓存原料库的 Key */
-const RAW_MATERIALS_DICT_KEY = "KITCHEN_RAW_MATERIALS_DICT_V1";
-
 /**
  * @description 原料字典数据服务类，维护系统中可供选择的原料列表，支持后台增删改查
  */

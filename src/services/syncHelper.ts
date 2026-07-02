@@ -79,6 +79,11 @@ export class SyncHelper {
   private static memoryFetcher: (() => BackendData) | null = null;
 
   /**
+   * @description 防抖同步定时器句柄，用于取消上一次尚未触发的延迟保存
+   */
+  private static debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
    * @description 注册内存数据提取器回调
    * @param fetcher 提取器函数
    */
