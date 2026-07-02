@@ -772,3 +772,15 @@ pm2 startup
   - **种子数据本体修正**：直接删除 `generateDefaultSeeds()` 中末尾重复注册的「黄瓜」「土豆」两条冗余条目，消灭最直接的字面重复根因。
   - **持久化自愈**：`initDictFromServer()` 检测到本次加载发生了实际去重时，会通过新增的 `SyncHelper.runWhenInitialized()`（在 [syncHelper.ts] 新增的一次性回调队列机制）把清洗后的字典安全回写服务器——避免了在系统初始化安全锁解锁前直接调用同步导致请求被拦截丢弃的问题，实现历史脏数据的自动物理清除，无需人工介入清库。
 - **验证**：本地手工构造含「黄瓜」「土豆」同名重复条目的 `data/db.json`，在修复前的代码上完整复现了管理后台字典 Tab 与台账录入模式下的两类重复 key 控制台报错；应用修复后重新验证，两处场景控制台均无任何报错，且原料字典自动去重为正确数量并回写持久化文件，非重复的正常原料展示与录入不受影响。
+
+### 2026-07-02 - [V5.35.0] 项目代码结构、数据流与持久化机制全面重构，并补齐架构文档与文件级注释
+- **需求**：分析项目的代码结构、数据流向、持久化系统；重构代码使结构更清晰；把重构后的设计落实到文档；给每个代码文件加上顶行注释说明文件主要功能。
+- **重构方案**（全程在 `dev` 分支操作，未合并/未触碰 `main`；每个阶段结束均以 `tsc --noEmit` + `vite build` 验证并单独提交）：
+  1. **前端目录重组**：按业务域把原本平铺在 `src/` 根目录与 `src/components/` 下的文件重新分组——服务层归入 [services/](src/services)（`store.ts`、`ledgerStore.ts`、`rawMaterialDict.ts`、`syncHelper.ts`），类型归入 [types/](src/types)，常量归入 [constants/](src/constants)，管理后台/台账/库存三大业务域组件分别归入 `components/{admin,ledger,inventory}/`，跨域复用组件归入 `components/shared/`；逐组用 `git mv` 迁移并批量修正 import 相对路径（含 `App.tsx` 内 `lazy()` 动态导入路径的人工核对）。
+  2. **抽取共享组件**：把原本内嵌重复实现在 [LedgerStyle1Table.tsx] 与 [LedgerStyle2Flow.tsx] 中的下拉选择器、感官性状多选浮层分别提取为独立的 [HelperSelect.tsx]、[SensorySelector.tsx]，通过样式覆盖 props 保留两处调用点原有的细微视觉差异。
+  3. **抽取自定义 Hook**（风险最高环节，逐个提取逐个验证）：从 [App.tsx] 抽出 `useAppAuth`（登录态与管理员密码校验）、`useAppData`（三大服务初始化订阅、`SyncHelper` 启动锁、心跳同步）；从 [LedgerSystem.tsx] 抽出 `useLedgerData`（台账数据加载订阅）、`useLedgerRecording`（录入模式状态机）；从 [TableGrid.tsx] 抽出 `useTableTheme`（主题切换），并把矩阵/单日聚焦两种渲染视图拆分为独立子组件 [TableGridMatrixView.tsx]、[TableGridFocusView.tsx]。均为纯逻辑搬家，未改变任何状态依赖、副作用时机或渲染结果，重点针对冷启动加载、空数据首启、录入模式确认/取消全流程做了浏览器手动回归测试。
+  4. **后端拆分**：把 `server.ts`（原 627 行）拆分为 [server/storageService.ts]（本地/COS 双模式持久化、逐日流水拆分读写、备份恢复原样搬移）、[server/logService.ts]（日志服务原样搬移）、[server/routes/storage.ts]、[server/routes/misc.ts] 四个模块，入口文件瘦身至 97 行，仅保留 Express 初始化、中间件、路由挂载、Vite 中间件/生产静态托管与进程级异常捕获；用完整的 `npm run build && npm run start` 生产模式启动并手动 curl 验证了 `/api/health`、`/`、`/api/storage/load` 均正常。
+  5. **文件级说明注释**：为全部 45 个 `src/`、`server.ts`、`server/` 下的源码文件在现有 Apache License 头之后统一补充 `@description` 顶部说明注释；[main.tsx]、[LedgerPrintStyle1.tsx] 此前完全缺失 License 头，一并补齐；原本已有接口级注释的文件（如 [types.ts]、[syncHelper.ts]）在其之上新增整体文件说明，不删改任何既有注释内容。
+  6. **文档产出**：新建 [ARCHITECTURE.md]，完整记录目录结构、数据流向（服务层 pub/sub + `SyncHelper` 去抖保存 + 启动锁）、持久化设计（`db.json` 主库 + 逐日流水拆分存储 + 30 份自动备份裁剪 + COS 可选后端）及本次重构的范围边界（未改动任何算法/业务逻辑/可见行为，未引入自动化测试，COS 模式未做云端联调）。
+- **影响说明**：本次重构不改变任何业务逻辑、渲染结果、导出组件名、prop 名或公共函数签名，纯粹是文件位置、状态/副作用代码组织方式与注释的调整；对最终用户不可见任何界面或功能变化。
+- **验证**：每个子阶段单独跑通 `tsc --noEmit`（报错数量全程保持在改动前的存量基线，未新增）与 `npx vite build`（产物 chunk 结构与改动前一致）；`useAppData`/`useLedgerRecording` 两个高风险 Hook 额外做了浏览器端到端回归（冷启动、保存后重新加载持久化校验、模拟首次启动空数据场景、完整录入会话生命周期）；后端拆分额外做了生产模式 `node dist/server.cjs` 启动 + 接口 curl 验证；全部改动分阶段提交在 `dev` 分支，`main` 分支未被触碰。
