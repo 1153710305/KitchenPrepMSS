@@ -5,9 +5,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>食堂用餐服务管理系统</title>
-  <!-- 引入用于 Windows 7 兼容的字体与图标方案 -->
-  <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap" />
+  <!-- 引入用于 Windows 7 兼容的字体与图标方案（异步加载，避免离线/无外网环境下阻塞首屏渲染；失败时自动回落至下方 Microsoft YaHei 等本地系统字体） -->
+  <link rel="preload" as="style"
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap"
+    onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700&display=swap" />
+  </noscript>
   <style>
     /* 全局回退字体，防止Windows 7渲染点阵宋体 */
     body,
@@ -97,35 +102,44 @@
       box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
     }
   </style>
-  <!-- 引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片 -->
-  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <!--
+    引入 twemoji 脚本，在不支持原生 emoji 的 Windows 7 等旧系统下自动替换为 SVG 图片。
+    使用 async 异步加载：不会阻塞下方 <script type="module"> 主应用的解析执行时机，
+    离线/无外网环境下即使该脚本请求超时失败，也完全不影响主应用正常启动渲染，
+    仅回退为显示系统原生 emoji 字符（现代 Windows/macOS 均原生支持彩色 emoji）。
+  -->
+  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous" async
+    onload="window.__runTwemojiParse && window.__runTwemojiParse()"></script>
   <script>
-    // 开启全局静默监听，DOM 渲染完毕后自动解析替换所有 Emoji 图标
-    document.addEventListener("DOMContentLoaded", function () {
-      if (typeof twemoji !== "undefined") {
-        twemoji.parse(document.body, {
-          folder: 'svg',
-          ext: '.svg'
-        });
-        // 使用 MutationObserver 监听动态生成的 DOM（如 React 局部重新渲染的区域）
-        var observer = new MutationObserver(function (mutations) {
-          mutations.forEach(function (mutation) {
-            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-              for (var i = 0; i < mutation.addedNodes.length; i++) {
-                var node = mutation.addedNodes[i];
-                if (node.nodeType === 1) { // ELEMENT_NODE
-                  twemoji.parse(node, { folder: 'svg', ext: '.svg' });
-                }
+    // 实际执行 Emoji 解析替换的函数：同时供"脚本异步加载完成回调"与"DOMContentLoaded"两个时机调用，
+    // 无论 twemoji 脚本比页面内容先加载完还是后加载完，都能正确补齐替换，避免因异步加载顺序不确定而漏转换。
+    var twemojiParsed = false;
+    window.__runTwemojiParse = function () {
+      if (typeof twemoji === "undefined" || twemojiParsed) return;
+      twemojiParsed = true;
+      twemoji.parse(document.body, {
+        folder: 'svg',
+        ext: '.svg'
+      });
+      // 使用 MutationObserver 监听动态生成的 DOM（如 React 局部重新渲染的区域）
+      var observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+            for (var i = 0; i < mutation.addedNodes.length; i++) {
+              var node = mutation.addedNodes[i];
+              if (node.nodeType === 1) { // ELEMENT_NODE
+                twemoji.parse(node, { folder: 'svg', ext: '.svg' });
               }
             }
-          });
+          }
         });
-        observer.observe(document.getElementById("root"), {
-          childList: true,
-          subtree: true
-        });
-      }
-    });
+      });
+      observer.observe(document.getElementById("root"), {
+        childList: true,
+        subtree: true
+      });
+    };
+    document.addEventListener("DOMContentLoaded", window.__runTwemojiParse);
   </script>
 </head>
 

@@ -10,7 +10,6 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import { LogService } from "./server/logService.ts";
 import { storageRouter } from "./server/routes/storage.ts";
 import { miscRouter } from "./server/routes/misc.ts";
@@ -24,9 +23,15 @@ dotenv.config();
 const app = express();
 
 /**
- * @description 后门默认常规绑定端口
+ * @description 服务监听端口：优先读取环境变量 PORT（单机部署时如遇端口冲突，可在 .env 中修改此项后重启即可切换端口），
+ * 未配置或配置值非法时回退到默认端口 3000
  */
-const PORT = 3000;
+const DEFAULT_PORT = 3000;
+const parsedPort = Number(process.env.PORT);
+const PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort < 65536 ? parsedPort : DEFAULT_PORT;
+if (process.env.PORT && PORT !== parsedPort) {
+  console.warn(`[SYSTEM BOOT] 环境变量 PORT="${process.env.PORT}" 不是合法端口号，已自动回退使用默认端口 ${DEFAULT_PORT}`);
+}
 
 // 配置 JSON 解析器
 app.use(express.json({ limit: "50mb" }));
@@ -45,10 +50,19 @@ app.use("/api/storage", storageRouter);
 app.use("/api", miscRouter);
 
 /**
- * @description 挂载 Vite 开发中间件以保高画质更新
+ * @description 是否为开发模式：必须显式设置 NODE_ENV=development 才会进入开发模式（由 npm run dev 通过 cross-env 设置）。
+ * 只要未显式声明为开发模式，一律按生产模式启动（含直接双击启动脚本、npm start、或忘记设置环境变量等场景），
+ * 避免单机离线部署时因环境变量缺省而意外尝试加载仅开发环境才需要的 Vite 中间件。
+ */
+const isDevMode = process.env.NODE_ENV === "development";
+
+/**
+ * @description 挂载 Vite 开发中间件以保高画质更新（仅在开发模式下才动态引入 vite 包，
+ * 单机离线生产部署时无需安装 vite 及其相关 devDependencies 也能正常启动，减小部署依赖体积）
  */
 async function bootstrap() {
-  if (process.env.NODE_ENV !== "production") {
+  if (isDevMode) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
