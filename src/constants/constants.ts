@@ -8,17 +8,7 @@
  * @description 备餐系统专属的常量字典：一二级人群/食材大类的中文名映射、默认单位、预设食材种子数据、登录与管理员密码（来自环境变量）以及界面通用中文文案集中管理。
  */
 
-import { FoodCategory, TargetGroup } from "../types/types.ts";
-
-/**
- * @description 目标人群的中文字典映射
- */
-export const TARGET_GROUP_LABELS: Record<TargetGroup, string> = {
-  [TargetGroup.TEACHER]: "教师备餐",
-  [TargetGroup.KID]: "幼儿备餐",
-  [TargetGroup.LOW_GRADE]: "低年级备餐",
-  [TargetGroup.HIGH_GRADE]: "高年级备餐"
-};
+import { FoodCategory } from "../types/types.ts";
 
 /**
  * @description 食物品类的中文字典映射

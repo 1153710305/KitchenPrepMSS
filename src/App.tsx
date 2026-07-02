@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { FoodCategory, TargetGroup } from "./types/types.ts";
-import { TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants/constants.ts";
+import { FOOD_CATEGORY_LABELS } from "./constants/constants.ts";
 import { PrepReportService } from "./services/store.ts";
 import { TableGrid } from "./components/inventory/TableGrid.tsx";
 import { LogBroker } from "./utils.ts";
@@ -203,7 +203,7 @@ export default function App() {
    */
   const getGroupLabel = (groupKey: string) => {
     const g = activeGroupsList.find((g) => g.key === groupKey);
-    return g ? g.label : (TARGET_GROUP_LABELS[groupKey as TargetGroup] || groupKey);
+    return g ? g.label : groupKey;
   };
 
   /**
