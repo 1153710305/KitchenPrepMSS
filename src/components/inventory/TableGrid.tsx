@@ -12,6 +12,7 @@ import { Trash, Grid, Search, CalendarDays, Check, Flame, Download } from "lucid
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
+import { useTableTheme } from "../../hooks/useTableTheme.ts";
 
 /**
  * @description 备餐网格组件的输入参数协议
@@ -38,66 +39,6 @@ interface TableGridProps {
 }
 
 /**
- * @description 二级分组采购细表的主题样式属性定义
- */
-interface ThemeStyle {
-  primaryBg: string;      // 主题主背景（如 bg-sky-500）
-  primaryText: string;    // 主题主文字颜色（如 text-sky-700）
-  lightBg: string;        // 主题浅色背景（如 bg-sky-50/50）
-  borderHover: string;    // 卡片悬停边框颜色（如 hover:border-sky-300）
-  badgeClass: string;     // 日历天数等徽章背景（如 bg-sky-500 text-white）
-  accentText: string;     // 金额等高亮强调文字颜色（如 text-sky-800）
-  accentBg: string;       // 合计等高亮强调背景颜色（如 bg-sky-100/50）
-  btnActive: string;      // 激活态按钮背景类名
-}
-
-/**
- * @description 预设精美的四套细表主题样式映射表
- */
-const THEME_MAP: Record<string, ThemeStyle> = {
-  sky: {
-    primaryBg: "bg-sky-600",
-    primaryText: "text-sky-900",
-    lightBg: "bg-sky-100/60",
-    borderHover: "hover:border-sky-400",
-    badgeClass: "bg-sky-600 text-white shadow-sky-50",
-    accentText: "text-sky-950 font-black",
-    accentBg: "bg-sky-200/50",
-    btnActive: "bg-sky-600 text-white font-bold"
-  },
-  emerald: {
-    primaryBg: "bg-emerald-600",
-    primaryText: "text-emerald-900",
-    lightBg: "bg-emerald-100/60",
-    borderHover: "hover:border-emerald-400",
-    badgeClass: "bg-emerald-600 text-white shadow-emerald-50",
-    accentText: "text-emerald-950 font-black",
-    accentBg: "bg-emerald-200/50",
-    btnActive: "bg-emerald-600 text-white font-bold"
-  },
-  purple: {
-    primaryBg: "bg-violet-600",
-    primaryText: "text-violet-900",
-    lightBg: "bg-violet-100/60",
-    borderHover: "hover:border-violet-400",
-    badgeClass: "bg-violet-600 text-white shadow-violet-50",
-    accentText: "text-violet-950 font-black",
-    accentBg: "bg-violet-200/50",
-    btnActive: "bg-violet-600 text-white font-bold"
-  },
-  charcoal: {
-    primaryBg: "bg-slate-700",
-    primaryText: "text-slate-900",
-    lightBg: "bg-slate-150",
-    borderHover: "hover:border-slate-500",
-    badgeClass: "bg-slate-700 text-white shadow-slate-50",
-    accentText: "text-slate-950 font-black",
-    accentBg: "bg-slate-200",
-    btnActive: "bg-slate-700 text-white font-bold"
-  }
-};
-
-/**
  * @description 多功能食堂电子备料表格与汇总合计组件
  */
 export const TableGrid: React.FC<TableGridProps> = ({
@@ -114,18 +55,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
 
-  // 主题样式管理，默认翡翠绿 "emerald"
-  const [theme, setTheme] = useState<"sky" | "emerald" | "purple" | "charcoal">(() => {
-    return (localStorage.getItem("prep_table_theme") as any) || "emerald";
-  });
-
-  const activeTheme = THEME_MAP[theme] || THEME_MAP.emerald;
-
-  const handleThemeChange = (newTheme: "sky" | "emerald" | "purple" | "charcoal") => {
-    setTheme(newTheme);
-    localStorage.setItem("prep_table_theme", newTheme);
-    LogBroker.publish("INFO", "TableGrid", `用户切换了备餐明细表格的主题样式为：${newTheme === "sky" ? "天空蓝" : newTheme === "emerald" ? "翡翠绿" : newTheme === "purple" ? "丁香紫" : "典雅暗灰"}`);
-  };
+  // 主题样式管理，统一由 useTableTheme 提供
+  const { theme, activeTheme, handleThemeChange } = useTableTheme();
 
   // 聚焦日的索引状态，默认聚焦 1 号
   const [focusDay, setFocusDay] = useState<string>("1");
