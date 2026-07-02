@@ -856,3 +856,16 @@ pm2 startup
   5. **UI 层**：[AdminGroupsTab.tsx]（一级受众）、[AdminBackend.tsx]（二级大类）、[AdminDictTab.tsx]（原料字典）三处管理界面，默认数据项旁新增"默认"灰色标签，删除按钮替换为带提示的锁形图标（不可点击），编辑按钮保持可用。
 - **影响说明**：仅新增数据保护校验，不改变任何既有的编辑逻辑、字段结构或非默认数据的增删改查流程。
 - **验证**：`tsc --noEmit` 报错数保持 29（基线不变），`vite build` 成功；浏览器实测——刷新加载后确认历史数据（3 个人群、6 个大类、77 个原料）均正确迁移显示"默认"标签及锁图标；编辑默认原料（含改备注）保存后依然保留默认标记与锁定状态；新增的非默认人群/大类/原料正常显示可删除的垃圾桶图标且删除成功；控制台无新增报错。
+
+### 2026-07-03 - [V5.43.0] 清理遗留死代码：删除 TARGET_GROUP_LABELS、RAW_MATERIALS_DICT_KEY，补齐 SyncHelper 缺失的类型声明
+- **需求**：用户询问 [constants.ts] 中 `TARGET_GROUP_LABELS` 的作用，确认是重构前遗留的静态映射表后，要求直接删除（项目仍处于自测阶段、未部署，不存在需要兼容的历史遗留数据）；并要求排查项目内其他类似的遗留无用代码。
+- **排查结论**：
+  1. 项目已重构为动态人群系统（`activeGroups`，可在管理后台增删改），但 `TARGET_GROUP_LABELS` 仍基于重构前的旧 `TargetGroup` 枚举（教师/幼儿/低年级/高年级）——其中"低年级/高年级"甚至已不在当前默认人群集合（幼儿备餐/在校生备餐/教师备餐）里，印证了这是重构前的遗留代码。它仅作为 [App.tsx]、[TableGrid.tsx] 里 `getGroupLabel()` 辅助函数在动态人群列表查不到时的兜底回退，对当前默认人群完全用不上。
+  2. 全项目 grep 排查后，另确认 [rawMaterialDict.ts] 的 `RAW_MATERIALS_DICT_KEY` 常量（本地 LocalStorage 缓存 Key）在服务改为完全基于内存+服务器同步后已无任何调用方，属同类遗留死代码。
+  3. 排查过程中额外发现一处非"死代码"但同样是遗留疏漏的问题：[syncHelper.ts] 的 `SyncHelper.debounceTimer` 在 `triggerSyncToServer()` 里被读取和赋值，却从未声明为类的静态属性，导致 `tsc --noEmit` 长期产生 3 条相关类型错误（此前一直计入存量报错基线，运行时因 JS 允许动态挂载属性而未真正报错）。
+- **重构方案**：
+  1. [constants.ts] 删除 `TARGET_GROUP_LABELS` 常量及随之变为多余的 `TargetGroup` 类型导入；[App.tsx]、[TableGrid.tsx] 的 `getGroupLabel()` 简化为动态列表查不到时直接回退显示原始 key，同步清理了两处变为多余的导入。
+  2. [rawMaterialDict.ts] 删除 `RAW_MATERIALS_DICT_KEY` 常量。
+  3. [syncHelper.ts] 补齐 `private static debounceTimer` 的类型声明，修正该疏漏。
+- **影响说明**：`TargetGroup` 枚举本身在 [types.ts]/[store.ts] 等处仍作为类型注解广泛使用，未删除；`FOOD_CATEGORY_LABELS`（同一文件内相邻的品类标签映射）经排查在 10+ 处组件中被实际使用（并非同类遗留代码），未删除。
+- **验证**：`tsc --noEmit` 报错数由 29 降至 26（净修复 3 条 debounceTimer 相关错误），`vite build` 成功（主 bundle 体积略微减小）；本地浏览器实测——主记账界面、库存总览面板的受众人群标签（教师备餐/幼儿备餐/在校生备餐）均正常显示；台账录入模式下点击"保存并同步今日采购"，网络面板确认 `POST /api/storage/save` 正常返回 200，防抖保存机制工作正常；控制台无新增报错。
