@@ -820,3 +820,19 @@ pm2 startup
   4. **历史日志平滑迁移**：服务启动时若检测到升级前遗留的单一大日志文件 `data/app.log`，自动将其重命名迁移进新的归档目录（`app-legacy-migrated.log`），不丢失历史日志。
 - **影响说明**：仅涉及服务端日志文件的物理存储方式，未改动 `LogService.write()` 的调用签名与 `/api/log` 上报接口，前端 `LogBroker` 与全部 77 处日志上报调用点无需任何改动。
 - **验证**：独立脚本模拟高频写入，验证了体积超限后正确滚动到序号分片文件、跨进程重启后正确复用同一天的文件继续追加不重复不丢失；本地 `npm run dev` 与 `npm run build && node dist/server.cjs` 生产模式均启动正常，确认服务启动时正确将真实的 `data/app.log` 迁移为 `data/logs/app-legacy-migrated.log`，新日志正确写入 `data/logs/app-2026-07-03.log`；`tsc --noEmit` 报错数保持 29（基线不变），`vite build` 成功。
+
+### 2026-07-03 - [V5.40.0] 支持单机离线部署：可配置端口、生产模式免依赖Vite、外部CDN资源异步化
+- **需求**：客户方案是本地单机部署使用、不联网；开发完毕后需要让客户以最简单的方式单机部署使用本系统；端口可能有冲突，需要让用户可以手动设置启动端口。
+- **排查发现的离线部署隐患**：
+  1. [index.html] 原本以阻塞方式引入 Google 网络字体 `<link>` 与 twemoji 表情图标 `<script>`（用于旧版 Windows 兼容），实测在浏览器网络面板中确认每次打开页面都会实际发起约 15 次外部请求（字体 CSS + 10 余个 woff2 字体文件 + twemoji 脚本 + 逐个 emoji 的 SVG 图标）。完全离线环境下这些请求会因 DNS/连接超时而拖慢首屏渲染，且 twemoji 会把已渲染的原生 emoji 替换为指向失败 URL 的 `<img>`，若脚本恰好加载成功但图标请求失败，还会显示破损图片图标。
+  2. [server.ts] 的开发/生产模式判定逻辑此前是"只要 NODE_ENV 不等于 production 就当作开发模式"，而 `npm start`（即 `node dist/server.cjs`）本身并未设置 NODE_ENV，导致直接双击启动或执行 npm start 会被误判为开发模式，进而尝试加载仅开发环境需要的 `vite` 包——如果客户机器上的 node_modules 是用 `npm install --omit=dev` 精简安装的（很自然的部署选择），服务会直接启动失败。
+  3. [package.json] 的 `vite`、`@vitejs/plugin-react`、`@tailwindcss/vite` 三个构建期工具此前被重复错误放在 `dependencies` 里（本该只属于 `devDependencies`），导致即使执行 `npm install --omit=dev` 瘦身安装，这些几十 MB 的构建工具依然会被安装，白白增大离线部署包体积。
+  4. 端口硬编码为常量 `3000`，无法配置，一旦与客户电脑上其他程序占用的端口冲突就无法启动。
+- **重构方案**：
+  1. **端口可配置**：[server.ts] 服务监听端口改为优先读取环境变量 `PORT`（在 `.env` 里修改后重启即可切换，无需碰代码），非法值自动回退到默认的 3000 并打印警告日志。
+  2. **修正生产模式默认判定**：改为必须显式设置 `NODE_ENV=development` 才进入开发模式（[package.json] 的 `dev` 脚本通过新增的 `cross-env` 依赖设置），未显式声明一律按生产模式启动，彻底解决"忘记设置环境变量导致误判"的问题；同时把挂载 Vite HMR 中间件的 `import` 改为仅在开发模式分支内动态 `await import("vite")`，生产环境完全不接触 vite 模块。
+  3. **依赖分类修正**：把 `vite`、`@vitejs/plugin-react`、`@tailwindcss/vite`、新增的 `cross-env` 都归位到 `devDependencies`。实测 `npm ci --omit=dev` 后 node_modules 从含 vite 全家桶降至 150 个包，且生产模式仍能正常启动响应。
+  4. **外部资源异步化**：[index.html] 字体 `<link>` 改为 `preload` + `onload` 动态切换为 `stylesheet` 的非阻塞模式（配 `<noscript>` 兜底）；twemoji `<script>` 改为 `async`，并把解析逻辑抽成去重后的共享函数，同时挂在脚本 `onload` 回调与 `DOMContentLoaded` 两个时机上，保证不论脚本加载快慢都能正确执行且不重复执行；完全离线时两者请求失败也不会阻塞或拖慢主应用挂载，只是优雅回退为系统本地字体与原生 emoji 字符。
+  5. **一键启动脚本与部署文档**：新增 [start-windows.bat]、[start-mac-linux.sh] 双击即可启动的脚本（自动检测 Node.js 与构建产物是否就绪，给出清晰的中文报错提示），以及 [部署指南.md] 完整说明离线部署的注意事项、最简部署步骤、`.env` 常用配置项、常见问题排查。
+- **影响说明**：以上改动均不影响联网环境下的正常使用体验（字体/emoji 图标增强效果依旧生效，仅加载方式变为非阻塞），也不影响云端部署路径（如 AI Studio/Cloud Run 场景本身就会显式设置 `NODE_ENV=production`，行为不受影响）。
+- **验证**：`tsc --noEmit` 报错数保持 29（基线不变），`npm run build` 成功；`npm run dev` 通过 cross-env 正确进入开发模式（浏览器实测登录页正常渲染，HMR 中间件挂载日志确认）；模拟 `npm ci --omit=dev` 精简安装后，生产模式 `node dist/server.cjs` 在完全不含 vite 包的 node_modules 下正常启动并正确响应 `/api/health` 与静态页面请求；两个启动脚本本地实测均可正常拉起服务并给出预期的中文提示。
