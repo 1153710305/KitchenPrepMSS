@@ -1,0 +1,429 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description 本地文件与腾讯云对象存储（COS）双模式持久化服务：负责主数据文件读写、台账逐日流水拆分存储、以及历史快照备份与恢复。
+ */
+
+import path from "path";
+import fs from "fs";
+import COS from "cos-nodejs-sdk-v5";
+
+/**
+ * @description 后端持久化数据同步引擎，支持本地 JSON 文件与腾讯云 COS 对象存储双模式切换
+ */
+export class StorageService {
+  /**
+   * @description 存储类型：local（本地文件） 或 cos（腾讯云对象存储）
+   */
+  private static storageType: string = process.env.STORAGE_TYPE || "local";
+
+  /**
+   * @description 本地文件存储路径，默认为项目根目录下 data/db.json
+   */
+  private static localDbPath: string = path.resolve(process.env.LOCAL_DB_PATH || "data/db.json");
+
+  /**
+   * @description 本地历史备份存储目录
+   */
+  private static backupDir: string = path.resolve(path.dirname(StorageService.localDbPath), "backups");
+
+  /**
+   * @description 腾讯云 COS 客户端实例
+   */
+  private static cosClient: COS | null = null;
+
+  /**
+   * @description 获取腾讯云 COS 客户端实例（延迟初始化）
+   * @returns {COS} COS 客户端实例
+   */
+  private static getCosClient(): COS {
+    if (!StorageService.cosClient) {
+      StorageService.cosClient = new COS({
+        SecretId: process.env.COS_SECRET_ID || "",
+        SecretKey: process.env.COS_SECRET_KEY || "",
+      });
+    }
+    return StorageService.cosClient;
+  }
+
+  /**
+   * @description 获取 COS 配置参数
+   * @returns {Object} 包含 Bucket, Region, Key 等配置
+   */
+  private static getCosConfig() {
+    return {
+      Bucket: process.env.COS_BUCKET || "",
+      Region: process.env.COS_REGION || "",
+      Key: process.env.COS_KEY || "kitchen_db.json"
+    };
+  }
+
+  /**
+   * @description 初始化存储引擎，创建必要的本地目录
+   * @returns {void}
+   */
+  public static init(): void {
+    if (StorageService.storageType === "local") {
+      const dir = path.dirname(StorageService.localDbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`[STORAGE] 已成功创建本地数据存储目录: ${dir}`);
+      }
+      if (!fs.existsSync(StorageService.backupDir)) {
+        fs.mkdirSync(StorageService.backupDir, { recursive: true });
+        console.log(`[STORAGE] 已成功创建本地备份快照目录: ${StorageService.backupDir}`);
+      }
+    } else {
+      console.log("[STORAGE] 启动云端存储模式：已挂载腾讯云 COS 同步总线。");
+    }
+  }
+
+  /**
+   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的 JSON 流水文件，并合并到内存结构中
+   * @param {string} dailyDir 日度数据根目录路径
+   * @param {Record<string, Record<string, any>>} mergedDaily 用于在内存中重组的合并流水数据字典 (格式: { itemId: { YYYY-MM-DD: DailyStockRecord } })
+   */
+  private static readAllDailyRecordsLocal(dailyDir: string, mergedDaily: Record<string, Record<string, any>>): void {
+    if (!fs.existsSync(dailyDir)) return;
+    try {
+      const years = fs.readdirSync(dailyDir);
+      for (const year of years) {
+        const yearPath = path.join(dailyDir, year);
+        if (!fs.statSync(yearPath).isDirectory()) continue;
+        const months = fs.readdirSync(yearPath);
+        for (const month of months) {
+          const monthPath = path.join(yearPath, month);
+          if (!fs.statSync(monthPath).isDirectory()) continue;
+          const days = fs.readdirSync(monthPath);
+          for (const day of days) {
+            const dayPath = path.join(monthPath, day);
+            if (!fs.statSync(dayPath).isFile() || !day.endsWith(".json")) continue;
+            try {
+              const dateStr = `${year}-${month}-${day.replace(".json", "")}`;
+              const fileContent = fs.readFileSync(dayPath, "utf8");
+              const dayRecords = JSON.parse(fileContent);
+
+              // dayRecords 格式为 { itemId: DailyStockRecord }
+              for (const [itemId, record] of Object.entries(dayRecords)) {
+                if (!mergedDaily[itemId]) {
+                  mergedDaily[itemId] = {};
+                }
+                mergedDaily[itemId][dateStr] = record as any;
+              }
+            } catch (e) {
+              console.error(`[STORAGE] 解析日度账单文件失败 ${dayPath}:`, e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[STORAGE] 读取日度分散台账目录失败:", e);
+    }
+  }
+
+  /**
+   * @description 将全量台账项目中的每日流水提取出来，按照年、月、天分散持久化到不同的文件夹中保存
+   * @param {string} dailyDir 日度数据根目录路径
+   * @param {any[]} ledgerItems 内存中的全量台账原料项列表
+   */
+  private static writeDailyRecordsLocal(dailyDir: string, ledgerItems: any[]): void {
+    if (!ledgerItems || !Array.isArray(ledgerItems)) return;
+    try {
+      // 1. 将全量数据按日期进行逆向分组整理
+      // dateMap 格式: { YYYY-MM-DD: { itemId: DailyStockRecord } }
+      const dateMap: Record<string, Record<string, any>> = {};
+      for (const item of ledgerItems) {
+        if (item.dailyRecords) {
+          for (const [dateStr, record] of Object.entries(item.dailyRecords)) {
+            if (!dateStr || !record) continue;
+            if (!dateMap[dateStr]) {
+              dateMap[dateStr] = {};
+            }
+            dateMap[dateStr][item.id] = record;
+          }
+        }
+      }
+
+      // 2. 将数据按年月日写到相应的独立 json 文件中，限制单个文件过大
+      for (const [dateStr, dayRecords] of Object.entries(dateMap)) {
+        const parts = dateStr.split("-");
+        if (parts.length !== 3) continue;
+        const [year, month, day] = parts;
+
+        const targetDir = path.join(dailyDir, year, month);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const targetPath = path.join(targetDir, `${day}.json`);
+        fs.writeFileSync(targetPath, JSON.stringify(dayRecords, null, 2), "utf8");
+      }
+    } catch (e) {
+      console.error("[STORAGE] 写入日度分散台账文件失败:", e);
+    }
+  }
+
+  /**
+   * @description 加载主数据库内容
+   * @returns {Promise<any>} 返回 JSON 数据对象
+   */
+  public static async load(): Promise<any> {
+    if (StorageService.storageType === "cos") {
+      const { Bucket, Region, Key } = StorageService.getCosConfig();
+      return new Promise((resolve) => {
+        StorageService.getCosClient().getObject({
+          Bucket,
+          Region,
+          Key
+        }, (err, data) => {
+          if (err) {
+            // 如果文件不存在 (404 / NoSuchKey)，则返回空对象，供前端自行初始化默认值
+            if (err.statusCode === 404 || err.code === "NoSuchKey") {
+              console.log("[STORAGE COS] COS上暂无数据文件，将返回空初始集。");
+              resolve({});
+            } else {
+              console.error("[STORAGE COS] 从腾讯云拉取数据失败:", err);
+              resolve({});
+            }
+          } else {
+            try {
+              const bodyStr = data.Body.toString("utf8");
+              resolve(JSON.parse(bodyStr));
+            } catch (parseErr) {
+              console.error("[STORAGE COS] 解析云端JSON失败:", parseErr);
+              resolve({});
+            }
+          }
+        });
+      });
+    } else {
+      // 本地存储模式
+      if (!fs.existsSync(StorageService.localDbPath)) {
+        return {};
+      }
+      try {
+        const content = fs.readFileSync(StorageService.localDbPath, "utf8");
+        const data = JSON.parse(content);
+
+        // 加载按年月日分散在各子文件夹中的日度账单流水
+        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+        const mergedDaily: Record<string, Record<string, any>> = {};
+        StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
+
+        // 重新拼装回 ledgerItems 对应的 dailyRecords 字典中
+        if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
+          for (const item of data.ledgerItems) {
+            item.dailyRecords = mergedDaily[item.id] || {};
+          }
+        }
+
+        return data;
+      } catch (err) {
+        console.error("[STORAGE LOCAL] 读取本地数据失败:", err);
+        return {};
+      }
+    }
+  }
+
+  /**
+   * @description 保存数据到引擎，并自动生成备份快照
+   * @param {any} data 需要保存的全量数据包
+   * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
+   */
+  public static async save(data: any): Promise<boolean> {
+    const dataStr = JSON.stringify(data, null, 2);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+    if (StorageService.storageType === "cos") {
+      const { Bucket, Region, Key } = StorageService.getCosConfig();
+      // 1. 保存主数据
+      const saveMain = new Promise<boolean>((resolve) => {
+        StorageService.getCosClient().putObject({
+          Bucket,
+          Region,
+          Key,
+          Body: Buffer.from(dataStr, "utf8")
+        }, (err) => {
+          if (err) {
+            console.error("[STORAGE COS] 保存主数据至云端失败:", err);
+            resolve(false);
+          } else {
+            console.log("[STORAGE COS] 主数据已成功落盘至腾讯云 COS");
+            resolve(true);
+          }
+        });
+      });
+
+      // 2. 保存快照备份，以便发生意外时恢复 (异步上传，不阻塞主线程)
+      const backupKey = `backups/db_${timestamp}.json`;
+      StorageService.getCosClient().putObject({
+        Bucket,
+        Region,
+        Key: backupKey,
+        Body: Buffer.from(dataStr, "utf8")
+      }, (err) => {
+        if (err) {
+          console.error(`[STORAGE COS] 备份快照 ${backupKey} 上传失败:`, err);
+        } else {
+          console.log(`[STORAGE COS] 成功生成云端备份快照: ${backupKey}`);
+        }
+      });
+
+      return saveMain;
+    } else {
+      // 本地存储模式
+      try {
+        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+
+        // 1. 先将庞大的每日出入库流水提取整理，以 YYYY/MM/DD.json 分散文件物理落盘
+        StorageService.writeDailyRecordsLocal(dailyDir, data.ledgerItems);
+
+        // 2. 深度克隆并清理内存快照中的 dailyRecords，避免主 db.json 及系统快照包体积无限膨胀
+        const cleanedData = JSON.parse(JSON.stringify(data));
+        if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
+          for (const item of cleanedData.ledgerItems) {
+            item.dailyRecords = {};
+          }
+        }
+        const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
+
+        // 3. 保存去除了每日流水的主配置骨架文件
+        fs.writeFileSync(StorageService.localDbPath, cleanedDataStr, "utf8");
+        console.log(`[STORAGE LOCAL] 结构与配置数据已写入主文件: ${StorageService.localDbPath}`);
+
+        // 4. 写入去除了每日流水的时间戳快照备份文件
+        const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
+        fs.writeFileSync(snapshotPath, cleanedDataStr, "utf8");
+        console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
+
+        // 5. 限制本地历史备份文件总数（最多保留30个版本）
+        StorageService.trimLocalBackups();
+        return true;
+      } catch (err) {
+        console.error("[STORAGE LOCAL] 写入本地数据失败:", err);
+        return false;
+      }
+    }
+  }
+
+  /**
+   * @description 获取备份列表
+   * @returns {Promise<string[]>} 快照名称列表
+   */
+  public static async getBackups(): Promise<string[]> {
+    if (StorageService.storageType === "cos") {
+      const { Bucket, Region } = StorageService.getCosConfig();
+      return new Promise((resolve) => {
+        StorageService.getCosClient().getBucket({
+          Bucket,
+          Region,
+          Prefix: "backups/"
+        }, (err, data) => {
+          if (err) {
+            console.error("[STORAGE COS] 列出云端快照失败:", err);
+            resolve([]);
+          } else {
+            const files = (data.Contents || [])
+              .map((item) => item.Key)
+              .filter((key) => key && key.endsWith(".json"))
+              .sort()
+              .reverse(); // 从新到旧
+            resolve(files);
+          }
+        });
+      });
+    } else {
+      // 本地存储模式
+      try {
+        if (!fs.existsSync(StorageService.backupDir)) {
+          return [];
+        }
+        const files = fs.readdirSync(StorageService.backupDir)
+          .filter((file) => file.startsWith("db_") && file.endsWith(".json"))
+          .sort()
+          .reverse(); // 从新到旧
+        return files;
+      } catch (err) {
+        console.error("[STORAGE LOCAL] 读取本地快照列表失败:", err);
+        return [];
+      }
+    }
+  }
+
+  /**
+   * @description 从指定备份文件恢复数据
+   * @param {string} backupName 快照名称
+   * @returns {Promise<any>} 恢复后的 JSON 数据对象
+   */
+  public static async restore(backupName: string): Promise<any> {
+    if (StorageService.storageType === "cos") {
+      const { Bucket, Region } = StorageService.getCosConfig();
+      return new Promise((resolve) => {
+        StorageService.getCosClient().getObject({
+          Bucket,
+          Region,
+          Key: backupName
+        }, (err, data) => {
+          if (err) {
+            console.error(`[STORAGE COS] 从云端快照 ${backupName} 读取数据失败:`, err);
+            resolve(null);
+          } else {
+            try {
+              const bodyStr = data.Body.toString("utf8");
+              resolve(JSON.parse(bodyStr));
+            } catch (parseErr) {
+              console.error("[STORAGE COS] 解析备份JSON失败:", parseErr);
+              resolve(null);
+            }
+          }
+        });
+      });
+    } else {
+      // 本地存储模式
+      const targetPath = path.join(StorageService.backupDir, backupName);
+      if (!fs.existsSync(targetPath)) {
+        return null;
+      }
+      try {
+        const content = fs.readFileSync(targetPath, "utf8");
+        const parsed = JSON.parse(content);
+        // 将恢复的数据写回主库文件
+        fs.writeFileSync(StorageService.localDbPath, content, "utf8");
+        console.log(`[STORAGE LOCAL] 成功从本地快照 ${backupName} 覆盖恢复主数据库`);
+        return parsed;
+      } catch (err) {
+        console.error("[STORAGE LOCAL] 本地快照恢复失败:", err);
+        return null;
+      }
+    }
+  }
+
+  /**
+   * @description 裁剪本地历史备份文件数，防止过度占用硬盘空间
+   * @returns {void}
+   */
+  private static trimLocalBackups(): void {
+    try {
+      const files = fs.readdirSync(StorageService.backupDir)
+        .filter((file) => file.startsWith("db_") && file.endsWith(".json"))
+        .sort(); // 升序排列（旧文件在前面）
+
+      const maxBackups = 30;
+      if (files.length > maxBackups) {
+        const filesToDelete = files.slice(0, files.length - maxBackups);
+        filesToDelete.forEach((file) => {
+          const deletePath = path.join(StorageService.backupDir, file);
+          fs.unlinkSync(deletePath);
+          console.log(`[STORAGE LOCAL] 已自动清理历史超期本地备份: ${file}`);
+        });
+      }
+    } catch (err) {
+      console.error("[STORAGE LOCAL] 清理超期备份失败:", err);
+    }
+  }
+}
+
+// 初始化存储目录
+StorageService.init();
