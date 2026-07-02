@@ -213,6 +213,27 @@ export function LedgerSystem() {
   }, [ledgerItems, activeLedgerId, isRecordingMode]);
 
   /**
+   * @description 当前选定的"同步日期"在本台账下完全没有任何出入库记录、但本台账其他日期确实存在记录时，
+   * 计算出最近一次的有效录入日期，用于提示用户切换日期查看（避免误以为数据丢失）。
+   * 录入模式下不提示，避免打扰正在录入当天数据的用户。
+   */
+  const nearestRecordDateHint = useMemo(() => {
+    if (isRecordingMode) return null;
+    const hasRecordOnSelectedDate = currentLedgerItems.some((item) => !!item.dailyRecords[selectedDate]);
+    if (hasRecordOnSelectedDate) return null;
+
+    let latestDate: string | null = null;
+    currentLedgerItems.forEach((item) => {
+      Object.keys(item.dailyRecords).forEach((d) => {
+        if (!latestDate || d > latestDate) {
+          latestDate = d;
+        }
+      });
+    });
+    return latestDate;
+  }, [currentLedgerItems, selectedDate, isRecordingMode]);
+
+  /**
    * 叠加所有筛选条件后的展示项目列表（仅供样式一渲染，不参与录入逻辑）
    * 依赖：名称搜索词、品类、采购员、检验员、保管员、选定日期
    */
@@ -728,6 +749,28 @@ export function LedgerSystem() {
             </div>
           </div>
         </div>
+
+        {/* 当前同步日期无记录提示：提醒用户本台账数据实际记录在其他日期，避免误以为台账数据丢失 */}
+        {nearestRecordDateHint && (
+          <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="shrink-0" />
+              <span>
+                当前所选同步日期（<strong>{selectedDate}</strong>）在本台账下暂无出入库记录，本台账最近一次录入记录的日期为 <strong>{nearestRecordDateHint}</strong>，并非数据丢失，你可以切换日期查看。
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDate(nearestRecordDateHint);
+                LogBroker.publish("INFO", "LedgerSystem", `根据提示跳转切换台账同步日期为最近记录日期: ${nearestRecordDateHint}`);
+              }}
+              className="shrink-0 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold rounded cursor-pointer transition-all"
+            >
+              跳转查看该日期
+            </button>
+          </div>
+        )}
 
         {/* 错误警示 */}
         {errorMessage && (
