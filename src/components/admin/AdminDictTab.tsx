@@ -9,13 +9,14 @@
 
 import React, { useState } from "react";
 import {
-  FileSpreadsheet, 
-  Edit2, 
-  Trash2, 
-  Sparkles, 
-  ShieldAlert, 
-  Check, 
-  PlusCircle 
+  FileSpreadsheet,
+  Edit2,
+  Trash2,
+  Sparkles,
+  ShieldAlert,
+  Check,
+  PlusCircle,
+  Lock
 } from "lucide-react";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
@@ -202,7 +203,14 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
                   }`}
                 >
                   <div className="min-w-0">
-                    <span className="font-extrabold text-slate-800 truncate block">{item.name}</span>
+                    <span className="font-extrabold text-slate-800 truncate flex items-center gap-1.5">
+                      {item.name}
+                      {item.isDefault && (
+                        <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-bold shrink-0" title="系统默认原料，不允许删除">
+                          默认
+                        </span>
+                      )}
+                    </span>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded">
                         {item.unit}
@@ -232,13 +240,19 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
                     >
                       <Edit2 size={11} />
                     </button>
-                    <button
-                      onClick={() => handleDeleteDict(item.name)}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
-                      title="删除原料"
-                    >
-                      <Trash2 size={11} />
-                    </button>
+                    {item.isDefault ? (
+                      <span className="p-1 text-slate-300 cursor-not-allowed" title="系统默认原料，不允许删除">
+                        <Lock size={11} />
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleDeleteDict(item.name)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                        title="删除原料"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

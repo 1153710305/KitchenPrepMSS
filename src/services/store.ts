@@ -18,6 +18,12 @@ import { LedgerService } from "./ledgerStore.ts";
  */
 const MOCK_API_LATENCY = 150;
 
+/** 系统预置的默认一级人群 key 集合，用于迁移升级前缺少 isDefault 标记的历史数据 */
+const DEFAULT_GROUP_KEYS = new Set(["KID", "STUDENT", "TEACHER"]);
+
+/** 系统预置的默认二级食材大类 key 集合，用于迁移升级前缺少 isDefault 标记的历史数据 */
+const DEFAULT_CATEGORY_KEYS = new Set(["VEGETABLE", "GRAIN_OIL", "SEASONING", "MEAT", "LOW_CONSUMP", "FRUIT"]);
+
 /**
  * @description 发生重大核心变动后的侦听分发器类型
  */
@@ -95,25 +101,42 @@ export class PrepReportService {
       setTimeout(() => {
         try {
           if (serverData && serverData.activeGroups && serverData.activeCategories && serverData.reports) {
-            // 服务器上有完整数据，直接同步到内存
-            this.activeGroups = serverData.activeGroups;
-            this.activeCategories = serverData.activeCategories;
+            // 服务器上有完整数据，直接同步到内存；同时迁移升级前生成、缺少 isDefault 标记的历史默认人群/大类数据，
+            // 按 key 匹配预置默认清单补齐标记，确保老数据升级后依然享有"默认数据不可删除"的保护
+            let migrationChanged = false;
+            this.activeGroups = (serverData.activeGroups as DynamicGroup[]).map((g) => {
+              if (g.isDefault === undefined && DEFAULT_GROUP_KEYS.has(g.key)) {
+                migrationChanged = true;
+                return { ...g, isDefault: true };
+              }
+              return g;
+            });
+            this.activeCategories = (serverData.activeCategories as DynamicCategory[]).map((c) => {
+              if (c.isDefault === undefined && DEFAULT_CATEGORY_KEYS.has(c.key)) {
+                migrationChanged = true;
+                return { ...c, isDefault: true };
+              }
+              return c;
+            });
             this.reports = serverData.reports;
             LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
+            if (migrationChanged) {
+              SyncHelper.runWhenInitialized(() => this.saveConfigAndNotify());
+            }
           } else {
-            // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化
+            // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化（统一标记 isDefault:true，仅允许编辑不允许删除）
             this.activeGroups = [
-              { key: "KID", label: "幼儿备餐", emoji: "👶" },
-              { key: "STUDENT", label: "在校生备餐", emoji: "🎒" },
-              { key: "TEACHER", label: "教师备餐", emoji: "👩‍🏫" }
+              { key: "KID", label: "幼儿", emoji: "👶", isDefault: true },
+              { key: "STUDENT", label: "在校生", emoji: "🎒", isDefault: true },
+              { key: "TEACHER", label: "教师", emoji: "👩‍🏫", isDefault: true }
             ];
             this.activeCategories = [
-              { key: "VEGETABLE", label: "蔬菜" },
-              { key: "GRAIN_OIL", label: "粮油" },
-              { key: "SEASONING", label: "调料" },
-              { key: "MEAT", label: "肉类" },
-              { key: "LOW_CONSUMP", label: "低耗品" },
-              { key: "FRUIT", label: "水果" }
+              { key: "VEGETABLE", label: "蔬菜", isDefault: true },
+              { key: "GRAIN_OIL", label: "粮油", isDefault: true },
+              { key: "SEASONING", label: "调料", isDefault: true },
+              { key: "MEAT", label: "肉蛋", isDefault: true },
+              { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
+              { key: "FRUIT", label: "水果", isDefault: true }
             ];
             this.generateInitialSeeds();
             LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
@@ -668,7 +691,9 @@ export class PrepReportService {
             this.activeGroups[existingIndex] = {
               key: upperKey,
               label: label.trim(),
-              emoji: emoji.trim() || "🍽️"
+              emoji: emoji.trim() || "🍽️",
+              // 保留原有的默认数据标记，确保系统默认人群被编辑后依然不可删除
+              isDefault: this.activeGroups[existingIndex].isDefault
             };
             LogBroker.publish("INFO", "PrepReportService", `更新了一级备餐人群: ${label} (${upperKey})`);
           } else {
@@ -704,13 +729,18 @@ export class PrepReportService {
   }
 
   /**
-   * @description 删除一级人群配置及关联的所有报表条目
+   * @description 删除一级人群配置及关联的所有报表条目（系统默认生成的人群不允许删除，仅允许编辑）
    * @param key 人群标识键
    */
   public static async deleteGroup(key: string): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       setTimeout(() => {
         const upperKey = key.toUpperCase();
+        const target = this.activeGroups.find((g) => g.key.toUpperCase() === upperKey);
+        if (target?.isDefault) {
+          reject(new Error(`「${target.label}」是系统默认人群，不允许删除，如需调整可编辑其名称或图标`));
+          return;
+        }
         this.activeGroups = this.activeGroups.filter((g) => g.key.toUpperCase() !== upperKey);
         this.reports = this.reports.filter((r) => r.targetGroup.toUpperCase() !== upperKey as any);
         LogBroker.publish("WARN", "PrepReportService", `剔除了一级备餐人群及关联的所有报表: ${upperKey}`);
@@ -746,7 +776,9 @@ export class PrepReportService {
           if (existingIndex > -1) {
             this.activeCategories[existingIndex] = {
               key: upperKey,
-              label: label.trim()
+              label: label.trim(),
+              // 保留原有的默认数据标记，确保系统默认大类被编辑后依然不可删除
+              isDefault: this.activeCategories[existingIndex].isDefault
             };
             LogBroker.publish("INFO", "PrepReportService", `更新了二级食材大类: ${label} (${upperKey})`);
           } else {
@@ -767,13 +799,18 @@ export class PrepReportService {
   }
 
   /**
-   * @description 删除二级大品类配置并清空所有报表里属于此大类的细分项
+   * @description 删除二级大品类配置并清空所有报表里属于此大类的细分项（系统默认生成的大类不允许删除，仅允许编辑）
    * @param key 大类标识键
    */
   public static async deleteCategory(key: string): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       setTimeout(() => {
         const upperKey = key.toUpperCase();
+        const target = this.activeCategories.find((c) => c.key === upperKey);
+        if (target?.isDefault) {
+          reject(new Error(`「${target.label}」是系统默认大类，不允许删除，如需调整可编辑其名称`));
+          return;
+        }
         this.activeCategories = this.activeCategories.filter((c) => c.key !== upperKey);
         this.reports.forEach((report) => {
           report.items = report.items.filter((item) => item.category !== upperKey as FoodCategory);

@@ -33,7 +33,7 @@ export class LedgerService {
   private static ledgerItems: LedgerItem[] = [];
   /** 状态变动侦听器列表 */
   private static changeListeners: LedgerChangeListener[] = [];
-  
+
   /** 
    * @description 台账录入常用辅助人员与供货商字典配置，包含供货商、采购员、检验员、保管员、出库人、接收人 
    */
@@ -143,9 +143,9 @@ export class LedgerService {
     LogBroker.publish("INFO", "LedgerService", "台账物理缓存缺失，正在合成第一款初始种子台账...");
 
     const alignedGroups = [
-      { key: "KID", name: "幼儿备餐" },
-      { key: "STUDENT", name: "在校生备餐" },
-      { key: "TEACHER", name: "教师备餐" }
+      { key: "KID", name: "幼儿" },
+      { key: "STUDENT", name: "在校生" },
+      { key: "TEACHER", name: "教师" }
     ];
 
     const initialLedgers: Ledger[] = alignedGroups.map((group) => ({
@@ -160,7 +160,7 @@ export class LedgerService {
     this.ledgers = initialLedgers;
     this.ledgerItems = initialItems;
     this.saveToStorage();
-    LogBroker.publish("INFO", "LedgerService", "成功合成三大初始空模板台账（幼儿备餐、在校生备餐、教师备餐），等待管理员于后台添加并录入原料数据。");
+    LogBroker.publish("INFO", "LedgerService", "成功合成三大初始空模板台账（幼儿、在校生、教师），等待管理员于后台添加并录入原料数据。");
   }
 
   /**

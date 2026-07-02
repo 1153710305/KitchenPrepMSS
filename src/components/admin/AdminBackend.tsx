@@ -26,7 +26,8 @@ import {
   ShieldAlert,
   Sparkles,
   ChevronLeft,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Lock
 } from "lucide-react";
 
 /**
@@ -359,7 +360,14 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                           }`}
                       >
                         <div>
-                          <span className="font-extrabold text-slate-800">{cat.label}类</span>
+                          <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                            {cat.label}类
+                            {cat.isDefault && (
+                              <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-bold" title="系统默认大类，不允许删除">
+                                默认
+                              </span>
+                            )}
+                          </span>
                           <span className="text-[10px] font-mono text-slate-400 block mt-0.5">ID: {cat.key}</span>
                         </div>
 
@@ -372,13 +380,19 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                           >
                             <Edit2 size={12} />
                           </button>
-                          <button
-                            onClick={() => handleDeleteCat(cat.key)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
-                            title="删除该分类及其所有底栏菜品"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          {cat.isDefault ? (
+                            <span className="p-1.5 text-slate-300 cursor-not-allowed" title="系统默认大类，不允许删除">
+                              <Lock size={12} />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleDeleteCat(cat.key)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer transition-all"
+                              title="删除该分类及其所有底栏菜品"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

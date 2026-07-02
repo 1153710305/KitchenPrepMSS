@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from "react";
-import { Users, Edit2, Trash2, Sparkles, ShieldAlert, Check, PlusCircle } from "lucide-react";
+import { Users, Edit2, Trash2, Sparkles, ShieldAlert, Check, PlusCircle, Lock } from "lucide-react";
 import { PrepReportService } from "../../services/store.ts";
 import { DynamicGroup } from "../../types/types.ts";
 
@@ -128,7 +128,14 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
                   {/* 受众分类所带的 Emoji 头像 */}
                   <span className="text-2xl shrink-0 select-none">{g.emoji || "🏫"}</span>
                   <div className="min-w-0">
-                    <span className="font-extrabold text-slate-800 truncate block">{g.label}</span>
+                    <span className="font-extrabold text-slate-800 truncate flex items-center gap-1.5">
+                      {g.label}
+                      {g.isDefault && (
+                        <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-bold shrink-0" title="系统默认人群，不允许删除">
+                          默认
+                        </span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">标识: {g.key}</span>
                   </div>
                 </div>
@@ -142,13 +149,19 @@ export function AdminGroupsTab({ onRefresh }: AdminGroupsTabProps) {
                   >
                     <Edit2 size={11} />
                   </button>
-                  <button
-                    onClick={() => handleDeleteGroup(g.key)}
-                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"
-                    title="删除"
-                  >
-                    <Trash2 size={11} />
-                  </button>
+                  {g.isDefault ? (
+                    <span className="p-1 text-slate-300 cursor-not-allowed" title="系统默认人群，不允许删除">
+                      <Lock size={11} />
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleDeleteGroup(g.key)}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"
+                      title="删除"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
                 </div>
               </div>
             );

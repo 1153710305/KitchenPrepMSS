@@ -29,6 +29,8 @@ export interface RawMaterialDictItem {
   conversionUnit?: string;
   /** 换算比例，如 50 */
   conversionRatio?: number;
+  /** 是否为系统默认生成的原料（默认数据仅允许编辑，不允许删除） */
+  isDefault?: boolean;
 }
 
 /** 本地 LocalStorage 缓存原料库的 Key */
@@ -60,10 +62,12 @@ export class RawMaterialsDictService {
   public static initDictFromServer(serverDictItems?: RawMaterialDictItem[]): RawMaterialDictItem[] {
     if (serverDictItems && serverDictItems.length > 0) {
       const deduped = this.dedupeByName(serverDictItems);
-      this.items = deduped;
+      // 迁移升级前生成、缺少 isDefault 标记的历史默认原料数据，确保老数据也享有"默认数据不可删除"的保护
+      const { migratedItems, changed } = this.migrateDefaultFlags(deduped);
+      this.items = migratedItems;
       LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从服务器同步载入原料字典数据");
-      // 若服务器数据存在历史同名重复脏数据，去重后待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）
-      if (deduped.length !== serverDictItems.length) {
+      // 若服务器数据存在历史同名重复脏数据或需要补齐默认标记迁移，待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）
+      if (deduped.length !== serverDictItems.length || changed) {
         SyncHelper.runWhenInitialized(() => this.saveToStorage());
       }
     } else {
@@ -96,10 +100,30 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量食堂底库重装）
+   * @description 迁移升级前生成、缺少 isDefault 标记的历史默认原料数据：按名称匹配预置种子清单，补齐 isDefault:true 标记，
+   * 确保早于本功能上线时就已落盘的默认原料，在升级后依然享有"仅允许编辑不允许删除"的保护
+   * @param items 待迁移检查的原料数组
+   * @returns migratedItems 迁移后的数组；changed 是否发生了实际变更（用于决定是否需要回写服务器）
    */
-  private static generateDefaultSeeds(): void {
-    this.items = [
+  private static migrateDefaultFlags(items: RawMaterialDictItem[]): { migratedItems: RawMaterialDictItem[]; changed: boolean } {
+    const defaultNames = new Set(this.getDefaultSeedList().map((seed) => seed.name));
+    let changed = false;
+    const migratedItems = items.map((item) => {
+      if (item.isDefault === undefined && defaultNames.has(item.name)) {
+        changed = true;
+        return { ...item, isDefault: true };
+      }
+      return item;
+    });
+    return { migratedItems, changed };
+  }
+
+  /**
+   * @description 系统预置的默认推荐原料种子清单（不含 isDefault 标记），供生成种子数据与迁移历史数据共用同一份基准数据源，
+   * 避免维护两份重复列表导致后续新增/调整种子原料时出现遗漏或不一致
+   */
+  private static getDefaultSeedList(): RawMaterialDictItem[] {
+    return [
       // 蔬菜类 (VEGETABLE)
       { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
       { name: "柿子", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
@@ -188,6 +212,14 @@ export class RawMaterialsDictService {
       { name: "沙白瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "" }
     ];
+  }
+
+  /**
+   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量食堂底库重装），并统一标记为系统默认数据（isDefault:true），
+   * 默认数据仅允许后台编辑，不允许删除
+   */
+  private static generateDefaultSeeds(): void {
+    this.items = this.getDefaultSeedList().map((item) => ({ ...item, isDefault: true }));
     this.saveToStorage();
   }
 
@@ -320,7 +352,9 @@ export class RawMaterialsDictService {
         unit: unit.trim() || "斤",
         remark: finalRemark,
         conversionUnit: conversionUnit?.trim() || undefined,
-        conversionRatio: conversionRatio || undefined
+        conversionRatio: conversionRatio || undefined,
+        // 保留原有的默认数据标记，确保系统默认原料被编辑（含改名）后依然不可删除
+        isDefault: this.items[index].isDefault
       };
       this.saveToStorage();
       LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
@@ -336,11 +370,16 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 从字典中删除原料
+   * @description 从字典中删除原料（系统默认生成的原料不允许删除，仅允许编辑）
    * @param name 原料品名
    */
   public static async deleteMaterial(name: string): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      const target = this.items.find((item) => item.name === name);
+      if (target?.isDefault) {
+        reject(new Error(`「${name}」是系统默认原料，不允许删除，如需调整可编辑其属性`));
+        return;
+      }
       this.items = this.items.filter((item) => item.name !== name);
       this.saveToStorage();
       LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);

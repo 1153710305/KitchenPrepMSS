@@ -114,6 +114,8 @@ export interface DynamicGroup {
   label: string;
   /** 展现用表情符号，如 🏫, 👶 等 */
   emoji: string;
+  /** 是否为系统默认生成的一级受众（默认数据仅允许编辑，不允许删除） */
+  isDefault?: boolean;
 }
 
 /**
@@ -124,5 +126,7 @@ export interface DynamicCategory {
   key: string;
   /** 界面显示分类名称，如 蔬菜, 肉类 */
   label: string;
+  /** 是否为系统默认生成的二级品类（默认数据仅允许编辑，不允许删除） */
+  isDefault?: boolean;
 }
 
