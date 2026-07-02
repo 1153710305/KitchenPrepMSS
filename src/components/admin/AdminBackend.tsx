@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 管理配置后台的主外壳组件：提供侧边栏 Tab 导航（一级受众管理、二级大类管理、原料字典管理、台账人员与供货商），并承载二级大类的增删改查表单及跨 Tab 共用的自定义确认弹窗。
+ */
+
 import React, { useState } from "react";
 import { PrepReportService } from "../../services/store.ts";
 import { DynamicCategory } from "../../types/types.ts";

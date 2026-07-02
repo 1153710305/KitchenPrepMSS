@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 备餐采购/月度报表业务数据服务层（PrepReportService）：管理各受众人群月度报表的增删改查、一二级人群与食材大类配置的增删改查、与台账系统的数据同步桥接，并通过 SyncHelper 触发向后端的持久化。
+ */
+
 import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/constants.ts";
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
 import { calculateEntryAmount, LogBroker } from "../utils.ts";

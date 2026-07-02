@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账出入库凭证单的纯净打印模板组件：按食品行业规范排版出库登记表，供物理打印或导出留档使用。
+ */
+
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";

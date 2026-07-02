@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账"添加原料采购项"弹窗组件：从原料大字典中拼音模糊搜索并选择原料，一键新增至当前台账。
+ */
+
 import React from "react";
 import { X } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";

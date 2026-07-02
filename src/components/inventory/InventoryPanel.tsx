@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 原料库存总览模态面板：实时汇总全部台账下各原料的入库/出库累计与当前库存，支持按台账、分类、库存预警状态筛选及拼音模糊搜索。
+ */
+
 import { useState, useMemo, useEffect } from "react";
 import { LedgerItem, Ledger } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 管理后台"台账人员与供货商"Tab：提供供货商及地址、采购员、检验员、保管员、出库人、接收人六大类常用名单的录入与删除，供台账录入界面自动升级为下拉选择框。
+ */
+
 import React, { useState } from "react";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { Plus, Trash2, ShieldCheck, HelpCircle } from "lucide-react";

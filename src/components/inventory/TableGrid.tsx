@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 备餐采购细表的编排层组件：按选定二级大类过滤并与台账入库数据对齐生成明细行，提供搜索、CSV 导出、主题切换、"合计汇总"视图，并根据 viewMode 渲染 EXCEL 日历总矩阵（TableGridMatrixView）或单日聚焦卡片（TableGridFocusView）子组件。
+ */
+
 import React, { useState, useMemo, useRef } from "react";
 import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";

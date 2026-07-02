@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账打印前的二级分类勾选控制弹窗：允许用户在打印总表前选择需要包含的食材大类范围。
+ */
+
 import { Printer, X } from "lucide-react";
 import { FoodCategory } from "../../types/types.ts";
 import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";

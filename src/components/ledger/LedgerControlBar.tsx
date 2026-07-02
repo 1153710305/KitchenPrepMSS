@@ -3,13 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { 
-  Play, 
-  Check, 
-  X, 
-  Save, 
-  Download, 
-  Printer 
+/**
+ * @description 台账系统顶部控制条组件：提供样式一/样式二显示切换、账期日期选择、今日录入模式的开启/确认/取消操作按钮，以及打印与导出入口。
+ */
+
+import {
+  Play,
+  Check,
+  X,
+  Save,
+  Download,
+  Printer
 } from "lucide-react";
 import { LedgerItem } from "../../types/ledgerTypes.ts";
 

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 应用根组件与顶层外壳：负责登录/加载态分屏渲染、左侧受众分组侧边栏与顶部工具栏、以及备餐记账表格、台账系统、库存总览、管理后台等各功能模块的路由编排；核心数据加载与登录鉴权逻辑已分别抽取到 useAppData/useAppAuth 两个自定义 Hook 中。
+ */
+
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { FoodCategory, TargetGroup } from "./types/types.ts";
 import { TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants/constants.ts";

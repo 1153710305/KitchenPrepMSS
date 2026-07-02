@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账"样式一"总表组件：以宽表形式逐行展示当前台账全部原料的当日采购/出库明细字段，支持按名称/品类/采购员/检验员/保管员多维度筛选。
+ */
+
 import React from "react";
 import { Search, Filter, X, Trash2 } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 原料购销台账业务数据服务层（LedgerService）：管理台账列表与采购原料项目、每日出入库流水记录的增删改查、台账常用人员/供货商字典配置，并与备餐报表服务（PrepReportService）联动同步。
+ */
+
 import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
 import { PRESET_LEDGER_MATERIALS } from "../constants/ledgerConstants.ts";
 import { LogBroker } from "../utils.ts";

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账打印预览的遮罩层容器：根据当前选定的打印样式（总表/单原料流水）渲染 LedgerPrintStyle1 或 LedgerPrintStyle2 对应的纯净打印模板。
+ */
+
 import { AlertCircle } from "lucide-react";
 import { Ledger, LedgerItem, FoodCategory } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账"样式二"单原料日流水组件：聚焦单个原料，以自定义时间段纵向展示其逐日出入库记录卡片。
+ */
+
 import { Award } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";

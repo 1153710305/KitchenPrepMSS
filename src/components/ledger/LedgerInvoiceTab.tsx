@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账"当日出入库单归集"Tab：按当前选定日期汇总展示所有有出入库变动的原料清单，便于统一核对当日采购与出库记录。
+ */
+
 import { DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 

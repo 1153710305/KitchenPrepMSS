@@ -3,8 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 管理后台"原料字典管理"Tab：提供全局原料大字典（名称/单位/所属大类/规格备注/换算比例）的搜索、新增、编辑与删除界面。
+ */
+
 import React, { useState } from "react";
-import { 
+import {
   FileSpreadsheet, 
   Edit2, 
   Trash2, 

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 通用的 React 错误边界组件：捕获子组件树运行时抛出的异常，展示可重试的友好错误提示卡片，防止单个模块崩溃导致整个应用白屏。
+ */
+
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { ShieldAlert, RefreshCw } from "lucide-react";
 import { LogBroker } from "../../utils.ts";

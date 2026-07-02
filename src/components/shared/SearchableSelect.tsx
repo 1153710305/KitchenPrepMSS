@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 通用的可搜索下拉选择器组件：支持拼音全拼/首字母模糊匹配候选项，点击展开悬浮联想面板、点击外部自动收起，供台账新增原料等表单复用。
+ */
+
 import { useState, useRef, useEffect } from "react";
 import { Search, ChevronDown } from "lucide-react";
 

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 后端服务入口文件：初始化 Express 实例与中间件、挂载数据持久化与杂项路由、在开发环境挂载 Vite HMR 中间件（生产环境托管静态构建产物），并注册进程级与路由级的全局异常捕获。
+ */
+
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";

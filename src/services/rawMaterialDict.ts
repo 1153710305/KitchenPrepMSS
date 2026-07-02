@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 原料大字典业务数据服务层（RawMaterialsDictService）：管理全局原料名称/单位/所属大类/换算比例等字典条目的增删改查，是备餐报表与台账系统共用的原料基础数据源。
+ */
+
 import { FoodCategory } from "../types/types.ts";
 import { LogBroker } from "../utils.ts";
 import { LedgerService } from "./ledgerStore.ts";

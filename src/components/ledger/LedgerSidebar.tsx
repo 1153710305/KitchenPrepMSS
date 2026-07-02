@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账系统左侧边栏组件：展示系统内全部台账名录，支持切换当前选中台账。
+ */
+
 import React from "react";
 import { Bookmark, Check, X } from "lucide-react";
 import { Ledger } from "../../types/ledgerTypes.ts";

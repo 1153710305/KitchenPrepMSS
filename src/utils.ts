@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 全项目通用的日期计算、拼音模糊匹配、备餐月度汇总统计、CSV 导出及系统日志广播（LogBroker）等基础工具函数集合。
+ */
+
 import { PreparedItem, SystemLog } from "./types/types.ts";
 
 /**

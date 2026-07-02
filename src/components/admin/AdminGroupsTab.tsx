@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 管理后台"一级受众管理"Tab：提供一级餐位人群（教师/幼儿/低年级/高年级等）的标签展示、Emoji 头像选择、系统自动生成唯一 Key、以及新增/编辑/删除操作界面。
+ */
+
 import React, { useState } from "react";
 import { Users, Edit2, Trash2, Sparkles, ShieldAlert, Check, PlusCircle } from "lucide-react";
 import { PrepReportService } from "../../services/store.ts";

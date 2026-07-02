@@ -1,3 +1,12 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description 台账"购销总表"（样式一）纯净打印模板：以食品原材料购销总表格式排版全部原料的当日出入库明细，供物理打印或留档使用。
+ */
+
 import { FoodCategory, Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
 

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @description 台账"单原料日流水"（样式二）纯净打印模板：以单个原料为单位排版其在选定时间段内的逐日出入库流水，供物理打印或留档使用。
+ */
+
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { LEDGER_PRINT_STYLE2_CONFIG } from "../../constants/ledgerConstants.ts";
 
