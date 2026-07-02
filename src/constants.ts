@@ -111,11 +111,6 @@ export const UI_TEXT = {
   noDataMessage: "该品类暂无细分材料，请在左侧或上方点击“新增项”添加。",
   yearLabel: "年份",
   monthLabel: "月份",
-  aiAssistantTitle: "AI 食堂精细化膳食与成本规划师",
-  aiToggleClassic: "传统常规分析",
-  aiToggleStream: "极速对话流式模式",
-  aiAnalyzeBtn: "运行 AI 智能备餐审计与配餐预测",
-  aiPromptHelper: "智能提示词方案",
   sysLogTitle: "管理端实时进程与性能监控日志",
   logClearBtn: "清空控制台日志"
 };

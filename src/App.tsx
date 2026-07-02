@@ -8,9 +8,6 @@ import { FoodCategory, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCat
 import { UI_TEXT, ADMIN_PASSWORD, LOGIN_PASSWORD, TARGET_GROUP_LABELS, FOOD_CATEGORY_LABELS } from "./constants.ts";
 import { PrepReportService } from "./store.ts";
 import { TableGrid } from "./components/TableGrid.tsx";
-import { StatisticsPanel } from "./components/StatisticsPanel.tsx";
-import { HeadcountPanel } from "./components/HeadcountPanel.tsx";
-import { AiAssistant } from "./components/AiAssistant.tsx";
 import { LogBroker } from "./utils.ts";
 import { LedgerService } from "./ledgerStore.ts";
 import { SyncHelper } from "./syncHelper.ts";
@@ -141,17 +138,9 @@ export default function App() {
     }
   }, [fontSizeMode]);
 
-  // ================= 2026-06-30 新增：餐位分组折叠及子功能按需控制状态 =================
+  // ================= 2026-06-30 新增：餐位分组折叠状态 =================
   /** 活动餐位分组用户是否手动折叠（左侧侧边栏折叠状态） */
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  /** 餐位分组页面下的子功能可见性状态，包括 "TREND"（日开支走势）, "PIE"（品类资金占比）, "MONITOR"（重点监控）, "AI"（AI规划分析）。默认全隐藏（以空Set或者状态管理形式） */
-  const [activeSubTools, setActiveSubTools] = useState<Record<string, boolean>>({
-    TREND: false,
-    PIE: false,
-    MONITOR: false,
-    AI: false,
-    HEADCOUNT: false
-  });
 
   // ================= 动态配置计算属性 =================
 
@@ -410,18 +399,6 @@ export default function App() {
     // 针对高强度记账性能进行了全流程非阻塞优化：单元格细节输入采用 TableGrid onBlur 机制打印操作日志
     PrepReportService.updateCell(itemId, day, quantity, price).catch((err) => {
       LogBroker.publish("ERROR", "App", "执行单元格物理变动写入时发生致命碰撞", String(err));
-    });
-  };
-
-  /**
-   * @description 就餐人数变动回调，通过底层 Service 保存并进行非阻塞热重绘
-   * @param groupKey 一级目标受众人群唯一键
-   * @param day 具体日期 ("1"-"31")
-   * @param count 就餐人数数量
-   */
-  const handleHeadcountUpdate = (groupKey: string, day: string, count: number) => {
-    PrepReportService.updateHeadcount(groupKey as TargetGroup, day, count).catch((err) => {
-      LogBroker.publish("ERROR", "App", "执行就餐人数变动写入时发生致命碰撞", String(err));
     });
   };
 
@@ -1034,108 +1011,20 @@ export default function App() {
               {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
               <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
 
-                {/* 情形 B: 普通受众视图，显示具体品类记账表与 AI 助手 */}
-                <>
-                  {/* 辅助工具栏：按需切换辅助功能面板的显示 */}
-                  <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100/50 p-2 rounded-xl border border-slate-200/60 shrink-0">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">辅助工具栏:</span>
-                    <button
-                      onClick={() => setActiveSubTools(prev => ({ ...prev, TREND: !prev.TREND }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.TREND
-                        ? "bg-sky-500 border-sky-600 text-white font-bold shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      📈 日开支走势 {activeSubTools.TREND ? "已开启" : "已隐藏"}
-                    </button>
-                    <button
-                      onClick={() => setActiveSubTools(prev => ({ ...prev, PIE: !prev.PIE }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.PIE
-                        ? "bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      📊 品类资金占比 {activeSubTools.PIE ? "已开启" : "已隐藏"}
-                    </button>
-                    <button
-                      onClick={() => setActiveSubTools(prev => ({ ...prev, MONITOR: !prev.MONITOR }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.MONITOR
-                        ? "bg-amber-500 border-amber-600 text-white font-bold shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      🎖️ 重点监控 Top5 {activeSubTools.MONITOR ? "已开启" : "已隐藏"}
-                    </button>
-                    <button
-                      onClick={() => setActiveSubTools(prev => ({ ...prev, AI: !prev.AI }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.AI
-                        ? "bg-violet-600 border-violet-700 text-white font-bold shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      🧠 AI膳食配餐分析 {activeSubTools.AI ? "已开启" : "已隐藏"}
-                    </button>
-                    <button
-                      onClick={() => setActiveSubTools(prev => ({ ...prev, HEADCOUNT: !prev.HEADCOUNT }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${activeSubTools.HEADCOUNT
-                        ? "bg-teal-600 border-teal-700 text-white font-bold shadow-xs"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      👥 人数与餐费分析 {activeSubTools.HEADCOUNT ? "已开启" : "已隐藏"}
-                    </button>
-
-                    <span className="ml-auto text-[10px] text-slate-400 font-medium px-2">
-                      📄 每日采购细表默认展示中
-                    </span>
-                  </div>
-
-                  {/* 1. 顶部流动预算占比与高消耗统计折线趋势看板 (按需控制各版块显示) */}
-                  {currentReport && (activeSubTools.TREND || activeSubTools.PIE || activeSubTools.MONITOR) && (
-                    <StatisticsPanel
-                      report={currentReport}
-                      selectedCategory={activeCategory as FoodCategory | null}
-                      showTrend={activeSubTools.TREND}
-                      showPie={activeSubTools.PIE}
-                      showMonitor={activeSubTools.MONITOR}
-                    />
-                  )}
-
-                  {/* 2. 核心日金额/录选数字表格单元 (默认始终显示每日采购细表) */}
-                  {currentReport && (
-                    <TableGrid
-                      report={currentReport}
-                      selectedCategory={activeCategory as FoodCategory | null}
-                      onCellUpdate={handleCellUpdate}
-                      onAddItem={handleAddItem as any}
-                      onDeleteItem={handleDeleteItem}
-                      isAdminMode={isAdminMode}
-                      activeGroupsList={activeGroupsList}
-                      activeCategoriesList={activeCategoriesList}
-                      readOnly={true}
-                    />
-                  )}
-
-                  {/* 3. AI双脑深度配搭控本专家机器人 (按需控制显示) */}
-                  {currentReport && activeSubTools.AI && (
-                    <AiAssistant
-                      activeGroupReport={currentReport}
-                    />
-                  )}
-
-                  {/* 4. 每日就餐人数与人均餐费多维度分析组件 (按需控制显示) */}
-                  {currentReport && activeSubTools.HEADCOUNT && (
-                    <ErrorBoundary fallbackTitle="就餐人数与餐费分析模块发生故障">
-                      <HeadcountPanel
-                        reports={reports}
-                        activeGroup={activeGroup}
-                        activeGroupsList={activeGroupsList}
-                        onHeadcountUpdate={handleHeadcountUpdate}
-                        isAdminMode={isAdminMode}
-                      />
-                    </ErrorBoundary>
-                  )}
-                </>
+                {/* 情形 B: 普通受众视图，显示具体品类记账表 */}
+                {currentReport && (
+                  <TableGrid
+                    report={currentReport}
+                    selectedCategory={activeCategory as FoodCategory | null}
+                    onCellUpdate={handleCellUpdate}
+                    onAddItem={handleAddItem as any}
+                    onDeleteItem={handleDeleteItem}
+                    isAdminMode={isAdminMode}
+                    activeGroupsList={activeGroupsList}
+                    activeCategoriesList={activeCategoriesList}
+                    readOnly={true}
+                  />
+                )}
 
               </div>
             </>
@@ -1148,10 +1037,7 @@ export default function App() {
         <div className="flex space-x-6">
           <div className="flex items-center uppercase tracking-widest font-sans">
             <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">当前聚焦:</span>
-            {activeGroup === "ANALYTICS"
-              ? "多维餐费与人数分析中心"
-              : `${dynamicGroupLabels[activeGroup]} / ${activeCategory ? dynamicCategoryLabels[activeCategory] : "合计汇总"} / 全月日对数核算`
-            }
+            {`${dynamicGroupLabels[activeGroup]} / ${activeCategory ? dynamicCategoryLabels[activeCategory] : "合计汇总"} / 全月日对数核算`}
           </div>
           <div className="flex items-center uppercase tracking-widest font-sans">
             <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">操作权限:</span>

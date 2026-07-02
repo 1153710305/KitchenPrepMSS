@@ -730,6 +730,13 @@ pm2 startup
   2. **顶部状态快捷栏**：在顶部 Header 核心栏的“库存总览”左侧，新增了精致一体化的“字号调节”段选控制条，中老年用户可一键直观地在“标准”、“大”和“超大”中进行切换；
   3. **全系统无损 rem 响应缩放**：在 [index.css] 中编写了根字体缩放样式规则。开启大号或超大号时，会自动把 html 节点的基准字号由 16px 提升至 18.5px / 21.5px。由于整套系统的字号和布局大量基于 `rem` 响应式，因此所有的表格、卡片、文案、输入框和按钮都将完美、等比例放大（大号整体放大约15%，超大号整体放大约35%），页面结构完全不散架，按钮高宽也更肥更容易点击。
 
-
+### 2026-07-02 - [V5.31.0] 彻底移除日开支走势/品类资金占比/重点监控/AI膳食成本规划/人数与餐费分析五大功能
+- **需求**：应管理员要求，彻底删除“日开支走势”、“后厨配量各品类资金占比”、“重点监控”、“AI后厨精细化膳食与成本规划”、“人数与餐费分析”五个功能及其全部相关代码，同时保证台账、备餐记账、库存总览、管理后台等其他功能不受影响。
+- **重构方案**：
+  1. **前台组件清除**：物理删除 [StatisticsPanel.tsx]（日开支走势/品类资金占比/重点监控三合一图表面板）、[AiAssistant.tsx]（AI 膳食与成本规划助手）、[HeadcountPanel.tsx]（人数与餐费分析面板）三个组件文件，并在 [App.tsx] 中移除对应的引入、`activeSubTools` 辅助工具栏开关状态、渲染分支及就餐人数变更回调 `handleHeadcountUpdate`；
+  2. **后端 AI 集成整体下线**：由于 Gemini AI 相关的服务端代码仅服务于已删除的“AI后厨精细化膳食与成本规划”功能，一并彻底移除 [server.ts] 中的 `/api/gemini/analyze` 接口与 `getGeminiClient` 客户端初始化逻辑、[prompts.ts] 提示词文件、`@google/genai` 依赖包，以及 `.env.example` 中的 `GEMINI_API_KEY` 配置项；
+  3. **联动依赖清理**：`recharts`（仅被上述被删两个图表组件使用）与 `react-markdown`（仅被 AI 助手用于渲染 Markdown）两个依赖包一并从 package.json 中移除；同步删除 [types.ts] 中的 `AiAnalysisResult` 接口与 [constants.ts] 中 `aiAssistantTitle`、`aiAnalyzeBtn`、`aiToggleClassic`、`aiToggleStream`、`aiPromptHelper` 等仅服务于 AI 助手的 UI 文案常量，并清理页脚中已失效的 `activeGroup === "ANALYTICS"` 死分支判断；
+  4. **数据模型保留**：`GroupMonthlyReport.dailyHeadcount` 字段及 [store.ts] 中相关的默认填充逻辑予以保留未删，因其嵌入在多处共享的报表创建核心函数中，为避免影响其他正常功能而不做侵入式改造，且兼容既有已落盘数据；如需彻底清理该字段可后续单独评估；
+  5. **验证**：`tsc --noEmit`、`vite build`、`esbuild` 后端打包均通过（无新增报错，与改动前存量报错一致）；已启动本地开发服务器逐一验证登录、教师/幼儿/在校生备餐记账表、管理后台一二级受众与字典管理、原料购销台账、库存总览等功能均正常，并确认 `/api/gemini/analyze` 接口现已返回 404。
 
 

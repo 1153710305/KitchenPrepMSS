@@ -1,8 +1,6 @@
 {
   "name": "食堂用餐服务管理系统",
-  "description": "一个支持教师、幼儿、低年级、高年级分类，包含蔬菜、粮油、调料、肉类、低耗品、水果和汇总合计品类的全功能31日记账卡片矩阵、深度数据统计图表及服务端Gemini流式AI健康膳食分析系统。",
+  "description": "一个支持教师、幼儿、低年级、高年级分类，包含蔬菜、粮油、调料、肉类、低耗品、水果和汇总合计品类的全功能31日记账卡片矩阵管理系统。",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

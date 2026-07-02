@@ -101,21 +101,6 @@ export interface SystemLog {
   details?: string;
 }
 
-/**
- * @description AI分析建议接口，包含膳食、成本和采购建议
- */
-export interface AiAnalysisResult {
-  /** 膳食结构营养分析 */
-  nutritionAnalysis: string;
-  /** 成本开支控制建议 */
-  costControlSuggestions: string;
-  /** 下步采购计划指导 */
-  purchaseGuide: string;
-  /** 整体膳食平衡指数 (0-100) */
-  healthScore: number;
-  /** 生成日期戳 */
-  generatedAt: string;
-}
 
 /**
  * @description 动态一级人群配置，支持后台增删改查
