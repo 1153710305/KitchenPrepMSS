@@ -40,11 +40,33 @@ export class SyncHelper {
   private static isInitialized = false;
 
   /**
+   * @description 初始化解锁前暂存的一次性回调队列（解锁后立即依次执行并清空）
+   */
+  private static onReadyQueue: Array<() => void> = [];
+
+  /**
    * @description 开启或关闭全局初始化同步锁
    */
   public static setInitialized(val: boolean): void {
     this.isInitialized = val;
     console.log(`[SYNC HELPER] 全局初始化数据状态锁定已更新为: ${val ? "已就绪(解开限制)" : "未初始化(强力拦截)"}`);
+    if (val && this.onReadyQueue.length > 0) {
+      const queue = this.onReadyQueue;
+      this.onReadyQueue = [];
+      queue.forEach((fn) => fn());
+    }
+  }
+
+  /**
+   * @description 注册一个仅在全局初始化解锁后才执行一次的回调；若此时已解锁则立即同步执行，避免早于初始化完成的同步请求被拦截丢弃
+   * @param fn 待执行的回调
+   */
+  public static runWhenInitialized(fn: () => void): void {
+    if (this.isInitialized) {
+      fn();
+    } else {
+      this.onReadyQueue.push(fn);
+    }
   }
 
   /**

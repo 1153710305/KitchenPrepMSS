@@ -55,8 +55,13 @@ export class RawMaterialsDictService {
    */
   public static initDictFromServer(serverDictItems?: RawMaterialDictItem[]): RawMaterialDictItem[] {
     if (serverDictItems && serverDictItems.length > 0) {
-      this.items = serverDictItems;
+      const deduped = this.dedupeByName(serverDictItems);
+      this.items = deduped;
       LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从服务器同步载入原料字典数据");
+      // 若服务器数据存在历史同名重复脏数据，去重后待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）
+      if (deduped.length !== serverDictItems.length) {
+        SyncHelper.runWhenInitialized(() => this.saveToStorage());
+      }
     } else {
       this.generateDefaultSeeds();
       LogBroker.publish("INFO", "RawMaterialsDictService", "服务器上无原料字典，系统已装载默认推荐原料种子大底库");
@@ -64,6 +69,26 @@ export class RawMaterialsDictService {
       SyncHelper.triggerSyncToServer();
     }
     return this.items;
+  }
+
+  /**
+   * @description 按原料名对字典条目去重（同名条目保留最后出现的一条，视为更晚写入的最新数据），避免历史脏数据导致列表渲染出现重复 key
+   * @param items 待去重的原始条目数组
+   * @returns 去重后的条目数组
+   */
+  private static dedupeByName(items: RawMaterialDictItem[]): RawMaterialDictItem[] {
+    const map = new Map<string, RawMaterialDictItem>();
+    let hasDuplicate = false;
+    for (const item of items) {
+      if (map.has(item.name)) {
+        hasDuplicate = true;
+      }
+      map.set(item.name, item);
+    }
+    if (hasDuplicate) {
+      LogBroker.publish("WARN", "RawMaterialsDictService", "检测到原料字典中存在同名重复条目，已自动去重");
+    }
+    return Array.from(map.values());
   }
 
   /**
@@ -157,9 +182,7 @@ export class RawMaterialsDictService {
       { name: "西瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "苹果", category: FoodCategory.FRUIT, unit: "斤", remark: "", "conversionUnit": "斤", "conversionRatio": 20 },
       { name: "沙白瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
-      { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "" },
-      { name: "黄瓜", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" },
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "" }
     ];
     this.saveToStorage();
   }
@@ -176,7 +199,8 @@ export class RawMaterialsDictService {
    * @description 供心跳轮询静默更新内存中的原料字典列表，防止 LocalStorage 覆写
    */
   public static setRawMaterialsDictInMemory(items: RawMaterialDictItem[]): void {
-    this.items = items;
+    // 心跳轮询数据同样做防呆去重，避免历史脏数据在轮询覆盖时持续产生重复 key（此路径不回写服务器，避免高频心跳触发多余保存）
+    this.items = this.dedupeByName(items);
   }
 
   /**
