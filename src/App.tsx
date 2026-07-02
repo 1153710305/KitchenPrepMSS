@@ -340,10 +340,10 @@ export default function App() {
             <div className="mx-auto w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <RefreshCw className="text-white animate-spin" size={22} />
             </div>
-            <h2 className="text-base font-black text-white tracking-wide pt-2">
+            <h2 className="text-lg font-black text-white tracking-wide pt-2">
               系统数据资源同步中
             </h2>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[12px] text-slate-400">
               正在与服务器端并行同步月度备餐、购销台账及大字典底册...
             </p>
           </div>
@@ -356,13 +356,13 @@ export default function App() {
                 style={{ width: `${syncProgress}%` }}
               ></div>
             </div>
-            <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-0.5">
+            <div className="flex justify-between items-center text-[11px] text-slate-400 font-bold px-0.5">
               <span>{progressText}</span>
               <span className="text-emerald-400">{syncProgress}%</span>
             </div>
           </div>
 
-          <span className="text-[9px] text-slate-500 font-medium block">
+          <span className="text-[10px] text-slate-500 font-medium block">
             系统正与云端服务建立一致性连接，装载完成后自动解锁
           </span>
         </div>
@@ -384,10 +384,10 @@ export default function App() {
             <div className="mx-auto w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Lock className="text-white" size={24} />
             </div>
-            <h2 className="text-lg md:text-xl font-black text-white tracking-tight pt-2">
+            <h2 className="text-xl font-black text-white tracking-tight pt-2">
               食堂用餐服务管理系统
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[13px] text-slate-400">
               智能高效的日度矩阵记账及膳食营养辅助决策面板
             </p>
           </div>
@@ -395,14 +395,14 @@ export default function App() {
           {/* 表单 */}
           <form onSubmit={handleLoginSubmit} className="space-y-4 pt-2">
             {loginError && (
-              <div className="text-xs bg-rose-950/40 text-rose-400 p-3 rounded-lg border border-rose-900/60 flex items-center space-x-2 animate-pulse">
+              <div className="text-[13px] bg-rose-950/40 text-rose-400 p-3 rounded-lg border border-rose-900/60 flex items-center space-x-2 animate-pulse">
                 <ShieldAlert size={14} className="shrink-0" />
                 <span>{loginError}</span>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 block uppercase tracking-widest">
+              <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-widest">
                 系统登录密码 (存储于 .env 安全配置)
               </label>
               <input
@@ -410,7 +410,7 @@ export default function App() {
                 placeholder="请输入系统首页访问密码"
                 value={loginPasswordInput}
                 onChange={(e) => setLoginPasswordInput(e.target.value)}
-                className="w-full bg-slate-900 text-sm text-slate-100 p-3 border border-slate-800 rounded-lg focus:border-emerald-500 outline-none transition-all focus:bg-slate-900/80 placeholder-slate-500"
+                className="w-full bg-slate-900 text-[15px] text-slate-100 p-3 border border-slate-800 rounded-lg focus:border-emerald-500 outline-none transition-all focus:bg-slate-900/80 placeholder-slate-500"
                 autoFocus
                 required
               />
@@ -418,7 +418,7 @@ export default function App() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-emerald-500 text-white font-bold text-sm rounded-lg cursor-pointer transition-all shadow-lg hover:shadow-emerald-500/10 hover:scale-[1.01] flex items-center justify-center space-x-1.5"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-emerald-500 text-white font-bold text-[15px] rounded-lg cursor-pointer transition-all shadow-lg hover:shadow-emerald-500/10 hover:scale-[1.01] flex items-center justify-center space-x-1.5"
             >
               <span>安全解锁进入</span>
             </button>
@@ -426,7 +426,7 @@ export default function App() {
 
           {/* 安全提示信息 */}
           <div className="pt-4 border-t border-slate-900 text-center">
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[12px] text-slate-500">
               管理员建议：默认首页登录口令为 <code className="bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-bold">guest</code>
             </span>
           </div>
@@ -441,7 +441,7 @@ export default function App() {
       <Suspense fallback={
         <div className="flex h-screen w-full bg-slate-900 text-slate-100 flex-col items-center justify-center space-y-4">
           <RefreshCw className="animate-spin text-emerald-400" size={24} />
-          <span className="text-xs">系统安全审计后台加载中，请稍候...</span>
+          <span className="text-[13px]">系统安全审计后台加载中，请稍候...</span>
         </div>
       }>
         <ErrorBoundary fallbackTitle="管理行政后台运行异常">
@@ -461,7 +461,7 @@ export default function App() {
     }`}>
 
       {/* 顶部主横幅控制中心 (符合高密度设计风格 Deep Slate Colors) */}
-      <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-slate-900 text-white border-b border-slate-700 shrink-0 relative z-50">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-2.5 bg-slate-900 text-white border-b border-slate-700 shrink-0 relative z-50">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           {/* 汉堡包按钮 (在 lg 以下显示) */}
           <button
@@ -472,9 +472,9 @@ export default function App() {
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
 
-          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded flex items-center justify-center font-extrabold text-base sm:text-lg text-white shrink-0">K</div>
-          <h1 className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold tracking-tight truncate">
-            食堂用餐服务管理系统 <span className="hidden md:inline text-slate-400 font-normal text-xs sm:text-sm ml-2">v2.5</span>
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded flex items-center justify-center font-extrabold text-lg sm:text-xl text-white shrink-0">K</div>
+          <h1 className="text-[13px] sm:text-[15px] md:text-lg lg:text-xl font-semibold tracking-tight truncate">
+            食堂用餐服务管理系统 <span className="hidden md:inline text-slate-400 font-normal text-[13px] sm:text-[15px] ml-2">v2.5</span>
           </h1>
         </div>
 
@@ -482,10 +482,10 @@ export default function App() {
 
           {/* 关怀模式字号调节 */}
           <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-slate-300 font-bold shrink-0 select-none">
-            <span className="text-[9px] sm:text-[10px] px-1.5 text-slate-400 font-bold">字号</span>
+            <span className="text-[10px] sm:text-[11px] px-1.5 text-slate-400 font-bold">字号</span>
             <button
               onClick={() => setFontSizeMode("normal")}
-              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] transition-all cursor-pointer ${
                 fontSizeMode === "normal" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
               }`}
               title="系统标准字号"
@@ -494,7 +494,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setFontSizeMode("large")}
-              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] transition-all cursor-pointer ${
                 fontSizeMode === "large" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
               }`}
               title="中大字号关怀模式，适合视力欠佳用户"
@@ -503,7 +503,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setFontSizeMode("huge")}
-              className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] transition-all cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] transition-all cursor-pointer ${
                 fontSizeMode === "huge" ? "bg-emerald-600 text-white font-black" : "hover:text-white"
               }`}
               title="特大字号关怀模式，适合中老年用户"
@@ -515,7 +515,7 @@ export default function App() {
           {/* 库存总览快速入口 */}
           <button
             onClick={() => setIsInventoryOpen(true)}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-700 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-500 font-bold text-[10px] sm:text-xs text-slate-200 hover:text-white rounded cursor-pointer transition-all shadow-sm"
+            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-700 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-500 font-bold text-[11px] sm:text-[13px] text-slate-200 hover:text-white rounded cursor-pointer transition-all shadow-sm"
             title="查看全部原料库存总览"
           >
             <Package size={11} />
@@ -525,7 +525,7 @@ export default function App() {
           {/* 配置管理后台高权入口 */}
           <button
             onClick={handleAdminAccessAttempt}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 font-bold text-[10px] sm:text-xs text-white rounded cursor-pointer transition-all shadow-sm hover:shadow"
+            className="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 font-bold text-[11px] sm:text-[13px] text-white rounded cursor-pointer transition-all shadow-sm hover:shadow"
             title="进入管理后台"
           >
             <Settings size={11} className="animate-spin-slow" />
@@ -535,7 +535,7 @@ export default function App() {
           {/* 安全登出系统 */}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[10px] sm:text-xs text-slate-300 hover:text-rose-200 rounded cursor-pointer transition-all shadow-sm"
+            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[11px] sm:text-[13px] text-slate-300 hover:text-rose-200 rounded cursor-pointer transition-all shadow-sm"
             title="安全退出当前食堂记账系统并锁定首页面"
           >
             <LogOut size={11} />
@@ -544,12 +544,12 @@ export default function App() {
 
           {/* 自动保存状态展示器 */}
           {saveToast && (
-            <span className="text-[9px] sm:text-[10px] bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-emerald-500/40 animate-fade-in font-medium font-sans shrink-0">
+            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-emerald-500/40 animate-fade-in font-medium font-sans shrink-0">
               {saveToast}
             </span>
           )}
 
-          <div className="hidden xl:flex items-center space-x-2 text-xs text-slate-400">
+          <div className="hidden xl:flex items-center space-x-2 text-[13px] text-slate-400">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-1"></span>
             <span>物理热同步</span>
           </div>
@@ -576,11 +576,11 @@ export default function App() {
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}>
           <div className="flex flex-col flex-1 min-h-0 font-sans">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between overflow-hidden">
+            <div className="p-3 border-b border-slate-100 flex items-center justify-between overflow-hidden">
               {!isSidebarCollapsed && (
                 <>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans truncate">活动餐位分组</span>
-                  <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-extrabold shrink-0">{activeGroupsList.length}群</span>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest font-sans truncate">活动餐位分组</span>
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-extrabold shrink-0">{activeGroupsList.length}群</span>
                 </>
               )}
               <button
@@ -605,12 +605,12 @@ export default function App() {
                         LogBroker.publish("INFO", "App", `切换聚焦食堂受众人群: ${g.label}`);
                       }}
                       title={g.label}
-                      className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all ${isSelected
+                      className={`w-full flex items-center px-4 py-2.5 text-[13px] font-semibold cursor-pointer transition-all ${isSelected
                         ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-bold"
                         : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
                         } ${isSidebarCollapsed ? "justify-center" : ""}`}
                     >
-                      <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>{g.emoji}</span>
+                      <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-lg`}>{g.emoji}</span>
                       {!isSidebarCollapsed && <span>{g.label}</span>}
                     </button>
                   );
@@ -622,7 +622,7 @@ export default function App() {
 
                 <div>
                   {!isSidebarCollapsed && (
-                    <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                    <div className="px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-widest truncate">
                       仓库与库存台账
                     </div>
                   )}
@@ -633,12 +633,12 @@ export default function App() {
                       LogBroker.publish("INFO", "App", "激活原料购销台账及仓储库存模块。");
                     }}
                     title="原料购销台账"
-                    className={`w-full flex items-center px-4 py-3 text-xs font-bold cursor-pointer transition-all ${activeGroup === "LEDGER"
+                    className={`w-full flex items-center px-4 py-2.5 text-[13px] font-bold cursor-pointer transition-all ${activeGroup === "LEDGER"
                       ? "bg-emerald-50 border-r-4 border-emerald-500 text-emerald-700 font-black"
                       : "text-slate-600 hover:bg-slate-50 border-r-4 border-transparent"
                       } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
-                    <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-base`}>📋</span>
+                    <span className={`${isSidebarCollapsed ? "mr-0" : "mr-3"} text-lg`}>📋</span>
                     {!isSidebarCollapsed && <span>原料购销台账</span>}
                   </button>
                 </div>
@@ -647,23 +647,23 @@ export default function App() {
           </div>
 
           {/* 备餐底栏：实时滚动费用指示牌 */}
-          <div className="p-4 border-t border-slate-100">
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+          <div className="p-3 border-t border-slate-100">
+            <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
               {!isSidebarCollapsed ? (
                 <>
-                  <div className="text-[10px] text-slate-500 mb-1 font-bold font-sans">
+                  <div className="text-[11px] text-slate-500 mb-1 font-bold font-sans">
                     {activeGroup === "LEDGER"
                       ? "台账原料累计入库"
                       : "当前受众全月采购支出"}
                   </div>
-                  <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight truncate">
+                  <div className="text-lg font-extrabold text-slate-900 font-mono tracking-tight truncate">
                     ¥{(activeGroup === "LEDGER"
                       ? allLedgersTotalAmount
                       : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
                   </div>
                 </>
               ) : (
-                <div className="text-center font-bold text-slate-500 text-xs" title="支出">
+                <div className="text-center font-bold text-slate-500 text-[13px]" title="支出">
                   ¥
                 </div>
               )}
@@ -677,7 +677,7 @@ export default function App() {
             <Suspense fallback={
               <div className="flex-1 flex flex-col items-center justify-center space-y-4 p-12 text-slate-500 bg-white m-6 rounded-xl border border-slate-200 shadow-sm">
                 <RefreshCw className="animate-spin text-emerald-500" size={24} />
-                <span className="text-xs">台账购销及库存控制模块加载中，请稍候...</span>
+                <span className="text-[13px]">台账购销及库存控制模块加载中，请稍候...</span>
               </div>
             }>
               <ErrorBoundary fallbackTitle="台账系统模块运行异常">
@@ -697,7 +697,7 @@ export default function App() {
                           setActiveCategory(cat.key);
                           LogBroker.publish("INFO", "App", `切换食材主分类大类: ${cat.label}类`);
                         }}
-                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${isSelected
+                        className={`px-4 py-2 text-[13px] font-bold border-b-2 transition-all cursor-pointer h-full flex items-center whitespace-nowrap ${isSelected
                           ? "border-emerald-500 text-emerald-600 font-extrabold"
                           : "border-transparent text-slate-400 hover:text-slate-600"
                           }`}
@@ -714,7 +714,7 @@ export default function App() {
                       setActiveCategory(null);
                       LogBroker.publish("INFO", "App", "激活宏观视图:「全品类预算/记账金额汇总报表」。");
                     }}
-                    className={`px-5 py-2 text-xs font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${activeCategory === null
+                    className={`px-5 py-2 text-[13px] font-bold transition-all relative shrink-0 border-b-2 cursor-pointer h-full flex items-center ${activeCategory === null
                       ? "border-emerald-600 text-emerald-700 font-extrabold"
                       : "border-transparent text-slate-400 hover:text-slate-600"
                       }`}
@@ -726,7 +726,7 @@ export default function App() {
                 {/* 账期选择器 */}
                 {activeGroup !== "LEDGER" && (
                   <div className="flex items-center space-x-2 shrink-0 ml-4">
-                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 animate-fade-in">
+                    <span className="text-[13px] font-semibold text-slate-500 flex items-center gap-1 animate-fade-in">
                       <CalendarDays size={14} className="text-slate-400" />
                       查看账期:
                     </span>
@@ -741,14 +741,14 @@ export default function App() {
                           LogBroker.publish("INFO", "App", `切换账期至: ${y}年${m}月`);
                         }
                       }}
-                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-700 outline-none cursor-pointer focus:bg-white focus:border-emerald-500 transition-all"
+                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded px-2.5 py-1 text-[13px] font-bold text-slate-700 outline-none cursor-pointer focus:bg-white focus:border-emerald-500 transition-all"
                     />
                   </div>
                 )}
               </div>
 
               {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
 
                 {/* 情形 B: 普通受众视图，显示具体品类记账表 */}
                 {currentReport && (
@@ -772,7 +772,7 @@ export default function App() {
       </div>
 
       {/* 各项备餐审计说明页脚 */}
-      <footer className="px-6 py-2 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between shrink-0 text-[10px] text-slate-500 select-none font-sans">
+      <footer className="px-6 py-2 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between shrink-0 text-[11px] text-slate-500 select-none font-sans">
         <div className="flex space-x-6">
           <div className="flex items-center uppercase tracking-widest font-sans">
             <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">当前聚焦:</span>
@@ -783,7 +783,7 @@ export default function App() {
             高密热加载模式（管理员已授权）
           </div>
         </div>
-        <div className="flex items-center space-x-1 font-mono text-[9px] text-slate-400">
+        <div className="flex items-center space-x-1 font-mono text-[10px] text-slate-400">
           <span>HOST: PORT_3000</span>
           <span>|</span>
           <span>SYSTEM_HOT_CONNECTED</span>
@@ -797,24 +797,24 @@ export default function App() {
             {/* 顶条 */}
             <div className="bg-slate-900 text-slate-100 px-5 py-4 flex items-center space-x-2.5">
               <ShieldAlert className="text-emerald-400 shrink-0" size={18} />
-              <h3 className="text-sm font-extrabold tracking-tight">行政管理授权认证</h3>
+              <h3 className="text-[15px] font-extrabold tracking-tight">行政管理授权认证</h3>
             </div>
 
             {/* 表单 */}
             <form onSubmit={handleVerifyPasswordSubmit} className="p-5 space-y-4">
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-[13px] text-slate-500 leading-relaxed">
                 进入配置后台可进行一级餐位客群、二级食材大类的管理，以及执行一键清空、备份和初始化。请输入安全验证密码以继续。
               </p>
 
               {passwordError && (
-                <div className="text-[11px] bg-rose-50 text-rose-600 p-2.5 rounded border border-rose-100 flex items-center space-x-1.5">
+                <div className="text-[12px] bg-rose-50 text-rose-600 p-2.5 rounded border border-rose-100 flex items-center space-x-1.5">
                   <ShieldAlert size={12} className="shrink-0 animate-bounce" />
                   <span>{passwordError}</span>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">
+                <label className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
                   授权管理密码 (默认密码: admin)
                 </label>
                 <input
@@ -822,7 +822,7 @@ export default function App() {
                   placeholder="请输入后台管理员密码"
                   value={enteredPassword}
                   onChange={(e) => setEnteredPassword(e.target.value)}
-                  className="w-full bg-slate-50 text-xs text-slate-800 p-2.5 border border-slate-300 rounded focus:border-emerald-500 outline-none transition-all focus:bg-white"
+                  className="w-full bg-slate-50 text-[13px] text-slate-800 p-2.5 border border-slate-300 rounded focus:border-emerald-500 outline-none transition-all focus:bg-white"
                   autoComplete="new-password"
                   autoFocus
                   required
@@ -833,13 +833,13 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-600 rounded text-xs font-semibold cursor-pointer transition-all"
+                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-600 rounded text-[13px] font-semibold cursor-pointer transition-all"
                 >
                   取消返回
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold cursor-pointer transition-all shadow-sm"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[13px] font-bold cursor-pointer transition-all shadow-sm"
                 >
                   校验进入
                 </button>
@@ -855,7 +855,7 @@ export default function App() {
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
             <div className="bg-white rounded-xl p-8 max-w-sm w-full mx-4 shadow-xl text-center space-y-3">
               <RefreshCw className="animate-spin text-emerald-500 mx-auto" size={24} />
-              <p className="text-xs text-slate-500">库存自检总盘数据加载中...</p>
+              <p className="text-[13px] text-slate-500">库存自检总盘数据加载中...</p>
             </div>
           </div>
         }>
@@ -871,11 +871,11 @@ export default function App() {
           <div className="bg-white/95 border border-slate-200/50 p-8 rounded-2xl max-w-sm w-full mx-4 shadow-2xl flex flex-col items-center space-y-4">
             <div className="relative flex items-center justify-center">
               <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
-              <span className="absolute text-[10px] font-black text-emerald-700 animate-pulse">KPMSS</span>
+              <span className="absolute text-[11px] font-black text-emerald-700 animate-pulse">KPMSS</span>
             </div>
 
             <div className="w-full space-y-2">
-              <p className="text-xs font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
+              <p className="text-[13px] font-black text-slate-800 tracking-wider text-center">{globalLoadingText}</p>
 
               {/* 如果开启了进度模拟，则在遮罩上渲染进度条 */}
               {globalLoadingProgress !== null && (
@@ -886,7 +886,7 @@ export default function App() {
                       style={{ width: `${globalLoadingProgress}%` }}
                     ></div>
                   </div>
-                  <div className="flex justify-between items-center text-[9px] text-slate-400 font-bold px-0.5">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-0.5">
                     <span>数据落盘同步进度</span>
                     <span className="text-emerald-600">{globalLoadingProgress}%</span>
                   </div>
@@ -894,7 +894,7 @@ export default function App() {
               )}
             </div>
 
-            <span className="text-[9px] text-slate-400 font-medium text-center block">系统正在同步，此期间已安全锁定，请勿刷新页面</span>
+            <span className="text-[10px] text-slate-400 font-medium text-center block">系统正在同步，此期间已安全锁定，请勿刷新页面</span>
           </div>
         </div>
       )}

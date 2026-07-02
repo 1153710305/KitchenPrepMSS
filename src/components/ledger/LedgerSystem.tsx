@@ -695,17 +695,17 @@ export function LedgerSystem() {
         <div className="p-3 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-2 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <h2 className="text-[15px] font-bold text-slate-800 flex items-center gap-1.5">
                 <FileText className="text-emerald-600" size={16} />
                 「{activeLedger?.name || "未选择"}」购销与库存台账
               </h2>
               {saveToast && (
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 animate-pulse">
+                <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 animate-pulse">
                   {saveToast}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">{LEDGER_UI_TEXT.moduleSubtitle}</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{LEDGER_UI_TEXT.moduleSubtitle}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -714,7 +714,7 @@ export function LedgerSystem() {
               <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
                 <button
                   onClick={() => setLedgerStyle("style1")}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-md cursor-pointer transition-all ${
+                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
                     ledgerStyle === "style1" 
                       ? "bg-white text-emerald-700 shadow-xs" 
                       : "text-slate-500 hover:text-slate-700"
@@ -725,7 +725,7 @@ export function LedgerSystem() {
                 </button>
                 <button
                   onClick={() => setLedgerStyle("style2")}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-md cursor-pointer transition-all ${
+                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
                     ledgerStyle === "style2" 
                       ? "bg-white text-emerald-700 shadow-xs" 
                       : "text-slate-500 hover:text-slate-700"
@@ -740,7 +740,7 @@ export function LedgerSystem() {
             {/* 日期选择器 */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-fit">
               <Calendar size={13} className="text-slate-500" />
-              <span className="text-[11px] text-slate-500 font-medium">同步日期：</span>
+              <span className="text-[12px] text-slate-500 font-medium">同步日期：</span>
               <input 
                 type="date"
                 value={selectedDate}
@@ -748,7 +748,7 @@ export function LedgerSystem() {
                   setSelectedDate(e.target.value);
                   LogBroker.publish("INFO", "LedgerSystem", `切换台账数据录入日期为: ${e.target.value}`);
                 }}
-                className="bg-transparent text-[11px] font-bold text-slate-700 outline-none cursor-pointer text-xs"
+                className="bg-transparent text-[12px] font-bold text-slate-700 outline-none cursor-pointer text-[13px]"
               />
             </div>
           </div>
@@ -756,7 +756,7 @@ export function LedgerSystem() {
 
         {/* 当前同步日期无记录提示：提醒用户本台账数据实际记录在其他日期，避免误以为台账数据丢失 */}
         {nearestRecordDateHint && (
-          <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap">
+          <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 text-amber-800 text-[13px] px-4 py-2.5 rounded-lg flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Calendar size={14} className="shrink-0" />
               <span>
@@ -778,7 +778,7 @@ export function LedgerSystem() {
 
         {/* 错误警示 */}
         {errorMessage && (
-          <div className="mx-4 mt-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs px-4 py-2.5 rounded-lg flex items-center gap-2 animate-bounce">
+          <div className="mx-4 mt-3 bg-rose-50 border border-rose-200 text-rose-800 text-[13px] px-4 py-2.5 rounded-lg flex items-center gap-2 animate-bounce">
             <AlertCircle size={14} className="shrink-0" />
             <span>警告: {errorMessage}</span>
           </div>

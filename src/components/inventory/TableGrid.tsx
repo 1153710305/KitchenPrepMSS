@@ -306,13 +306,13 @@ export const TableGrid: React.FC<TableGridProps> = ({
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs mt-4">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+            <h3 className="font-bold text-gray-800 text-xl flex items-center gap-2">
               <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Flame size={18} /></span>
               {UI_TEXT.summaryName}
             </h3>
-            <p className="text-xs text-gray-400 mt-1">汇聚餐段：{report.year}年{report.month}月 - 统一统筹合计表</p>
+            <p className="text-[13px] text-gray-400 mt-1">汇聚餐段：{report.year}年{report.month}月 - 统一统筹合计表</p>
           </div>
-          <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 px-4 py-1.5 rounded-full">
+          <span className="text-[15px] font-semibold text-indigo-700 bg-indigo-50 px-4 py-1.5 rounded-full">
             总预算耗资: ¥{grandTotal.toLocaleString()}
           </span>
         </div>
@@ -323,20 +323,20 @@ export const TableGrid: React.FC<TableGridProps> = ({
             return (
               <div key={row.key} className="p-5 rounded-xl border border-gray-100 bg-gradient-to-tr from-gray-50/30 to-white flex justify-between items-center hover:shadow-xs transition-shadow">
                 <div className="space-y-1">
-                  <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">食材大类</span>
-                  <span className="text-base font-bold text-gray-800">{row.label}类别</span>
+                  <span className="text-[12px] text-gray-400 font-bold uppercase tracking-wider block">食材大类</span>
+                  <span className="text-lg font-bold text-gray-800">{row.label}类别</span>
                 </div>
                 <div className="text-right space-y-1">
-                  <span className="text-[11px] text-gray-400 block">月耗开销</span>
-                  <span className="text-base font-extrabold text-sky-600">¥{row.amount.toFixed(2)}</span>
-                  <span className="text-[10px] text-gray-400 font-mono block">占比 {pct}%</span>
+                  <span className="text-[12px] text-gray-400 block">月耗开销</span>
+                  <span className="text-lg font-extrabold text-sky-600">¥{row.amount.toFixed(2)}</span>
+                  <span className="text-[11px] text-gray-400 font-mono block">占比 {pct}%</span>
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="mt-8 p-4 bg-yellow-50/50 border border-yellow-10 border-dashed rounded-xl flex items-start gap-2 text-xs text-yellow-800">
+        <div className="mt-8 p-4 bg-yellow-50/50 border border-yellow-10 border-dashed rounded-xl flex items-start gap-2 text-[13px] text-yellow-800">
           <Check size={16} className="text-yellow-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
             <strong>合计表业务说明：</strong>该表自动归集了当前目标受众分类（教师、幼儿、低/高年级）在各分食材（蔬菜、粮油、调料、肉类、低耗品、水果）卡片里的金额输入流。如果您需要增删或微调，请点击对应类目的标签即可下潜编辑。所有的修改都将完美自动向本表累合并瞬间落盘。
@@ -351,10 +351,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
       {/* 过滤条与功能操作开关 */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
         <div className="flex flex-wrap items-center gap-3">
           {/* 搜索框 */}
           <div className="relative">
@@ -366,14 +366,14 @@ export const TableGrid: React.FC<TableGridProps> = ({
               placeholder="快速检索当前页食材..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-4 py-1.5 w-44 bg-white border border-gray-100 rounded-xl text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-sans"
+              className="pl-8 pr-4 py-1.5 w-44 bg-white border border-gray-100 rounded-xl text-[13px] text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-sans"
             />
           </div>
 
           {/* 新增原料采购项下拉框 (只允许从原料大字典已存在的原料中挑选新增，只读模式下隐藏) */}
           {!readOnly && (
             <form onSubmit={handleAddSubmit} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-1">
-              <span className="text-[10px] text-gray-400 font-bold shrink-0">添加原料:</span>
+              <span className="text-[11px] text-gray-400 font-bold shrink-0">添加原料:</span>
               <select
                 value={newItemName}
                 onChange={(e) => {
@@ -384,7 +384,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
                     setNewItemUnit(matched.unit);
                   }
                 }}
-                className="text-xs text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
+                className="text-[13px] text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
                 required
               >
                 <option value="">-- 选择原料 --</option>
@@ -397,7 +397,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
               <button
                 type="submit"
                 disabled={!newItemName}
-                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
               >
                 新增
               </button>
@@ -408,7 +408,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           <button
             onClick={handleExportCsv}
             type="button"
-            className={`flex items-center gap-1.5 px-3 py-1.5 ${activeTheme.lightBg} border ${activeTheme.primaryText.replace("text-", "border-").replace("-700", "-200")} ${activeTheme.primaryText} text-xs font-bold rounded-xl transition-all cursor-pointer`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 ${activeTheme.lightBg} border ${activeTheme.primaryText.replace("text-", "border-").replace("-700", "-200")} ${activeTheme.primaryText} text-[13px] font-bold rounded-xl transition-all cursor-pointer`}
             title="导出当前餐位二级大类当月所有的每日采购明细表 (CSV)"
           >
             <Download size={13} />
@@ -416,8 +416,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
           </button>
 
           {/* 细表主题样式选择器 */}
-          <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-1.5 text-xs select-none">
-            <span className="text-[10px] text-gray-400 font-bold shrink-0">表格主题:</span>
+          <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-1.5 text-[13px] select-none">
+            <span className="text-[11px] text-gray-400 font-bold shrink-0">表格主题:</span>
             <div className="flex gap-1.5">
               <button
                 type="button" onClick={() => handleThemeChange("sky")}
@@ -444,7 +444,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
         </div>
 
-        <div className="flex rounded-md bg-white p-1 border border-gray-100 text-xs shadow-xs">
+        <div className="flex rounded-md bg-white p-1 border border-gray-100 text-[13px] shadow-xs">
           <button
             onClick={() => setViewMode("MATRIX")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer font-medium ${viewMode === "MATRIX" ? activeTheme.btnActive : "text-gray-500 hover:text-gray-900"
@@ -465,7 +465,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
       </div>
 
       {filteredItems.length === 0 ? (
-        <div className="py-16 text-center bg-white border border-gray-100/50 rounded-2xl text-gray-400 text-xs italic">
+        <div className="py-16 text-center bg-white border border-gray-100/50 rounded-2xl text-gray-400 text-[13px] italic">
           {UI_TEXT.noDataMessage}
         </div>
       ) : (
