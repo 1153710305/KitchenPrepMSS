@@ -244,6 +244,10 @@ export function LedgerSystem() {
       const dictItem = dictItems.find(d => d.name === item.name);
       if (!dictItem) return false;
 
+      // 非录入模式下，仅展示当前所选同步日期确实存在出入库记录的原料；曾在其他日期录入过、但当天未采购的原料不再显示，
+      // 避免总表出现大量与当天无关的空白行
+      if (!isRecordingMode && !item.dailyRecords[selectedDate]) return false;
+
       if (filterName.trim()) {
         if (!matchPinyin(item.name, filterName)) return false;
       }

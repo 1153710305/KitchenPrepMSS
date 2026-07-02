@@ -254,7 +254,11 @@ export function LedgerStyle1Table({
                 <td colSpan={18} className="text-center py-10 text-slate-400 italic">
                   <div className="flex flex-col items-center gap-2 py-2">
                     <Search size={26} className="text-slate-200" />
-                    <span>未找到符合筛选条件的原料，请调整条件后重试。</span>
+                    <span>
+                      {hasActiveFilters
+                        ? "未找到符合筛选条件的原料，请调整条件后重试。"
+                        : "当前所选同步日期暂无任何原料的出入库记录。"}
+                    </span>
                   </div>
                 </td>
               </tr>
