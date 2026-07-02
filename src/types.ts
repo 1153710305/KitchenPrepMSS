@@ -79,8 +79,6 @@ export interface GroupMonthlyReport {
   month: number;
   /** 细分备餐明细行列表 */
   items: PreparedItem[];
-  /** 每日就餐人数 (1号到31号日度数据)，以天数 "1" 到 "31" 作为 Key */
-  dailyHeadcount?: Record<string, number>;
 }
 
 /**

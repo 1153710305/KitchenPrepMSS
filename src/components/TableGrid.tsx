@@ -8,7 +8,7 @@ import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGro
 import { PrepReportService } from "../store.ts";
 import { FOOD_CATEGORY_LABELS, TARGET_GROUP_LABELS, UI_TEXT } from "../constants.ts";
 import { getDaysInMonth, getItemMonthlySummary, LogBroker, matchPinyin, convertItemsToCsv } from "../utils.ts";
-import { Plus, Trash, Copy, SlidersHorizontal, Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
+import { Trash, Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../rawMaterialDict.ts";
 import { LedgerService } from "../ledgerStore.ts";

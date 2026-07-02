@@ -4,7 +4,7 @@
  */
 
 import { Ledger, LedgerItem, DailyStockRecord } from "./ledgerTypes.ts";
-import { DEFAULT_LEDGER_NAMES, PRESET_LEDGER_MATERIALS } from "./ledgerConstants.ts";
+import { PRESET_LEDGER_MATERIALS } from "./ledgerConstants.ts";
 import { LogBroker } from "./utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { PrepReportService } from "./store.ts";

@@ -21,26 +21,12 @@ import { LedgerAddMaterialModal } from "./LedgerAddMaterialModal.tsx";
 import { LedgerPrintModal } from "./LedgerPrintModal.tsx";
 import { LedgerSidebar } from "./LedgerSidebar.tsx";
 import { LedgerControlBar } from "./LedgerControlBar.tsx";
-import { LedgerAddMaterialInlineForm } from "./LedgerAddMaterialInlineForm.tsx";
-import { 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  Calendar, 
-  Download, 
-  Printer, 
-  Check, 
+import {
+  Calendar,
   AlertCircle,
   FileText,
-  Bookmark,
-  PlusCircle,
-  X,
   LayoutGrid,
-  TrendingUp,
-  Award,
-  Save,
-  Search,
-  Filter
+  TrendingUp
 } from "lucide-react";
 
 /**

@@ -5,9 +5,8 @@
 
 import React, { useState } from "react";
 import { PrepReportService } from "../store.ts";
-import { DynamicCategory, FoodCategory } from "../types.ts";
-import { LogBroker, matchPinyin } from "../utils.ts";
-import { RawMaterialsDictService } from "../rawMaterialDict.ts";
+import { DynamicCategory } from "../types.ts";
+import { LogBroker } from "../utils.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
 import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
@@ -20,7 +19,6 @@ import {
   X,
   PlusCircle,
   FolderHeart,
-  CalendarDays,
   ShieldAlert,
   Sparkles,
   ChevronLeft,

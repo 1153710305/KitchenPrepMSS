@@ -748,4 +748,15 @@ pm2 startup
   4. **影响说明**：此次删除后，系统内不再提供 JSON 全量数据备份导出/导入、按人群 CSV 汇总导出、一键清空/恢复出厂种子等管理端数据维护能力；TableGrid 每张表格自身的"导出本月细表 (CSV)"单表导出功能（`convertItemsToCsv`）未受影响，正常保留；
   5. **验证**：`tsc --noEmit`、`vite build` 均通过（AdminBackend 打包体积由 41.5kb 降至 30.7kb，无新增报错）；本地启动开发服务器逐一验证管理后台剩余四个 Tab（一级受众管理、二级大类管理、原料字典管理、台账人员与供货商）均正常渲染、数据未受影响，且"二级大类管理"的物理删除确认弹窗（共用同一套 `showConfirm` 逻辑）功能完好。
 
+### 2026-07-02 - [V5.33.0] 全项目已删除功能遗留代码地毯式清理
+- **需求**：应管理员要求，查找并彻底删除项目内因历次功能删除（AI膳食规划、统计图表、人数餐费分析、数据维护核销等）而残留的无效代码、未使用的导入与孤立文件，同时保证不影响其他功能正常使用。
+- **重构方案**：
+  1. **人数与餐费分析遗留数据层清理**：此前删除"人数与餐费分析"功能时出于风险考虑保留的 `GroupMonthlyReport.dailyHeadcount` 字段（[types.ts]）及其在 [store.ts] 中 5 处报表创建路径（`initStore`、`getOrCreateReport`、`syncGroupFromLedger`、`generateInitialSeeds`、`saveGroup`）里的默认填充逻辑，本次确认彻底无任何读取方后逐一清理干净；同时删除已无调用方的 `PrepReportService.updateHeadcount()` 方法；
+  2. **孤立方法清理**：删除 [store.ts] 中零调用方的 `PrepReportService.fetchAllReports()`（与更简单的 `getReports()` 功能重复的遗留包装方法）、[utils.ts] 中零调用方的 `validateImportedReport()`（早期导入校验逻辑，实际导入流程走的是 AdminBackend 内联校验）；
+  3. **孤立组件文件清理**：删除 [LedgerAddMaterialInlineForm.tsx] —— 该组件在早期版本被从 [LedgerSystem.tsx] 的渲染树中移除后，其引入语句被遗留下来但从未再被渲染，属于完全孤儿文件；同步删除已无外部使用方的常量 `DEFAULT_LEDGER_NAMES`（[ledgerConstants.ts]，已被 `generateSeeds()` 里更精确的三客群种子列表取代）；
+  4. **未使用引入清理**：[AdminBackend.tsx] 的 `FoodCategory`、`matchPinyin`、`RawMaterialsDictService`、`CalendarDays`；[utils.ts] 的 `DailyEntry`；[ledgerStore.ts] 的 `DEFAULT_LEDGER_NAMES`；[LedgerSystem.tsx] 的 14 个未渲染的 lucide-react 图标引入（`Plus`、`Trash2`、`Edit3`、`Download`、`Printer`、`Check`、`Bookmark`、`PlusCircle`、`X`、`Award`、`Save`、`Search`、`Filter`）；[TableGrid.tsx] 的 3 个未渲染图标引入（`Plus`、`Copy`、`SlidersHorizontal`）；
+  5. **未使用依赖包清理**：确认 `motion` 依赖包在全项目源码中无任何 import 引用，从 package.json 中移除并同步 `npm install` 更新锁文件；
+  6. **验证方法**：对每一处候选删除项，先用 grep 在全项目范围内确认零调用方/零渲染引用后才执行删除，避免误删共享逻辑（如首次启动种子生成的私有方法 `generateInitialSeeds`/`generateSeeds`、二级大类删除共用的确认弹窗逻辑均予以保留）；`tsc --noEmit`、`vite build` 均通过，新增报错数为 0（与改动前存量的 37 个既有报错完全一致）；本地开发服务器手动验证登录、备餐记账、管理后台四个 Tab、原料购销台账、库存总览等功能均正常；
+  7. **额外发现（未在本次修复范围内，已登记为独立跟进任务）**：排查过程中发现两处与本次清理无关的既有 Bug——原料字典中存在"黄瓜"、"土豆"等重名条目导致的 React 重复 key 报错（影响原料字典管理页与台账录入模式），已记录为独立任务待后续修复，不影响当前功能使用。
+
 

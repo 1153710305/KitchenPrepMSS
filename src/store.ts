@@ -94,20 +94,7 @@ export class PrepReportService {
             // 服务器上有完整数据，直接同步到内存
             this.activeGroups = serverData.activeGroups;
             this.activeCategories = serverData.activeCategories;
-            this.reports = serverData.reports.map((report: any) => {
-              // 自动补齐可能缺失的 dailyHeadcount
-              if (!report.dailyHeadcount) {
-                const dailyHeadcount: Record<string, number> = {};
-                for (let d = 1; d <= 31; d++) {
-                  let defaultCount = 50;
-                  if (report.targetGroup === "TEACHER") defaultCount = 20;
-                  else if (report.targetGroup === "KID") defaultCount = 120;
-                  dailyHeadcount[String(d)] = defaultCount;
-                }
-                return { ...report, dailyHeadcount };
-              }
-              return report;
-            });
+            this.reports = serverData.reports;
             LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
           } else {
             // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化
@@ -194,17 +181,11 @@ export class PrepReportService {
         });
       }
 
-      const dailyHeadcount: Record<string, number> = {};
-      for (let d = 1; d <= 31; d++) {
-        dailyHeadcount[String(d)] = 50;
-      }
-
       report = {
         targetGroup: targetGroup as TargetGroup,
         year,
         month,
-        items,
-        dailyHeadcount
+        items
       };
       this.reports.push(report);
       this.saveToStorage();
@@ -315,16 +296,11 @@ export class PrepReportService {
       const currentMonth = new Date().getMonth() + 1;
       const reportExists = this.reports.some((r) => r.targetGroup === id as TargetGroup && r.year === currentYear && r.month === currentMonth);
       if (!reportExists) {
-        const dailyHeadcount: Record<string, number> = {};
-        for (let d = 1; d <= 31; d++) {
-          dailyHeadcount[String(d)] = 50;
-        }
         this.reports.push({
           targetGroup: id as TargetGroup,
           year: currentYear,
           month: currentMonth,
-          items: [],
-          dailyHeadcount
+          items: []
         });
       }
       this.saveConfigAndNotify();
@@ -385,23 +361,11 @@ export class PrepReportService {
         });
       });
 
-      // 初始化就餐人数并编写中文注释
-      const dailyHeadcount: Record<string, number> = {};
-      for (let d = 1; d <= 31; d++) {
-        let defaultCount = 50;
-        if (group === "TEACHER") defaultCount = 20;
-        else if (group === "KID") defaultCount = 120;
-        else if (group === "LOW_GRADE") defaultCount = 80;
-        else if (group === "HIGH_GRADE") defaultCount = 90;
-        dailyHeadcount[String(d)] = defaultCount;
-      }
-
       return {
         targetGroup: group as TargetGroup,
         year: currentYear,
         month: currentMonth,
-        items,
-        dailyHeadcount
+        items
       };
     });
 
@@ -418,17 +382,6 @@ export class PrepReportService {
     this.notifyListeners();
     // 异步同步到后端存储
     SyncHelper.triggerSyncToServer();
-  }
-
-  /**
-   * @description 异步获取所有群组下的报表集
-   */
-  public static async fetchAllReports(): Promise<GroupMonthlyReport[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(this.reports);
-      }, MOCK_API_LATENCY);
-    });
   }
 
   /**
@@ -725,18 +678,11 @@ export class PrepReportService {
               const currentYear = new Date().getFullYear();
               const currentMonth = new Date().getMonth() + 1;
 
-              // 新增一级人群时同步初始化 1-31 号的就餐人数 (默认 50 人)
-              const dailyHeadcount: Record<string, number> = {};
-              for (let d = 1; d <= 31; d++) {
-                dailyHeadcount[String(d)] = 50;
-              }
-
               this.reports.push({
                 targetGroup: upperKey as TargetGroup,
                 year: currentYear,
                 month: currentMonth,
-                items: [],
-                dailyHeadcount
+                items: []
               });
             }
             LogBroker.publish("INFO", "PrepReportService", `新增了一级备餐人群: ${label} (${upperKey})`);
@@ -842,48 +788,6 @@ export class PrepReportService {
     this.notifyListeners();
     // 异步同步到后端存储
     SyncHelper.triggerSyncToServer();
-  }
-
-  /**
-   * @description 更新某一目标人群在某一天的就餐人数，保存至 LocalStorage 并发布操作审计日志
-   * @param targetGroup 目标受众人群
-   * @param day 具体哪一天 (1-31 号)
-   * @param headcount 就餐人数数量
-   */
-  public static async updateHeadcount(
-    targetGroup: TargetGroup,
-    day: string,
-    headcount: number
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
-        if (reportIndex === -1) {
-          reject(new Error(`未找到目标人群为 "${targetGroup}" 的月度报表`));
-          return;
-        }
-
-        const report = this.reports[reportIndex];
-        const updatedHeadcount = { ...(report.dailyHeadcount || {}) };
-        const sanitizedCount = Math.max(1, headcount); // 最小就餐人数为1人，防止除以0
-
-        updatedHeadcount[day] = sanitizedCount;
-
-        const updatedReport = {
-          ...report,
-          dailyHeadcount: updatedHeadcount
-        };
-
-        const updatedReports = [...this.reports];
-        updatedReports[reportIndex] = updatedReport;
-        this.reports = updatedReports;
-
-        this.saveToStorage();
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
-    });
   }
 
   /**

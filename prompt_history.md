@@ -379,6 +379,10 @@
 - **提示词变更状态**：**无变动 (No Changes)**。
 - **说明**：本次删除管理配置后台的”数据维护核销”Tab（JSON备份导出/导入、CSV汇总导出、清空/恢复出厂种子等 7 个数据维护操作）及其在 [AdminBackend.tsx]、[App.tsx]、[store.ts]、[ledgerStore.ts]、[utils.ts] 中的全部关联代码，属于纯管理端功能与数据层方法的下线清理，未涉及任何 AI 提示词或 `src/prompts.ts` 的改动，保持 100% 绿灯兼容。分支说明：本次改动固定在新建的 `dev` 分支上，未合并进 `main`（`main` 分支保留其独立的台账打印样式修复历史）。
 
+### 🚀 2026-07-02 - [V5.33.0] 全项目已删除功能遗留代码地毯式清理
+- **提示词变更状态**：**无变动 (No Changes)**。
+- **说明**：本次为纯代码清理，删除了此前几次功能下线（人数与餐费分析、数据维护核销等）后残留的死代码，包括 `dailyHeadcount` 数据字段及配套初始化逻辑、`updateHeadcount`/`fetchAllReports`/`validateImportedReport` 等零调用方法、孤儿组件文件 [LedgerAddMaterialInlineForm.tsx]、多处未使用的 import 引入及未使用的 `motion` 依赖包。未涉及任何 AI 提示词或 `src/prompts.ts` 的改动。清理前均先用 grep 在全项目范围确认零调用方才执行删除，共享的私有种子生成方法与确认弹窗逻辑均予以保留未动。
+
 
 
 

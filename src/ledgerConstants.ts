@@ -8,11 +8,6 @@
  */
 
 /**
- * @description 默认初始化的四大台账名称配置
- */
-export const DEFAULT_LEDGER_NAMES: string[] = ["幼儿", "教师", "幼儿晚餐", "在校生"];
-
-/**
  * @description 预设采购项目的原料大类，在新建原料项目时提供下拉种子推荐
  */
 export interface PresetMaterial {

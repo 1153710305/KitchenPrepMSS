@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DailyEntry, PreparedItem, SystemLog } from "./types.ts";
+import { PreparedItem, SystemLog } from "./types.ts";
 
 /**
  * @description 获取选定月份的第1天到月末的天数数组
@@ -198,33 +198,6 @@ export class LogBroker {
       }
     });
   }
-}
-
-/**
- * @description 统一的数据安全性校验，防止导入恶意篡改的代码或JSON格式
- * @param rawJsonData 导入的纯文本 JSON 字符数据
- * @returns 验证通过的合格数组或者抛出错误
- */
-export function validateImportedReport(rawJsonData: string): any {
-  const parsed = JSON.parse(rawJsonData);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("导入的数据必须是有效的 JSON 对象。");
-  }
-
-  // 验证必填字段
-  if (Array.isArray(parsed)) {
-    // 如果是旧报表数组格式，检验每一项
-    parsed.forEach((item, index) => {
-      if (!item.id || !item.name || !item.category || !item.targetGroup) {
-        throw new Error(`数组索引 ${index} 处的备餐条目缺少核心必填字段。`);
-      }
-    });
-  } else if (parsed.reports || parsed.items) {
-    LogBroker.publish("INFO", "validateImportedReport", "验证带复合结构月度备份包");
-  } else {
-    throw new Error("JSON数据结构不合规，无法识别的归档指纹。");
-  }
-  return parsed;
 }
 
 /**
