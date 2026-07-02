@@ -45,7 +45,7 @@ export function SensorySelector({
   const options = [
     "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好",
     "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满",
-    "光泽度好", "颜色鲜艳"
+    "光泽度好", "颜色鲜艳", "合格", "不合格"
   ];
 
   /** 解析当前逗号或顿号分割的选中值 */
@@ -114,11 +114,10 @@ export function SensorySelector({
                   key={opt}
                   type="button"
                   onClick={() => handleToggle(opt)}
-                  className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer ${
-                    isSelected
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer ${isSelected
                       ? "bg-emerald-500 border-emerald-500 text-white font-bold"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
-                  }`}
+                    }`}
                 >
                   {opt}
                 </button>
