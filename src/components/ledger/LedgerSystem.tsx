@@ -213,6 +213,32 @@ export function LedgerSystem() {
   }, [ledgerItems, activeLedgerId, isRecordingMode]);
 
   /**
+   * @description 本台账内实际存在采购原料项目的二级食材大类集合，供打印勾选弹窗禁用"本台账在该大类下压根没有任何原料、选了也是空表"的大类
+   */
+  const printableCategories = useMemo(() => {
+    const dictItems = RawMaterialsDictService.getItems();
+    const dbItems = ledgerItems.filter((item) => item.ledgerId === activeLedgerId);
+    const result = new Set<FoodCategory>();
+    dbItems.forEach((item) => {
+      const dictItem = dictItems.find((d) => d.name === item.name);
+      if (dictItem) {
+        result.add(dictItem.category);
+      }
+    });
+    return result;
+  }, [ledgerItems, activeLedgerId]);
+
+  /**
+   * @description 打开二级分类打印勾选弹窗前，先剔除当前选中项中本台账实际没有任何原料的大类，避免"选了也是空表"
+   */
+  const handleTogglePrintModal = (open: boolean) => {
+    if (open) {
+      setSelectedPrintCategories((prev) => prev.filter((cat) => printableCategories.has(cat)));
+    }
+    setPrintModalOpen(open);
+  };
+
+  /**
    * @description 当前选定的"同步日期"在本台账下完全没有任何出入库记录、但本台账其他日期确实存在记录时，
    * 计算出最近一次的有效录入日期，用于提示用户切换日期查看（避免误以为数据丢失）。
    * 录入模式下不提示，避免打扰正在录入当天数据的用户。
@@ -813,7 +839,7 @@ export function LedgerSystem() {
           handleApplyBatchSignatures={handleApplyBatchSignatures}
           handleExportInwardCsv={handleExportInwardCsv}
           handleExportOutwardCsv={handleExportOutwardCsv}
-          setPrintModalOpen={setPrintModalOpen}
+          setPrintModalOpen={handleTogglePrintModal}
           setPrintPreviewStyle={setPrintPreviewStyle}
           triggerPrintDoc={triggerPrintDoc}
           activeLedgerId={activeLedgerId}
@@ -922,6 +948,7 @@ export function LedgerSystem() {
         selectedPrintCategories={selectedPrintCategories}
         setSelectedPrintCategories={setSelectedPrintCategories}
         setPrintPreviewStyle={setPrintPreviewStyle}
+        printableCategories={printableCategories}
         onClose={() => setPrintModalOpen(false)}
       />
 

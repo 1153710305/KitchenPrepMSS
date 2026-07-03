@@ -207,7 +207,17 @@ export function useAppData(): UseAppDataResult {
     // 心跳静默同步：每 10 秒钟静默从服务器拉取一次最新状态覆盖内存并触发分发重绘（解决多浏览器并发操作数据冲突）
     const syncInterval = setInterval(async () => {
       try {
+        // 记录本次心跳请求发起的时刻，用于识别请求期间是否发生了更"新"的本地写入（竞态）
+        const requestStartedAt = Date.now();
         const freshData = await SyncHelper.loadFromServer();
+
+        // 若本次心跳请求发出之后、响应返回之前，发生了真实的本地数据变更（如台账录入保存），
+        // 说明这份响应所携带的数据早于该次本地变更，直接覆盖内存会导致刚保存的数据在界面上"消失"。
+        // 丢弃本轮响应即可：本地变更会通过自身的去抖动同步写入服务器，下一次心跳自然能拿到最新状态。
+        if (SyncHelper.getLastLocalMutationAt() > requestStartedAt) {
+          return;
+        }
+
         if (freshData && active) {
           let memoryChanged = false;
 

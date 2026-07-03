@@ -84,6 +84,18 @@ export class SyncHelper {
   private static debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
+   * @description 最近一次发生真实本地数据变更（如录入保存）的时间戳，用于心跳静默同步识别并丢弃与之竞态的过期响应
+   */
+  private static lastLocalMutationAt: number = 0;
+
+  /**
+   * @description 获取最近一次真实本地数据变更的时间戳
+   */
+  public static getLastLocalMutationAt(): number {
+    return this.lastLocalMutationAt;
+  }
+
+  /**
    * @description 注册内存数据提取器回调
    * @param fetcher 提取器函数
    */
@@ -127,6 +139,9 @@ export class SyncHelper {
       console.warn("[SYNC HELPER] 系统尚未初始化完成，拦截空内存数据同步云端，保护云端数据安全");
       return;
     }
+
+    // 记录本次真实本地数据变更发生的时间，供心跳静默同步识别并丢弃与之竞态的过期响应
+    this.lastLocalMutationAt = Date.now();
 
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
