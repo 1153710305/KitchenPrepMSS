@@ -188,19 +188,34 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "12px",
+  headerFontSize: "16px",
+
+  /**
+   * @description 数据行字体大小
+   */
+  dataFontSize: "14px",
+
+  /**
+   * @description 数据行行高（在原 28px 基础上放大至 1.3 倍）
+   */
+  dataRowHeight: "36.4px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "16px",
+  titleFontSize: "20px",
 
   /**
-   * @description 标题的基础前缀
+   * @description 副标题（受众台账名）的字体大小
    */
-  titlePrefix: "食堂食品原材料购销台账-",
+  subtitleFontSize: "14px",
+
+  /**
+   * @description 标题的基础前缀（不含受众台账名，受众名单独作为副标题展示在标题下方）
+   */
+  titlePrefix: "宾县第二小学食堂食品原材料购销台账",
 
   /**
    * @description 最小打印行数（不足时以空行填充）

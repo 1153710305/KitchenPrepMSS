@@ -79,7 +79,8 @@ describe("LedgerPrintStyle1", () => {
     );
 
     expect(screen.getByText("土豆")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    // 数量列现附带单位展示
+    expect(screen.getByText("3斤")).toBeInTheDocument();
     expect(screen.getByText("合作基地直供")).toBeInTheDocument();
     expect(screen.getByText("张采购")).toBeInTheDocument();
   });
@@ -113,5 +114,60 @@ describe("LedgerPrintStyle1", () => {
       />
     );
     expect(screen.getByText(/幼儿备餐/)).toBeInTheDocument();
+  });
+
+  it("[V5.56.0] renders '宾县第二小学...' as the main title and the ledger name as a separate subtitle line", () => {
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        currentLedgerItems={[]}
+        dictItems={dictItems}
+      />
+    );
+
+    expect(screen.getByText("宾县第二小学食堂食品原材料购销台账")).toBeInTheDocument();
+    expect(screen.getByText("-幼儿备餐")).toBeInTheDocument();
+  });
+
+  it("[V5.56.0] shows the converted quantity and conversion unit instead of the raw quantity/unit when the dictionary defines a conversion ratio", () => {
+    const pear = makeItem("item_1", "香梨", {
+      "2026-07-03": { inQuantity: 2, inPrice: 30, inAmount: 60, outQuantity: 0 }
+    });
+
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        selectedPrintCategories={[FoodCategory.FRUIT]}
+        currentLedgerItems={[pear]}
+        dictItems={[
+          { name: "香梨", category: FoodCategory.FRUIT, unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
+        ]}
+      />
+    );
+
+    // 2 箱 * 20 (换算比例) = 40 斤，应展示换算后的数量与换算单位，而不是原始的 "2箱"
+    expect(screen.getByText("40斤")).toBeInTheDocument();
+    expect(screen.queryByText("2箱")).not.toBeInTheDocument();
+  });
+
+  it("[V5.56.0] falls back to the raw quantity and dictionary unit when no conversion ratio is defined", () => {
+    const potato = makeItem("item_1", "土豆", {
+      "2026-07-03": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 }
+    });
+
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        currentLedgerItems={[potato]}
+        dictItems={dictItems}
+      />
+    );
+
+    expect(screen.getByText("5斤")).toBeInTheDocument();
   });
 });
