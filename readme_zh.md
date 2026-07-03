@@ -928,3 +928,9 @@ pm2 startup
   4. `LEDGER_PRINT_CONSUMABLE_CONFIG`（[ledgerConstants.ts]，上次已新增）延续复用，标题前缀不变。
 - **影响说明**：总表模式（图一）的打印行为完全恢复到 [V5.49.0] 之前；单原料日流水（图二）新增了按采购项目大类自动切换样式的能力，非低耗品原料的打印效果不受影响。
 - **验证**：`tsc --noEmit` 报错数保持 24（基线不变，未引入新报错）；`vite build` 成功；浏览器实测——选中低耗品原料"大黑袋"打印图二，标题、日期区间与 12 列表头及真实流水数据（入库21/出库1/库存20等）均正确逐日展示；切换回非低耗品原料"土豆"打印图二，确认正确回退为原有样式；图一下单独勾选"低耗品"预览，确认已恢复为统一的购销总表样式，不再触发消耗品专属排版。
+
+### 2026-07-03 - [V5.51.0] 清理台账系统"手动新增台账"整条遗留死代码链
+- **需求**：用户贴出 `PRESET_LEDGER_MATERIALS` 询问是否为遗留代码。
+- **排查结论**：追查调用链发现这是分组联动同步重构之前的旧实现，已完全不可达：`PRESET_LEDGER_MATERIALS`（[ledgerConstants.ts]）及其 `PresetMaterial` 类型只在 `LedgerService.addLedger()`（[ledgerStore.ts]）里被引用；`addLedger()` 唯一的调用点是 [LedgerSystem.tsx] 的 `handleAddLedgerSubmit`；但 `handleAddLedgerSubmit` 及配套的 `newLedgerName`/`setNewLedgerName` 状态在整个文件里没有被任何 `<form onSubmit>` 或按钮引用，这个"新增台账"表单在 UI 上根本不存在，函数永远不会被触发。现在系统实际的台账新增方式是通过管理后台"餐位分组"联动同步创建（`syncLedgerFromGroup`，新建时不带任何默认原料），与这套手动建台账+预置 9 项原料种子的旧逻辑已经对不上。
+- **重构方案**：删除 `PRESET_LEDGER_MATERIALS`、`PresetMaterial` 接口（[ledgerConstants.ts]）、`LedgerService.addLedger()` 方法及其现已多余的导入（[ledgerStore.ts]）、`handleAddLedgerSubmit` 及 `newLedgerName`/`setNewLedgerName` 状态（[LedgerSystem.tsx]）。
+- **验证**：`tsc --noEmit` 报错数由 24 降至 23（顺带清掉一条 `React.FormEvent` 命名空间报错）；`vite build` 成功；浏览器实测台账模块正常加载，「幼儿备餐」等既有台账与原料数据显示不受影响，控制台无报错。
