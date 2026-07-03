@@ -212,11 +212,11 @@ function PrintOutDoc({
   /** 去掉前缀零的日期，如 "01" → "1" */
   const printDay = dateParts[2] ? String(parseInt(dateParts[2])) : "";
 
-  // ==== 动态供货商提取：将每个出库条目对应的供货商按名称分组，并汇汇每个供货商负责的商品品名 ====
+  // ==== 动态供货商提取：将每个出库条目对应的供货商按名称分组，并汇总每个供货商负责的二级品类 ====
   /**
-   * @description supplierToItemsMap: key=供货商名称, value=该供货商对应的所有出库品名列表
+   * @description supplierToCategoriesMap: key=供货商名称, value=该供货商对应的所有出库原料所属二级品类标签列表
    */
-  const supplierToItemsMap = new Map<string, string[]>();
+  const supplierToCategoriesMap = new Map<string, string[]>();
 
   dailyOutwardItems.forEach(item => {
     // 仅读取当日出库记录中的供货商字段，不回落扫描历史记录
@@ -225,30 +225,31 @@ function PrintOutDoc({
     // 没有供货商信息的条目跳过
     if (!supplier) return;
 
-    // 供货商相同则合并，不重复添加同一品名
+    // 只展示原料所属的二级品类，不展示具体原料名称
     const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-    const displayName = dictItem?.name ?? item.name;
+    if (!dictItem) return;
+    const catLabel = FOOD_CATEGORY_LABELS[dictItem.category] ?? dictItem.category;
 
-    if (!supplierToItemsMap.has(supplier)) {
-      supplierToItemsMap.set(supplier, []);
+    if (!supplierToCategoriesMap.has(supplier)) {
+      supplierToCategoriesMap.set(supplier, []);
     }
-    const existingItems = supplierToItemsMap.get(supplier)!;
-    if (!existingItems.includes(displayName)) {
-      existingItems.push(displayName);
+    const existingCategories = supplierToCategoriesMap.get(supplier)!;
+    if (!existingCategories.includes(catLabel)) {
+      existingCategories.push(catLabel);
     }
   });
 
   /**
    * @description 将供货商映射表转换为打印行文本数组
-   * 格式： 供货商：【供货商名称】（品名1、品名2…）
+   * 格式： 供货商：【供货商名称】（二级品类1、二级品类2…）
    */
   const dynamicSupplierLines: string[] = [];
-  supplierToItemsMap.forEach((itemNames, supplierName) => {
-    dynamicSupplierLines.push(`供货商：${supplierName}（${itemNames.join("、")}）`);
+  supplierToCategoriesMap.forEach((catLabels, supplierName) => {
+    dynamicSupplierLines.push(`供货商：${supplierName}（${catLabels.join("、")}）`);
   });
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize, color: "#000" }}>
+    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize, color: "#000" }}>
       {/* 出库单标题和日期行（无黑色边框，独立结构） */}
       <table className="w-full border-collapse mb-2" style={{ tableLayout: "fixed" }}>
         <tbody>
@@ -270,7 +271,7 @@ function PrintOutDoc({
                   position: "absolute",
                   right: 0,
                   bottom: "2px",
-                  fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize,
+                  fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize,
                   fontWeight: "bold"
                 }}
               >
@@ -281,7 +282,7 @@ function PrintOutDoc({
         </tbody>
       </table>
 
-      {/* 出库明细主表格 */}
+      {/* 出库明细主表格：类别3字宽、品名6字宽，出库人/接收人两列相应加宽，腾出的空间从其余列按比例收窄换得 */}
       <table
         className="w-full border-collapse border border-black"
         style={{ tableLayout: "fixed" }}
@@ -289,13 +290,13 @@ function PrintOutDoc({
         <colgroup>
           <col style={{ width: "9%" }} />
           <col style={{ width: "7%" }} />
-          <col style={{ width: "24%" }} />
+          <col style={{ width: "17%" }} />
           <col style={{ width: "12%" }} />
-          <col style={{ width: "24%" }} />
-          <col style={{ width: "24%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "33%" }} />
         </colgroup>
         <thead>
-          <tr className="bg-gray-50 text-center font-bold" style={{ height: "28px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
+          <tr className="bg-gray-50 text-center font-bold" style={{ height: "28px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
             <th className="border border-black px-1">类别</th>
             <th className="border border-black px-1">序号</th>
             <th className="border border-black px-1">品名</th>
@@ -308,7 +309,7 @@ function PrintOutDoc({
           {groupedByCategory.length === 0 ? (
             /* 当日无出库数据时只展示空白行，空行也按品类合并 */
             Array.from({ length: LEDGER_PRINT_OUT_CONFIG.minPrintRows }).map((_, i) => (
-              <tr key={`empty-all-${i}`} style={{ height: "26px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }} className="text-center">
+              <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
                 {i === 0 ? (
                   <>
                     <td className="border border-black" rowSpan={LEDGER_PRINT_OUT_CONFIG.minPrintRows}>-</td>
@@ -366,28 +367,28 @@ function PrintOutDoc({
                     : (item.record.outQuantity || "");
 
                   return (
-                    <tr key={item.id} style={{ height: "26px" }} className="text-center">
+                    <tr key={item.id} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight }} className="text-center">
                       {isFirstInGroup && (
                         <td
                           className="border border-black font-bold"
                           rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}
+                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                         >
                           {group.categoryLabel}
                         </td>
                       )}
-                      <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>{rowIndex}</td>
-                      <td className="border border-black text-left px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
+                      <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
+                      <td className="border border-black text-center px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                         {displayName}（{displayPrintUnit}）
                       </td>
-                      <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
+                      <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                         {displayPrintQty}
                       </td>
                       {isFirstInGroup && (
                         <td
                           className="border border-black font-bold"
                           rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}
+                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                         >
                           {handlers}
                         </td>
@@ -396,7 +397,7 @@ function PrintOutDoc({
                         <td
                           className="border border-black font-bold"
                           rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}
+                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                         >
                           {recipients}
                         </td>
@@ -408,7 +409,7 @@ function PrintOutDoc({
 
               {/* 补充空行至最小行数 */}
               {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`} style={{ height: "26px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
+                <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                   <td className="border border-black"></td>
                   <td className="border border-black"></td>
                   <td className="border border-black"></td>
@@ -422,8 +423,8 @@ function PrintOutDoc({
         </tbody>
       </table>
 
-      {/* 底部供货商信息：动态提取当日实际出库记录里的真实供货商，按供货商分组列出其对应品名 */}
-      <div className="mt-2 text-black leading-6" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocContentFontSize }}>
+      {/* 底部供货商信息：动态提取当日实际出库记录里的真实供货商，按供货商分组列出其对应二级品类（不展示具体原料名称） */}
+      <div className="mt-2 text-black leading-6" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
         {dynamicSupplierLines.length > 0 ? (
           dynamicSupplierLines.map((line, i) => (
             <div key={i}>{line}</div>

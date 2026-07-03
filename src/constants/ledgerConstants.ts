@@ -163,17 +163,27 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   outDocFontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 出库单表格内容字号大小
+   * @description 出库单表头字号大小
    */
-  outDocContentFontSize: "12px",
+  outDocHeaderFontSize: "16px",
+
+  /**
+   * @description 出库单数据行字号大小
+   */
+  outDocDataFontSize: "14px",
+
+  /**
+   * @description 出库单数据行行高（在原 26px 基础上放大至 1.5 倍）
+   */
+  outDocDataRowHeight: "39px",
 
   /**
    * @description 出库单标题中“出库单”字号大小
    */
-  outDocTitleFontSize: "18px",
+  outDocTitleFontSize: "20px",
 
   /**
-   * @description 出库单标题中括号部分的字号大小
+   * @description 出库单标题中括号部分（及日期）的字号大小
    */
   outDocSubTitleFontSize: "14px"
 };
