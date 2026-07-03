@@ -48,7 +48,7 @@ export function HelperSelect({
         value={value || ""}
         placeholder={placeholder}
         disabled={true}
-        className={`${disabledClassName} border border-slate-200 px-2 py-1 rounded outline-none w-full`}
+        className={`${disabledClassName} border border-slate-200 px-2 py-1 rounded outline-none ${className}`}
       />
     );
   }
