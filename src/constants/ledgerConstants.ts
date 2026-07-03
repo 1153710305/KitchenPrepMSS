@@ -238,6 +238,36 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
 };
 
 /**
+ * @description 记账登记表样式一（总表模式）在仅勾选"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的购销总表样式区分开）
+ */
+export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
+  /**
+   * @description 打印字体家族（宋体）
+   */
+  fontFamily: "SimSun, '宋体', serif",
+
+  /**
+   * @description 表格内容字体大小
+   */
+  contentFontSize: "12px",
+
+  /**
+   * @description 标题的字体大小
+   */
+  titleFontSize: "16px",
+
+  /**
+   * @description 标题的基础前缀
+   */
+  titlePrefix: "宾县第二小学食堂消耗品出入库台账-",
+
+  /**
+   * @description 最小打印行数（不足时以空行填充）
+   */
+  minPrintRows: 15
+};
+
+/**
  * @description 记账登记表样式二（单原料流水模式）打印配置常量
  */
 export const LEDGER_PRINT_STYLE2_CONFIG = {

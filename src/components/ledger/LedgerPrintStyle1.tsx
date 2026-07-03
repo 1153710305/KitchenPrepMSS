@@ -7,8 +7,10 @@
  * @description 台账"购销总表"（样式一）纯净打印模板：以食品原材料购销总表格式排版全部原料的当日出入库明细，供物理打印或留档使用。
  */
 
-import { FoodCategory, Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { FoodCategory } from "../../types/types.ts";
 import { LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
+import { LedgerPrintStyle1Consumable } from "./LedgerPrintStyle1Consumable.tsx";
 
 /**
  * @description 购销总表打印预览模板组件入参接口
@@ -41,6 +43,19 @@ export function LedgerPrintStyle1({
     const dictItem = dictItems.find(d => d.name === item.name);
     return dictItem && selectedPrintCategories.includes(dictItem.category);
   });
+
+  // 仅勾选"低耗品"大类时，改用贴合纸质消耗品台账格式的专属打印模板，不与其余大类共用本样式
+  const isConsumableOnly = selectedPrintCategories.length === 1 && selectedPrintCategories[0] === FoodCategory.LOW_CONSUMP;
+  if (isConsumableOnly) {
+    return (
+      <LedgerPrintStyle1Consumable
+        activeLedger={activeLedger}
+        selectedDate={selectedDate}
+        items={toPrintItems}
+        dictItems={dictItems}
+      />
+    );
+  }
 
   const filledCount = toPrintItems.length;
   const emptyRowsCount = Math.max(0, LEDGER_PRINT_STYLE1_CONFIG.minPrintRows - filledCount);
