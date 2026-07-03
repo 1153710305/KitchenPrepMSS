@@ -8,35 +8,6 @@
  */
 
 /**
- * @description 预设采购项目的原料大类，在新建原料项目时提供下拉种子推荐
- */
-export interface PresetMaterial {
-  /** 原料名称 */
-  name: string;
-  /** 计量单位 */
-  unit: string;
-  /** 规格描述 */
-  spec: string;
-  /** 初始库存 */
-  initialStock: number;
-}
-
-/**
- * @description 种子原料数组
- */
-export const PRESET_LEDGER_MATERIALS: PresetMaterial[] = [
-  { name: "大米", unit: "袋", spec: "25kg/袋", initialStock: 10 },
-  { name: "面粉", unit: "袋", spec: "25kg/袋", initialStock: 5 },
-  { name: "豆油", unit: "箱", spec: "20L/箱", initialStock: 8 },
-  { name: "猪肉", unit: "斤", spec: "新鲜后腿肉", initialStock: 20 },
-  { name: "鸡蛋", unit: "箱", spec: "360枚/箱", initialStock: 2 },
-  { name: "大豆腐", unit: "斤", spec: "嫩豆腐", initialStock: 15 },
-  { name: "土豆", unit: "斤", spec: "黄沙土豆", initialStock: 50 },
-  { name: "西红柿", unit: "斤", spec: "沙地西红柿", initialStock: 40 },
-  { name: "盐", unit: "包", spec: "500g/包", initialStock: 30 }
-];
-
-/**
  * @description 台账系统表头汉化定义
  */
 export interface LedgerHeadersText {
@@ -230,6 +201,36 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
    * @description 标题的基础前缀
    */
   titlePrefix: "食堂食品原材料购销台账-",
+
+  /**
+   * @description 最小打印行数（不足时以空行填充）
+   */
+  minPrintRows: 15
+};
+
+/**
+ * @description 记账登记表样式一（总表模式）在仅勾选"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的购销总表样式区分开）
+ */
+export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
+  /**
+   * @description 打印字体家族（宋体）
+   */
+  fontFamily: "SimSun, '宋体', serif",
+
+  /**
+   * @description 表格内容字体大小
+   */
+  contentFontSize: "12px",
+
+  /**
+   * @description 标题的字体大小
+   */
+  titleFontSize: "16px",
+
+  /**
+   * @description 标题的基础前缀
+   */
+  titlePrefix: "宾县第二小学食堂消耗品出入库台账-",
 
   /**
    * @description 最小打印行数（不足时以空行填充）

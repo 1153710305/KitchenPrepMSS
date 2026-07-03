@@ -246,7 +246,7 @@ export function LedgerStyle1Table({
               {currentLedgerItems.length === 0 ? (
                 <tr>
                   <td colSpan={18} className="text-center py-12 text-slate-400 italic">
-                    该台账暂无采购原料。请点击右上方“新增原料采购项”进行录入填充。
+                    该台账暂无采购原料。请点击左上方“开启今日录入”进入录入模式，选择字典中的原料并填写数据即可自动添加。
                   </td>
                 </tr>
               ) : filteredLedgerItems.length === 0 ? (

@@ -13,7 +13,9 @@ import {
   X,
   Save,
   Download,
-  Printer
+  Printer,
+  LayoutGrid,
+  TrendingUp
 } from "lucide-react";
 import { LedgerItem } from "../../types/ledgerTypes.ts";
 
@@ -26,18 +28,13 @@ interface LedgerControlBarProps {
   setActiveItemId: (id: string) => void;
   currentLedgerItems: LedgerItem[];
   ledgerStyle: "style1" | "style2";
+  setLedgerStyle: (style: "style1" | "style2") => void;
   dailyInwardItems: any[];
   dailyOutwardItems: any[];
   batchOutHandler: string;
   setBatchOutHandler: (val: string) => void;
   batchOutRecipient: string;
   setBatchOutRecipient: (val: string) => void;
-  newMaterialName: string;
-  setNewMaterialName: (val: string) => void;
-  addMaterialSearchQuery: string;
-  setAddMaterialSearchQuery: (val: string) => void;
-  isAddDropdownOpen: boolean;
-  setIsAddDropdownOpen: (val: boolean) => void;
   setSaveToast: (val: string | null) => void;
   triggerError: (msg: string) => void;
   handleStartRecording: () => void;
@@ -61,18 +58,13 @@ export function LedgerControlBar({
   setActiveItemId,
   currentLedgerItems,
   ledgerStyle,
+  setLedgerStyle,
   dailyInwardItems,
   dailyOutwardItems,
   batchOutHandler,
   setBatchOutHandler,
   batchOutRecipient,
   setBatchOutRecipient,
-  newMaterialName,
-  setNewMaterialName,
-  addMaterialSearchQuery,
-  setAddMaterialSearchQuery,
-  isAddDropdownOpen,
-  setIsAddDropdownOpen,
   setSaveToast,
   triggerError,
   handleStartRecording,
@@ -130,7 +122,33 @@ export function LedgerControlBar({
       <div className="flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200/80">
         {activeTab === "entry" ? (
           <div className="flex flex-wrap items-center gap-3 w-full">
-            {/* 记账行为控制：作为最高优先级操作，始终置于最左侧首位，方便用户第一眼定位 */}
+            {/* 呈现样式选择：置于最左侧，先选好看哪种表再操作，逻辑顺序更清晰 */}
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5 order-0 shrink-0">
+              <button
+                onClick={() => setLedgerStyle("style1")}
+                className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
+                  ledgerStyle === "style1"
+                    ? "bg-white text-emerald-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <LayoutGrid size={11} />
+                <span>总表模式 (图一)</span>
+              </button>
+              <button
+                onClick={() => setLedgerStyle("style2")}
+                className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
+                  ledgerStyle === "style2"
+                    ? "bg-white text-emerald-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <TrendingUp size={11} />
+                <span>单原料日流水 (图二)</span>
+              </button>
+            </div>
+
+            {/* 记账行为控制：紧随呈现样式选择之后，方便用户第一眼定位 */}
             <div className="flex items-center gap-2 order-1">
               {!isRecordingMode ? (
                 <>

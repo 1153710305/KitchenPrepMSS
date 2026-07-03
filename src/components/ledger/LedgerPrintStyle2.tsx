@@ -8,7 +8,10 @@
  */
 
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { FoodCategory } from "../../types/types.ts";
 import { LEDGER_PRINT_STYLE2_CONFIG } from "../../constants/ledgerConstants.ts";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { LedgerPrintStyle2Consumable } from "./LedgerPrintStyle2Consumable.tsx";
 
 /**
  * @description 单原料日流水打印入参接口
@@ -45,6 +48,20 @@ export function LedgerPrintStyle2({
   const activeItem = ledgerItems.find((i) => i.id === activeItemId);
   if (!activeItem) {
     return <div className="text-center p-12 text-slate-400">请先在系统里选择需要打印的单原料明细。</div>;
+  }
+
+  // 所选采购项目属于"低耗品"大类时，改用贴合纸质消耗品台账格式的专属打印模板，不与其余大类共用本样式
+  const dictCategory = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name)?.category;
+  if (dictCategory === FoodCategory.LOW_CONSUMP) {
+    return (
+      <LedgerPrintStyle2Consumable
+        activeLedger={activeLedger}
+        activeItem={activeItem}
+        style2StartDate={style2StartDate}
+        style2EndDate={style2EndDate}
+        style2DatesArray={style2DatesArray}
+      />
+    );
   }
 
   // 提取有记录的供货商作为本单打印头部显示
