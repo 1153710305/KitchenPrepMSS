@@ -942,3 +942,12 @@ pm2 startup
   2. **断链的"新增原料"整条子系统**（功能已不可达，且空态提示文案具有误导性）：`isAddMaterialOpen`/`setIsAddMaterialOpen` 只在关闭处被调用，全文件搜不到任何地方把它设为 `true`；[LedgerControlBar.tsx] 接收了 `newMaterialName`/`addMaterialSearchQuery`/`isAddDropdownOpen` 等 6 个相关 prop，但组件内部一处都没有实际渲染或使用；`LedgerAddMaterialModal` 弹窗永远不会被打开。但 [LedgerStyle1Table.tsx]、[LedgerStyle2Flow.tsx] 的空态提示文案仍写着"请点击右上方"新增原料采购项""——这个按钮已经不存在了。现在实际新增原料到台账的方式是：点击"开启今日录入"进入录入模式，系统自动平铺字典全部原料为可编辑行，填了数据确认后自动转正为正式台账原料，是功能等价、更集中管理的新路径。
 - **重构方案**：删除 `daysArray`、`handleDeleteLedger`、`handleCellBlur`；删除 `isAddMaterialOpen`/`newMaterialName`/`newMaterialUnit`/`newMaterialSpec`/`newMaterialStock`/`addMaterialSearchQuery`/`isAddDropdownOpen` 及其 setter、`handleAddMaterialSubmit`、监听点击外部收起下拉框的 `useEffect`（[LedgerSystem.tsx]）；删除 `<LedgerAddMaterialModal>` 渲染与导入，物理删除 `LedgerAddMaterialModal.tsx` 文件（唯一调用方已清空）；同步清理 [LedgerControlBar.tsx] 里从未被组件内部使用的 6 个多余 prop；把 [LedgerStyle1Table.tsx]、[LedgerStyle2Flow.tsx] 里过时的空态提示文案改为指引用户点击"开启今日录入"进入录入模式添加原料。
 - **验证**：`tsc --noEmit` 报错数由 24 降至 22（顺带清掉两条 `React.FormEvent` 命名空间报错）；`vite build` 成功；浏览器实测——切到暂无原料的"教师备餐台账"，图一、图二两处空态提示均正确显示为新文案；「幼儿备餐」等既有台账数据展示、录入模式、打印等功能均不受影响，控制台无报错。
+
+### 2026-07-03 - [V5.53.0] 重新设计顶部横幅/页脚按钮层级，去除面向用户无意义的技术文案，台账样式切换按钮前移
+- **需求**：用户提供截图，红框标出顶部横幅右侧按钮区域和底部页脚两处视觉凌乱、混杂了不该给终端用户（食堂记账员）看到的技术调试文案；同时指出台账数据录入界面里"总表模式（图一）"/"单原料日流水（图二）"这两个样式切换按钮的位置不合逻辑，要求把它们移动到"开启今日录入"按钮之前，并要求整体改动适配不同分辨率。
+- **重构方案**：
+  1. **顶部横幅**（[App.tsx]）：去掉"物理热同步"这一纯技术状态指示器（普通食堂记账员看不懂"物理热同步"是什么意思）；把"字号调节 / 库存总览+进入管理后台 / 安全登出"三组按钮用细分隔线在视觉上分组，划清功能边界；自动保存提示气泡挪到最前面，保证它出现时不会挤动后面固定的按钮组。
+  2. **底部页脚**（[App.tsx]）：去掉"操作权限: 高密热加载模式（管理员已授权）"和"HOST: PORT_3000 | SYSTEM_HOT_CONNECTED"这两处纯服务器/调试信息；保留对用户确实有用的"当前查看"上下文提示，简化文案（去掉"全月日对数核算"这类术语）。顺带修复了一个既有 bug：该提示此前在台账模块下会显示"undefined"（因为台账模块没有对应的活动分组/品类上下文），现改为仅在备餐记账视图下渲染，台账等其他模块不展示。
+  3. **台账样式切换按钮前移**（[LedgerSystem.tsx]/[LedgerControlBar.tsx]）：把"总表模式(图一)"/"单原料日流水(图二)"从页眉日期栏移动到操作控制条内，紧邻并置于"开启今日录入"/"打印记账登记表"按钮之前，逻辑顺序改为"先选看哪种表 → 再操作"，`setLedgerStyle` 新增为 `LedgerControlBar` 的入参下发。
+- **影响说明**：仅涉及按钮分组、页脚文案与台账样式切换按钮的位置，不改变任何按钮的点击行为、图标或已有的响应式断点策略（继续复用项目里既有的 `sm:`/`md:`/`xl:` 断点体系）。
+- **验证**：`tsc --noEmit` 报错数保持 22（基线不变），`vite build` 成功；浏览器分别在 desktop(1280px)/tablet(768px)/mobile(375px) 三种视口下截图核对——顶部横幅分组与分隔线正常显示、窄屏下自动折叠为图标态不溢出；页脚仅在备餐记账视图显示且不再出现"undefined"，台账等其他模块页脚正确留空；台账数据录入界面图一/图二按钮已正确排在开启今日录入之前，移动端下正确换行不错位；控制台全程无报错。
