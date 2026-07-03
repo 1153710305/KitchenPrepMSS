@@ -223,7 +223,7 @@ export function LedgerStyle1Table({
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
                 <th className="px-4 py-2.5 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
-                <th className="px-3 py-2.5 text-center text-violet-700 font-bold bg-violet-50/40 w-20">二级品类</th>
+                <th className="px-3 py-2.5 text-center text-violet-700 font-bold bg-violet-50/40 whitespace-nowrap">二级品类</th>
                 <th className="px-3 py-2.5 text-center text-slate-600 font-bold w-20">单位</th>
                 <th className="px-3 py-2.5 text-emerald-800 font-bold bg-emerald-50/30 w-28">{LEDGER_HEADERS.inQuantity}</th>
                 <th className="px-3 py-2.5 text-emerald-800 font-bold bg-emerald-50/30 w-24">单价(元)</th>
@@ -364,7 +364,7 @@ export function LedgerStyle1Table({
                         )}
                       </td>
                       {/* 二级品类标签列 */}
-                      <td className="px-3 py-2.5 text-center bg-violet-50/30">
+                      <td className="px-3 py-2.5 text-center bg-violet-50/30 whitespace-nowrap">
                         {(() => {
                           const dictItem2 = RawMaterialsDictService.getItems().find(d => d.name === item.name);
                           const cat = dictItem2?.category;
