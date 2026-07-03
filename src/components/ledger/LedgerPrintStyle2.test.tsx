@@ -140,6 +140,28 @@ describe("LedgerPrintStyle2", () => {
       expect(screen.getByText(/2026-07-01/)).toBeInTheDocument();
       expect(screen.getByText(/2026-07-05/)).toBeInTheDocument();
     });
+
+    it("[V5.61.0] places the date and the ledger-name subtitle as siblings in the same row, right after the date text", () => {
+      render(
+        <LedgerPrintStyle2
+          activeLedger={ledger}
+          activeItemId="item_1"
+          selectedDate="2026-07-03"
+          ledgerItems={[makeItem()]}
+          style2StartDate="2026-07-01"
+          style2EndDate="2026-07-05"
+          style2DatesArray={["2026-07-01"]}
+        />
+      );
+
+      const dateEl = screen.getByText(/日期：/);
+      const subtitleEl = screen.getByText("幼儿备餐");
+      // 日期与受众副标题必须是同一个 flex 行容器下的直接兄弟节点，且受众副标题排在日期之后，
+      // 这样才能保证二者水平对齐、且受众副标题被推到该行（继承标题宽度）的最右侧
+      expect(dateEl.parentElement).toBe(subtitleEl.parentElement);
+      const siblings = Array.from(dateEl.parentElement!.children);
+      expect(siblings.indexOf(dateEl)).toBeLessThan(siblings.indexOf(subtitleEl));
+    });
   });
 
   describe("采购数量 (purchase quantity) column", () => {

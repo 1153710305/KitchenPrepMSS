@@ -96,27 +96,21 @@ export function LedgerPrintStyle2({
 
   return (
     <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize, color: "#000" }} className="text-center">
-      {/* 标题区：标题+日期作为一个左对齐整体块居中摆放；受众台账名紧跟在标题最后一个字之后、纵向落在标题下方 */}
+      {/* 标题区：标题+日期作为一个整体块居中摆放；受众台账名与日期同一行水平对齐，且右边缘对齐标题最后一个字"账" */}
       <div className="mb-3" style={{ display: "flex", justifyContent: "center" }}>
-        <div style={{ position: "relative" }} className="text-left">
+        <div className="text-left">
           <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.titleFontSize, fontWeight: "bold" }} className="tracking-widest">
             {LEDGER_PRINT_STYLE2_CONFIG.titlePrefix}
           </div>
-          <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold", marginTop: "2px" }}>
-            日期：（  {style2StartDate} 至 {style2EndDate}  ）
-          </div>
-          {/* 绝对定位：left: 100% 使其左边缘恰好落在标题容器的右边缘（即标题最后一个字之后），top 使其纵向落在标题下方 */}
-          <div
-            style={{
-              position: "absolute",
-              left: "100%",
-              top: "1.3em",
-              marginLeft: "8px",
-              fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize,
-              whiteSpace: "nowrap"
-            }}
-          >
-            {activeLedger?.name || ""}
+          {/* 日期与受众副标题同一行：justify-content: space-between 使受众副标题贴到本行右边缘，
+              而本行宽度继承自上方标题行（作为本区块内最宽的一行），故受众副标题的最后一个字恰好与标题的最后一个字对齐 */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "2px" }}>
+            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold" }}>
+              日期：（  {style2StartDate} 至 {style2EndDate}  ）
+            </div>
+            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginLeft: "12px" }}>
+              {activeLedger?.name || ""}
+            </div>
           </div>
         </div>
       </div>
