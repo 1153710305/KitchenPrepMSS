@@ -4,8 +4,9 @@
  */
 
 /**
- * @description LedgerPrintStyle2Consumable（单原料日流水·消耗品专用打印模板）组件测试：所选原料在时间段内完全没有出入库活动时不崩溃、正确渲染 15 行空白表的回归测试，
- * 以及有真实流水数据时的逐日渲染、库存结算、字典规格/单位回退逻辑。
+ * @description LedgerPrintStyle2Consumable（单原料日流水·消耗品专用打印模板）组件测试：[V5.65.0] 改用与购销总表（图一）
+ * 同款排版风格（物品名称/数量/规格/供货商/采购时间/采购员/检验员/出入库时间/保管员）后的渲染回归、标题/日期/受众副标题的
+ * 布局结构、字典规格回退逻辑、线框与字号样式。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -52,14 +53,17 @@ describe("LedgerPrintStyle2Consumable", () => {
       )
     ).not.toThrow();
 
-    // 主表格应渲染 15 空行 + 1 表头行
-    expect(screen.getAllByRole("row")).toHaveLength(1 + 1 + 15);
+    // 表头占 2 行（首行 + 出入库时间子表头行）+ 15 空行
+    expect(screen.getAllByRole("row")).toHaveLength(2 + 15);
   });
 
-  it("renders one row per day with in/out activity and computes the running stock balance", () => {
+  it("renders one row per day with in/out activity, showing purchase/out dates under 出入库时间", () => {
     const item = makeItem(
       {
-        "2026-07-03": { inQuantity: 21, inPrice: 5, inAmount: 105, outQuantity: 1, supplier: "合作基地直供" }
+        "2026-07-03": {
+          inQuantity: 21, inPrice: 5, inAmount: 105, outQuantity: 1,
+          supplier: "合作基地直供", buyer: "张采购", inspector: "王检验", keeper: "李保管"
+        }
       },
       0
     );
@@ -77,8 +81,11 @@ describe("LedgerPrintStyle2Consumable", () => {
     expect(screen.getByText("大黑袋")).toBeInTheDocument();
     expect(screen.getByText("21")).toBeInTheDocument();
     expect(screen.getByText("合作基地直供")).toBeInTheDocument();
-    // 0 (初始库存) + 21 - 1 = 20
-    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.getByText("张采购")).toBeInTheDocument();
+    expect(screen.getByText("王检验")).toBeInTheDocument();
+    expect(screen.getByText("李保管")).toBeInTheDocument();
+    // 采购时间列 + 出入库时间下的入库列都取自同一个日期值，加上出库列，当天共出现 3 次
+    expect(screen.getAllByText("2026-07-03")).toHaveLength(3);
   });
 
   it("skips days with all-zero quantities even if a record object exists", () => {
@@ -97,36 +104,12 @@ describe("LedgerPrintStyle2Consumable", () => {
       />
     );
 
-    // 只有 07-02 有活动，应只渲染一条数据行（其余补齐为空行）
+    // 只有 07-02 有活动，应只渲染一条数据行（其余补齐为空行）：2 行表头 + 1 数据行 + 14 空行
     const rows = screen.getAllByRole("row");
-    // 标题表格自身 1 行 + 主表格表头 1 行 + 1 数据行 + 14 空行 = 17
-    expect(rows).toHaveLength(1 + 1 + 1 + 14);
+    expect(rows).toHaveLength(2 + 1 + 14);
   });
 
-  it("includes prior-period in/out totals (before style2StartDate) when computing the starting balance", () => {
-    const item = makeItem(
-      {
-        "2026-06-15": { inQuantity: 10, inPrice: 1, inAmount: 10, outQuantity: 0 },
-        "2026-07-01": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 }
-      },
-      0
-    );
-
-    render(
-      <LedgerPrintStyle2Consumable
-        activeLedger={ledger}
-        activeItem={item}
-        style2StartDate="2026-07-01"
-        style2EndDate="2026-07-01"
-        style2DatesArray={["2026-07-01"]}
-      />
-    );
-
-    // 期初结余应包含 06-15 那笔早于起始日期的入库（10），加上当天入库 5，共 15
-    expect(screen.getByText("15")).toBeInTheDocument();
-  });
-
-  it("falls back to the dictionary's remark/unit when available, otherwise the item's own spec/unit", () => {
+  it("falls back to the dictionary's remark when available, otherwise the item's own spec", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
       { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "个", remark: "加厚型" }
     ]);
@@ -143,26 +126,76 @@ describe("LedgerPrintStyle2Consumable", () => {
     );
 
     expect(screen.getByText("加厚型")).toBeInTheDocument();
-    expect(screen.getByText("个")).toBeInTheDocument();
   });
 
-  it("shows the ledger name and the date range in the title/subtitle", () => {
+  it("falls back to the item's own spec when the dictionary has no remark", () => {
+    const item = makeItem({ "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } });
+
     render(
       <LedgerPrintStyle2Consumable
         activeLedger={ledger}
-        activeItem={makeItem({})}
+        activeItem={item}
         style2StartDate="2026-07-01"
-        style2EndDate="2026-07-05"
-        style2DatesArray={[]}
+        style2EndDate="2026-07-01"
+        style2DatesArray={["2026-07-01"]}
       />
     );
 
-    expect(screen.getByText(/幼儿备餐/)).toBeInTheDocument();
-    expect(screen.getByText(/2026-07-01/)).toBeInTheDocument();
-    expect(screen.getByText(/2026-07-05/)).toBeInTheDocument();
+    expect(screen.getByText("常规")).toBeInTheDocument();
   });
 
-  it("[V5.64.0] applies the scoped black-border className to the main table for consistent Excel-style gridlines", () => {
+  describe("[V5.65.0] title / date / subtitle header structure (matches LedgerPrintStyle1's layout pattern)", () => {
+    it("renders the title without a trailing dash and the ledger name as a separate element", () => {
+      render(
+        <LedgerPrintStyle2Consumable
+          activeLedger={ledger}
+          activeItem={makeItem({})}
+          style2StartDate="2026-07-01"
+          style2EndDate="2026-07-05"
+          style2DatesArray={[]}
+        />
+      );
+
+      expect(screen.getByText("宾县第二小学食堂消耗品出入库台账")).toBeInTheDocument();
+      expect(screen.getByText("幼儿备餐")).toBeInTheDocument();
+      expect(screen.queryByText(/消耗品出入库台账-/)).not.toBeInTheDocument();
+    });
+
+    it("shows the date range", () => {
+      render(
+        <LedgerPrintStyle2Consumable
+          activeLedger={ledger}
+          activeItem={makeItem({})}
+          style2StartDate="2026-07-01"
+          style2EndDate="2026-07-05"
+          style2DatesArray={[]}
+        />
+      );
+
+      expect(screen.getByText(/2026-07-01/)).toBeInTheDocument();
+      expect(screen.getByText(/2026-07-05/)).toBeInTheDocument();
+    });
+
+    it("places the date and the ledger-name subtitle as siblings in the same row, right after the date text", () => {
+      render(
+        <LedgerPrintStyle2Consumable
+          activeLedger={ledger}
+          activeItem={makeItem({})}
+          style2StartDate="2026-07-01"
+          style2EndDate="2026-07-05"
+          style2DatesArray={[]}
+        />
+      );
+
+      const dateEl = screen.getByText(/日期：/);
+      const subtitleEl = screen.getByText("幼儿备餐");
+      expect(dateEl.parentElement).toBe(subtitleEl.parentElement);
+      const siblings = Array.from(dateEl.parentElement!.children);
+      expect(siblings.indexOf(dateEl)).toBeLessThan(siblings.indexOf(subtitleEl));
+    });
+  });
+
+  it("applies the scoped black-border className to the main table for consistent Excel-style gridlines", () => {
     render(
       <LedgerPrintStyle2Consumable
         activeLedger={ledger}
@@ -173,11 +206,11 @@ describe("LedgerPrintStyle2Consumable", () => {
       />
     );
 
-    const table = screen.getByText("序号").closest("table");
+    const table = screen.getByText("物品名称").closest("table");
     expect(table?.className).toContain("ledger-print-consumable-table");
   });
 
-  it("[V5.64.0] renders the title/header/data text at their configured font sizes", () => {
+  it("renders the title/header/data text at their configured font sizes", () => {
     render(
       <LedgerPrintStyle2Consumable
         activeLedger={ledger}
@@ -188,13 +221,13 @@ describe("LedgerPrintStyle2Consumable", () => {
       />
     );
 
-    const titleSpan = screen.getByText(/消耗品出入库台账/);
-    expect(titleSpan).toHaveStyle({ fontSize: "20px" });
+    const titleDiv = screen.getByText("宾县第二小学食堂消耗品出入库台账");
+    expect(titleDiv).toHaveStyle({ fontSize: "20px" });
 
-    const dateLine = screen.getByText(/日期：/).closest("div");
+    const dateLine = screen.getByText(/日期：/);
     expect(dateLine).toHaveStyle({ fontSize: "14px" });
 
-    const headerCell = screen.getByText("序号", { selector: "th" }).closest("tr");
-    expect(headerCell).toHaveStyle({ fontSize: "16px" });
+    const headerRow = screen.getByText("物品名称", { selector: "th" }).closest("tr");
+    expect(headerRow).toHaveStyle({ fontSize: "16px" });
   });
 });

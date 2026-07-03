@@ -265,7 +265,7 @@ export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   /**
    * @description 标题的基础前缀
    */
-  titlePrefix: "宾县第二小学食堂消耗品出入库台账-",
+  titlePrefix: "宾县第二小学食堂消耗品出入库台账",
 
   /**
    * @description 最小打印行数（不足时以空行填充）

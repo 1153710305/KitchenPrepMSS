@@ -4,7 +4,7 @@
  */
 
 /**
- * @description 台账"单原料日流水"（样式二）在所选采购项目属于"低耗品"大类时使用的消耗品出入库台账专属打印模板：按纸质消耗品台账格式（序号/物品名称/规格/单位/经销商/入库数量/入库日期/入库经手人/出库数量/出库经手人/当期库存/备注）逐日列出该原料在选定时间段内的出入库流水，与其余大类共用的单原料日流水样式区分开。
+ * @description 台账"单原料日流水"（样式二）在所选采购项目属于"低耗品"大类时使用的消耗品出入库台账专属打印模板：按购销总表（图一）同款排版风格（物品名称/数量/规格/供货商/采购时间/采购员/检验员/出入库时间/保管员）逐日列出该原料在选定时间段内的出入库流水，与其余大类共用的单原料日流水样式区分开。
  */
 
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
@@ -27,22 +27,6 @@ interface LedgerPrintStyle2ConsumableProps {
   style2DatesArray: string[];
 }
 
-/** 表头列定义：文案与对应的百分比列宽 */
-const COLUMNS = [
-  { label: "序号", width: "5%" },
-  { label: "物品名称", width: "11%" },
-  { label: "规格", width: "9%" },
-  { label: "单位", width: "6%" },
-  { label: "经销商", width: "13%" },
-  { label: "入库数量", width: "7%" },
-  { label: "入库日期", width: "9%" },
-  { label: "入库经手人", width: "8%" },
-  { label: "出库数量", width: "7%" },
-  { label: "出库经手人", width: "8%" },
-  { label: "当期库存", width: "8%" },
-  { label: "备注", width: "9%" }
-];
-
 /**
  * @description 【图二·消耗品专用】单原料日流水消耗品出入库台账打印预览模板组件
  */
@@ -54,23 +38,8 @@ export function LedgerPrintStyle2Consumable({
   style2DatesArray
 }: LedgerPrintStyle2ConsumableProps) {
   const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name);
-
-  // 累计每日结余，起初结余为早于 style2StartDate 的所有累计量
-  let tempStock = activeItem.initialStock || 0;
-  Object.entries(activeItem.dailyRecords).forEach(([dateKey, record]) => {
-    if (dateKey < style2StartDate) {
-      tempStock += (record.inQuantity || 0) - (record.outQuantity || 0);
-    }
-  });
-
-  const stockByDay: Record<string, number> = {};
-  style2DatesArray.forEach((dStr) => {
-    const rec = activeItem.dailyRecords[dStr];
-    if (rec) {
-      tempStock = tempStock + (rec.inQuantity || 0) - (rec.outQuantity || 0);
-    }
-    stockByDay[dStr] = Math.round(tempStock * 100) / 100;
-  });
+  const displayName = dictItem?.name ?? activeItem.name;
+  const displaySpec = dictItem?.remark || activeItem.spec || "-";
 
   // 仅列出有出入库活动的日期，逐日展示一行
   const activeRows = style2DatesArray
@@ -81,31 +50,25 @@ export function LedgerPrintStyle2Consumable({
 
   return (
     <div style={{ fontFamily: LEDGER_PRINT_CONSUMABLE_CONFIG.fontFamily, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize, color: "#000" }} className="text-center">
-      {/* 大标题：去掉黑色边框，标题加上下划线 */}
-      <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
-        <tbody>
-          <tr>
-            <td style={{ border: "none", padding: "12px 0", textAlign: "center" }}>
-              <span
-                style={{
-                  fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize,
-                  fontWeight: "bold",
-                  textDecoration: "underline"
-                }}
-              >
-                {LEDGER_PRINT_CONSUMABLE_CONFIG.titlePrefix}{activeLedger?.name || ""}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 打印时间段说明 */}
-      <div className="text-center mb-3 font-bold" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize }}>
-        <span>日期：（  {style2StartDate} 至 {style2EndDate}  ）</span>
+      {/* 标题区：标题+日期作为一个左对齐整体块居中摆放；受众台账名与日期同一行水平对齐，且右边缘对齐标题最后一个字 */}
+      <div className="mb-3" style={{ display: "flex", justifyContent: "center" }}>
+        <div className="text-left">
+          <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }} className="tracking-widest">
+            {LEDGER_PRINT_CONSUMABLE_CONFIG.titlePrefix}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "2px" }}>
+            <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, fontWeight: "bold" }}>
+              日期：（  {style2StartDate} 至 {style2EndDate}  ）
+            </div>
+            <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginLeft: "12px" }}>
+              {activeLedger?.name || ""}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 主表格：每行独立展示一天的出入库流水，不做跨行合并；线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，与其余打印样式保持一致 */}
+      {/* 主表格：与购销总表（图一）同款排版风格，每行独立展示一天的出入库流水，不做跨行合并；
+          线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，与其余打印样式保持一致 */}
       <style>{`
         .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
           border: 1px solid #000000 !important;
@@ -120,42 +83,57 @@ export function LedgerPrintStyle2Consumable({
       `}</style>
       <table className="ledger-print-consumable-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          {COLUMNS.map((col) => (
-            <col key={col.label} style={{ width: col.width }} />
-          ))}
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "9%" }} />
         </colgroup>
 
         <thead>
           <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
-            {COLUMNS.map((col) => (
-              <th key={col.label} className="border border-black px-1 py-2 align-middle">{col.label}</th>
-            ))}
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">物品名称</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">规格</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
+            <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
+          </tr>
+          <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
+            <th className="border border-black px-1 py-1 align-middle">入库</th>
+            <th className="border border-black px-1 py-1 align-middle">出库</th>
           </tr>
         </thead>
 
         <tbody>
-          {activeRows.map(({ dStr, record }, idx) => (
+          {activeRows.map(({ dStr, record }) => (
             <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-              <td className="border border-black px-1 py-1 font-mono">{idx + 1}</td>
-              <td className="border border-black px-1 py-1 text-left font-bold">{dictItem?.name ?? activeItem.name}</td>
-              <td className="border border-black px-1 py-1">{dictItem?.remark || activeItem.spec || "-"}</td>
-              <td className="border border-black px-1 py-1">{dictItem?.unit ?? activeItem.unit}</td>
-              <td className="border border-black px-1 py-1">{record.supplier || ""}</td>
+              <td className="border border-black px-1 py-1 font-bold">{displayName}</td>
               <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? record.inQuantity : ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? dStr : ""}</td>
+              <td className="border border-black px-1 py-1">{displaySpec}</td>
+              <td className="border border-black px-1 py-1">{record.supplier || ""}</td>
+              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
               <td className="border border-black px-1 py-1">{record.buyer || ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.outQuantity > 0 ? record.outQuantity : ""}</td>
-              <td className="border border-black px-1 py-1">{record.outHandler || ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{stockByDay[dStr]}</td>
-              <td className="border border-black px-1 py-1 text-left">{record.note || ""}</td>
+              <td className="border border-black px-1 py-1">{record.inspector || ""}</td>
+              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
+              <td className="border border-black px-1 py-1 font-mono">{record.outQuantity > 0 ? (record.outDate || dStr) : ""}</td>
+              <td className="border border-black px-1 py-1">{record.keeper || ""}</td>
             </tr>
           ))}
 
           {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
           {Array.from({ length: emptyRowsCount }).map((_, i) => (
             <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-              {COLUMNS.map((col) => (
-                <td key={col.label} className="border border-black"></td>
+              {Array.from({ length: 10 }).map((_, j) => (
+                <td key={j} className="border border-black"></td>
               ))}
             </tr>
           ))}
