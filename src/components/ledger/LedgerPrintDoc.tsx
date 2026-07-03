@@ -283,8 +283,21 @@ function PrintOutDoc({
       </table>
 
       {/* 出库明细主表格：类别3字宽、品名6字宽，出库人/接收人两列相应加宽，腾出的空间从其余列按比例收窄换得 */}
+      {/* 线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一，与图一/图二打印样式保持一致 */}
+      <style>{`
+        .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
+          border: 1px solid #000000 !important;
+        }
+        @media print {
+          .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            border-color: #000000 !important;
+          }
+        }
+      `}</style>
       <table
-        className="w-full border-collapse border border-black"
+        className="ledger-print-out-table w-full border-collapse"
         style={{ tableLayout: "fixed" }}
       >
         <colgroup>

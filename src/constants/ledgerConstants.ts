@@ -175,12 +175,12 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   /**
    * @description 出库单数据行行高（在原 26px 基础上放大至 1.5 倍）
    */
-  outDocDataRowHeight: "39px",
+  outDocDataRowHeight: "34px",
 
   /**
    * @description 出库单标题中“出库单”字号大小
    */
-  outDocTitleFontSize: "20px",
+  outDocTitleFontSize: "24px",
 
   /**
    * @description 出库单标题中括号部分（及日期）的字号大小
@@ -285,7 +285,7 @@ export const LEDGER_PRINT_STYLE2_CONFIG = {
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "20px",
+  titleFontSize: "24px",
 
   /**
    * @description 标题下方日期行的字体大小
