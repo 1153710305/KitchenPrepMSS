@@ -40,7 +40,7 @@ export const PRESET_LEDGER_MATERIALS: PresetMaterial[] = [
  * @description 台账系统表头汉化定义
  */
 export interface LedgerHeadersText {
-  /** 食品原材料名称 */
+  /** 原材料名称 */
   materialName: string;
   /** 今日入库数 */
   inQuantity: string;
@@ -76,7 +76,7 @@ export interface LedgerHeadersText {
  * @description 表头汉化映射字典
  */
 export const LEDGER_HEADERS: LedgerHeadersText = {
-  materialName: "食品原材料名称",
+  materialName: "原材料名称",
   inQuantity: "采购入库数量",
   outQuantity: "出库数量",
   certification: "食品索证",
@@ -171,7 +171,7 @@ export const LEDGER_PRINT_OUT_CONFIG = {
    * 出库单标题固定前缀
    */
   outDocTitle: "出库单",
-  
+
   /**
    * 出库单打印底部展示的供货商信息列表
    * 修改此处即可同步更新所有打印的供货商说明文字
@@ -180,7 +180,7 @@ export const LEDGER_PRINT_OUT_CONFIG = {
     "供货商：宾县金文粮油销售部（米面油）",
     "供货商：宾县鑫百达百货超市（蔬菜、肉蛋、水果、调料、低耗品等）"
   ],
-  
+
   /**
    * 出库单表格至少要保证的最少行数（不足时以空行填充）
    */

@@ -16,6 +16,8 @@ interface LedgerPrintModalProps {
   selectedPrintCategories: FoodCategory[];
   setSelectedPrintCategories: (cats: FoodCategory[]) => void;
   setPrintPreviewStyle: (style: "style1" | "style2") => void;
+  /** 本台账内实际存在采购原料项目的二级食材大类集合，不在此集合内的大类禁止勾选（避免选出空表） */
+  printableCategories: Set<FoodCategory>;
   onClose: () => void;
 }
 
@@ -24,6 +26,7 @@ export function LedgerPrintModal({
   selectedPrintCategories,
   setSelectedPrintCategories,
   setPrintPreviewStyle,
+  printableCategories,
   onClose
 }: LedgerPrintModalProps) {
   if (!isOpen) return null;
@@ -48,12 +51,12 @@ export function LedgerPrintModal({
           <div className="flex justify-between items-center">
             <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">二级食材分类范围</span>
             <div className="flex gap-2 text-[10px] font-bold">
-              <button 
+              <button
                 type="button"
                 onClick={() => setSelectedPrintCategories([
                   FoodCategory.VEGETABLE, FoodCategory.GRAIN_OIL, FoodCategory.SEASONING,
                   FoodCategory.MEAT, FoodCategory.LOW_CONSUMP, FoodCategory.FRUIT
-                ])}
+                ].filter((cat) => printableCategories.has(cat)))}
                 className="text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
               >
                 全选
@@ -80,18 +83,23 @@ export function LedgerPrintModal({
               { key: FoodCategory.FRUIT, label: FOOD_CATEGORY_LABELS[FoodCategory.FRUIT], color: "accent-pink-600" }
             ].map((item) => {
               const isChecked = selectedPrintCategories.includes(item.key);
+              const isPrintable = printableCategories.has(item.key);
               return (
-                <label 
-                  key={item.key} 
-                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
-                    isChecked 
-                      ? "bg-slate-50 border-slate-300 font-bold text-slate-800" 
-                      : "border-slate-100 text-slate-400 hover:bg-slate-50/50"
+                <label
+                  key={item.key}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border select-none transition-all ${
+                    !isPrintable
+                      ? "border-slate-100 text-slate-300 opacity-50 cursor-not-allowed"
+                      : isChecked
+                      ? "bg-slate-50 border-slate-300 font-bold text-slate-800 cursor-pointer"
+                      : "border-slate-100 text-slate-400 hover:bg-slate-50/50 cursor-pointer"
                   }`}
+                  title={isPrintable ? undefined : "本台账暂无该大类的采购原料，无内容可打印"}
                 >
-                  <input 
+                  <input
                     type="checkbox"
                     checked={isChecked}
+                    disabled={!isPrintable}
                     onChange={() => {
                       if (isChecked) {
                         setSelectedPrintCategories(selectedPrintCategories.filter(c => c !== item.key));
@@ -99,9 +107,9 @@ export function LedgerPrintModal({
                         setSelectedPrintCategories([...selectedPrintCategories, item.key]);
                       }
                     }}
-                    className={`w-3.5 h-3.5 ${item.color} cursor-pointer`}
+                    className={`w-3.5 h-3.5 ${item.color} ${isPrintable ? "cursor-pointer" : "cursor-not-allowed"}`}
                   />
-                  <span className="text-xs">{item.label}</span>
+                  <span className="text-xs">{item.label}{!isPrintable ? "（无数据）" : ""}</span>
                 </label>
               );
             })}

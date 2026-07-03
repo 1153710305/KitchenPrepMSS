@@ -84,11 +84,11 @@ export function LedgerPrintStyle1({
         <tbody>
           <tr>
             <td style={{ border: "none", padding: "12px 0", textAlign: "center" }}>
-              <span 
-                style={{ 
-                  fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize, 
-                  fontWeight: "bold", 
-                  textDecoration: "underline" 
+              <span
+                style={{
+                  fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize,
+                  fontWeight: "bold",
+                  textDecoration: "underline"
                 }}
               >
                 {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}{activeLedger?.name || ""}
@@ -116,11 +116,11 @@ export function LedgerPrintStyle1({
 
         <thead>
           <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.contentFontSize }}>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品原材料名称</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料名称</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品索证</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br/>及地址</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
@@ -147,7 +147,7 @@ export function LedgerPrintStyle1({
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_OUT_CONFIG && LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
+                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
                     <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
