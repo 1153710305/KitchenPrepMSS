@@ -77,7 +77,7 @@ describe("LedgerPrintStyle2", () => {
   });
 
   describe("header info row alignment", () => {
-    it("right-aligns the 经销商 (supplier) value while centering the other info cells", () => {
+    it("[V5.60.0] left-aligns the 经销商 (supplier) value while centering the other info cells", () => {
       const item = makeItem({
         "2026-07-03": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0, supplier: "合作基地直供", certification: "有" }
       });
@@ -95,7 +95,7 @@ describe("LedgerPrintStyle2", () => {
       );
 
       const supplierCell = screen.getByText("合作基地直供", { selector: "th" });
-      expect(supplierCell.className).toContain("text-right");
+      expect(supplierCell.className).toContain("text-left");
 
       const nameCell = screen.getByText("土豆", { selector: "th" });
       expect(nameCell.className).toContain("text-center");

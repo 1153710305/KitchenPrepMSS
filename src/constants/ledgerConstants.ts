@@ -235,12 +235,12 @@ export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   /**
    * @description 表格内容字体大小
    */
-  contentFontSize: "12px",
+  contentFontSize: "14px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "16px",
+  titleFontSize: "24px",
 
   /**
    * @description 标题的基础前缀

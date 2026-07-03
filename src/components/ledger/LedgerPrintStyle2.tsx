@@ -96,19 +96,28 @@ export function LedgerPrintStyle2({
 
   return (
     <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize, color: "#000" }} className="text-center">
-      {/* 标题区：标题+日期作为一个左对齐整体块居中摆放；受众台账名单独贴表格右边缘，纵向大致对齐在标题偏下方 */}
-      <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "end" }}>
-        <div />
-        <div className="text-left">
+      {/* 标题区：标题+日期作为一个左对齐整体块居中摆放；受众台账名紧跟在标题最后一个字之后、纵向落在标题下方 */}
+      <div className="mb-3" style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{ position: "relative" }} className="text-left">
           <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.titleFontSize, fontWeight: "bold" }} className="tracking-widest">
             {LEDGER_PRINT_STYLE2_CONFIG.titlePrefix}
           </div>
           <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold", marginTop: "2px" }}>
             日期：（  {style2StartDate} 至 {style2EndDate}  ）
           </div>
-        </div>
-        <div className="text-right" style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize }}>
-          {activeLedger?.name || ""}
+          {/* 绝对定位：left: 100% 使其左边缘恰好落在标题容器的右边缘（即标题最后一个字之后），top 使其纵向落在标题下方 */}
+          <div
+            style={{
+              position: "absolute",
+              left: "100%",
+              top: "1.3em",
+              marginLeft: "8px",
+              fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize,
+              whiteSpace: "nowrap"
+            }}
+          >
+            {activeLedger?.name || ""}
+          </div>
         </div>
       </div>
 
@@ -145,7 +154,7 @@ export function LedgerPrintStyle2({
             <th className="border border-black px-1 font-bold bg-gray-50">采购项目</th>
             <th colSpan={2} className="border border-black px-1 font-bold text-center">{activeItem.name}</th>
             <th className="border border-black px-1 font-bold bg-gray-50">经销商</th>
-            <th colSpan={3} className="border border-black px-1 font-normal text-right">{printSupplier}</th>
+            <th colSpan={3} className="border border-black px-1 font-normal text-left">{printSupplier}</th>
             <th className="border border-black px-1 font-bold bg-gray-50">索证索票</th>
             <th colSpan={2} className="border border-black px-1 font-normal text-center">{printCert}</th>
           </tr>
