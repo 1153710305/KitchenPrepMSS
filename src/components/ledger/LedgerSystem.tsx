@@ -62,8 +62,6 @@ export function LedgerSystem() {
   
   /** 界面操作的当前选项卡: "entry" | "invoice" */
   const [activeTab, setActiveTab] = useState<"entry" | "invoice">("entry");
-  /** 新建台账弹窗名称输入 */
-  const [newLedgerName, setNewLedgerName] = useState<string>("");
   /** 重命名台账的目标ID */
   const [renameLedgerId, setRenameLedgerId] = useState<string | null>(null);
   /** 重命名台账的新名字输入 */
@@ -460,20 +458,6 @@ export function LedgerSystem() {
   const triggerError = (msg: string) => {
     setErrorMessage(msg);
     setTimeout(() => setErrorMessage(null), 4000);
-  };
-
-  /**
-   * @description 新增台账
-   */
-  const handleAddLedgerSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLedgerName.trim()) return;
-    LedgerService.addLedger(newLedgerName)
-      .then((newLedger) => {
-        setActiveLedgerId(newLedger.id);
-        setNewLedgerName("");
-      })
-      .catch((err) => triggerError(err.message));
   };
 
   /**

@@ -8,7 +8,6 @@
  */
 
 import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
-import { PRESET_LEDGER_MATERIALS } from "../constants/ledgerConstants.ts";
 import { LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { PrepReportService } from "./store.ts";
@@ -175,57 +174,6 @@ export class LedgerService {
    */
   public static getLedgerItems(): LedgerItem[] {
     return this.ledgerItems;
-  }
-
-  /**
-   * @description 新增一本购销台账，并自动生成一组推荐的原料种子采购项目
-   * @param name 台账名称
-   */
-  public static async addLedger(name: string): Promise<Ledger> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!name.trim()) {
-          reject(new Error("台账名称不能为空"));
-          return;
-        }
-
-        const normalizedName = name.trim();
-        if (this.ledgers.some((l) => l.name === normalizedName)) {
-          reject(new Error(`名称为 "${normalizedName}" 的台账已存在`));
-          return;
-        }
-
-        const newId = `ledger_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        const newLedger: Ledger = {
-          id: newId,
-          name: normalizedName,
-          createdAt: new Date().toISOString()
-        };
-
-        // 自动克隆种子原料到这个新台账中
-        const newItems: LedgerItem[] = PRESET_LEDGER_MATERIALS.map((material, index) => ({
-          id: `ledger_item_${newLedger.id}_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          ledgerId: newLedger.id,
-          name: material.name,
-          unit: material.unit,
-          spec: material.spec,
-          initialStock: material.initialStock,
-          currentStock: material.initialStock,
-          dailyRecords: {}
-        }));
-
-        this.ledgers = [...this.ledgers, newLedger];
-        this.ledgerItems = [...this.ledgerItems, ...newItems];
-
-        this.notifyListeners();
-        LogBroker.publish("INFO", "LedgerService", `【新增台账】成功新增台账「${normalizedName}」，并关联导入 ${PRESET_LEDGER_MATERIALS.length} 项初始采购原料`);
-
-        // 双向同步：通知备餐系统添加人群
-        PrepReportService.syncGroupFromLedger(newId, normalizedName);
-
-        resolve(newLedger);
-      }, LEDGER_API_LATENCY);
-    });
   }
 
   /**
