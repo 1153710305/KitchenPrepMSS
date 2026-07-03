@@ -84,7 +84,7 @@ export function LedgerSystem() {
   const {
     isRecordingMode,
     draftRecords,
-    handleStartRecording,
+    handleStartRecording: handleStartRecordingBase,
     handleDraftCellChange,
     handleConfirmRecording,
     handleCancelRecording
@@ -207,6 +207,14 @@ export function LedgerSystem() {
       setSelectedPrintCategories((prev) => prev.filter((cat) => printableCategories.has(cat)));
     }
     setPrintModalOpen(open);
+  };
+
+  /**
+   * @description 开启今日录入前，自动切换回总表模式（图一），确保录入时始终能看到完整的原料清单
+   */
+  const handleStartRecording = () => {
+    setLedgerStyle("style1");
+    handleStartRecordingBase();
   };
 
   /**

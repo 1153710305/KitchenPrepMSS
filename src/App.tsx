@@ -327,6 +327,26 @@ export default function App() {
     }, 0);
   }, [ledgerItemsList]);
 
+  /**
+   * @description 计算原料购销台账所有原料在当前自然月内的累计入库总额
+   */
+  const currentMonthLedgersTotalAmount = useMemo(() => {
+    const now = new Date();
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return ledgerItemsList.reduce((sum, item) => {
+      let itemSum = 0;
+      Object.entries(item.dailyRecords || {}).forEach(([dateStr, record]: [string, any]) => {
+        if (dateStr.startsWith(monthPrefix)) {
+          itemSum += record.inAmount || 0;
+        }
+      });
+      return sum + itemSum;
+    }, 0);
+  }, [ledgerItemsList]);
+
+  /** 侧边栏"台账原料累计入库"统计的展示范围：默认当前自然月，用户可手动切换为全部账期累计 */
+  const [ledgerAmountScope, setLedgerAmountScope] = useState<"month" | "all">("month");
+
   // ================= 极速首屏并行数据服务同步加载进度屏 =================
   if (isLoading) {
     return (
@@ -653,14 +673,38 @@ export default function App() {
             <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
               {!isSidebarCollapsed ? (
                 <>
-                  <div className="text-[11px] text-slate-500 mb-1 font-bold font-sans">
-                    {activeGroup === "LEDGER"
-                      ? "台账原料累计入库"
-                      : "当前受众全月采购支出"}
+                  <div className="flex items-center justify-between gap-1.5 mb-1">
+                    <span className="text-[11px] text-slate-500 font-bold font-sans truncate">
+                      {activeGroup === "LEDGER"
+                        ? (ledgerAmountScope === "month" ? "台账原料本月累计入库" : "台账原料累计入库(全部)")
+                        : "当前受众全月采购支出"}
+                    </span>
+                    {activeGroup === "LEDGER" && (
+                      <div className="flex items-center bg-slate-200/70 rounded p-0.5 shrink-0">
+                        <button
+                          onClick={() => setLedgerAmountScope("month")}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                            ledgerAmountScope === "month" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                          title="仅统计当前自然月的累计入库"
+                        >
+                          本月
+                        </button>
+                        <button
+                          onClick={() => setLedgerAmountScope("all")}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                            ledgerAmountScope === "all" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                          title="统计全部账期的累计入库"
+                        >
+                          全部
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="text-lg font-extrabold text-slate-900 font-mono tracking-tight truncate">
                     ¥{(activeGroup === "LEDGER"
-                      ? allLedgersTotalAmount
+                      ? (ledgerAmountScope === "month" ? currentMonthLedgersTotalAmount : allLedgersTotalAmount)
                       : activeGroupReportTotal).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
                   </div>
                 </>
