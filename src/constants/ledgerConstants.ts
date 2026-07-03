@@ -200,12 +200,12 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
   /**
    * @description 数据行行高（在原 28px 基础上放大至 1.3 倍）
    */
-  dataRowHeight: "36.4px",
+  dataRowHeight: "32px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "20px",
+  titleFontSize: "24px",
 
   /**
    * @description 副标题（受众台账名）的字体大小

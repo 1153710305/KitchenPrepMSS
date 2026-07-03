@@ -128,7 +128,7 @@ describe("LedgerPrintStyle1", () => {
     );
 
     expect(screen.getByText("宾县第二小学食堂食品原材料购销台账")).toBeInTheDocument();
-    expect(screen.getByText("-幼儿备餐")).toBeInTheDocument();
+    expect(screen.getByText("幼儿备餐")).toBeInTheDocument();
   });
 
   it("[V5.56.0] shows the converted quantity and conversion unit instead of the raw quantity/unit when the dictionary defines a conversion ratio", () => {

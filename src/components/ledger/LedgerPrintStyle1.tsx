@@ -108,7 +108,7 @@ export function LedgerPrintStyle1({
                 {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}
               </div>
               <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.subtitleFontSize, marginTop: "2px" }}>
-                -{activeLedger?.name || ""}
+                {activeLedger?.name || ""}
               </div>
             </td>
           </tr>
@@ -133,7 +133,7 @@ export function LedgerPrintStyle1({
 
         <thead>
           <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料名称</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品索证</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
