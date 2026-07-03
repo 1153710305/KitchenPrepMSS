@@ -1,0 +1,122 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description TableGridMatrixView（EXCEL 日历总矩阵视图）组件测试：渲染每日数量/单价/金额单元格、全月累加列、
+ * 表底每日合计行、只读模式下隐藏删除按钮、点击删除按钮触发回调。
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { TableGridMatrixView } from "./TableGridMatrixView.tsx";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { PrepReportService } from "../../services/store.ts";
+import { FoodCategory, TargetGroup } from "../../types/types.ts";
+import { THEME_MAP } from "../../hooks/useTableTheme.ts";
+import type { PreparedItem } from "../../types/types.ts";
+
+const days = ["1", "2"];
+
+const makeItem = (): PreparedItem => ({
+  id: "item_1",
+  name: "土豆",
+  category: FoodCategory.VEGETABLE,
+  targetGroup: TargetGroup.KID,
+  unit: "斤",
+  dailyData: {
+    "1": { quantity: 3, price: 2, amount: 6 },
+    "2": { quantity: 0, price: 0, amount: 0 }
+  }
+});
+
+describe("TableGridMatrixView", () => {
+  beforeEach(() => {
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
+      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+    ]);
+    vi.spyOn(PrepReportService, "getActiveCategories").mockReturnValue([
+      { key: "VEGETABLE", label: "蔬菜", isDefault: true }
+    ]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders the day-1 quantity/price/amount cells and the monthly-accumulated columns", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("土豆")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("¥2")).toBeInTheDocument();
+    // ¥6 同时出现在当日金额格、全月累计格与表底合计行，只需确认它有渲染
+    expect(screen.getAllByText("¥6").length).toBeGreaterThan(0);
+    // 全月累加：3斤
+    expect(screen.getByText("3 斤")).toBeInTheDocument();
+  });
+
+  it("renders the bottom daily-total row using dayTotals", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("【蔬菜】每日开支合计")).toBeInTheDocument();
+  });
+
+  it("hides the per-row delete button when readOnly is true", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTitle("删除此原料行")).not.toBeInTheDocument();
+  });
+
+  it("calls onDeleteItem with the item id when the delete button is clicked", async () => {
+    const user = userEvent.setup();
+    const onDeleteItem = vi.fn();
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={onDeleteItem}
+      />
+    );
+
+    await user.click(screen.getByTitle("删除此原料行"));
+
+    expect(onDeleteItem).toHaveBeenCalledWith("item_1");
+  });
+});

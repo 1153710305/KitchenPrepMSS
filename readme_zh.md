@@ -960,3 +960,14 @@ pm2 startup
   1. [LedgerSystem.tsx] 将 `useLedgerRecording` 返回的 `handleStartRecording` 重命名为 `handleStartRecordingBase`，新增同名包装函数，在调用原逻辑前先 `setLedgerStyle("style1")`，确保开启录入时始终跳转并停留在总表模式。
   2. [App.tsx] 新增 `currentMonthLedgersTotalAmount`（按 `dailyRecords` 日期前缀过滤当前自然月）与 `ledgerAmountScope` 状态（`"month" | "all"`，默认 `"month"`）；侧边栏统计卡片标题与金额均按该状态切换展示，并在标题旁新增"本月/全部"两个小切换按钮（仅台账模块下显示，备餐模块的"当前受众全月采购支出"统计不受影响）。
 - **验证**：`tsc --noEmit` 报错数保持 22（基线不变），`vite build` 成功；浏览器实测——在图二视图下点击"开启今日录入"，页面正确自动跳转到图一并进入录入模式，77 项字典原料平铺可编辑；侧边栏默认显示"台账原料本月累计入库 ¥563.00"，点击"全部"后正确切换为"台账原料累计入库(全部) ¥3,029.00"；控制台全程无报错。
+
+### 2026-07-03 - [V5.55.0] 引入 Vitest 全功能自动化测试体系，规避业务逻辑层静默失效风险
+- **需求**：用户要求添加全功能、全覆盖的自动化测试，保证每次修改功能后无崩溃、无报错；并要求后续新增功能时同步补充对应测试。经确认范围：业务逻辑层（services/hooks/utils/后端）100% 覆盖 + 有真实交互逻辑的关键组件，纯展示型组件跳过；只做 Vitest 单元/集成测试，不引入端到端测试。
+- **技术方案**：新增 `vitest.config.ts`（复用 `vite.config.ts` 插件配置）与 `vitest.setup.ts`；安装 Vitest + Testing Library 全家桶 + supertest；新增 `npm test`/`test:watch`/`test:coverage` 三个脚本；共产出 23 个测试文件、318 个用例，覆盖 [utils.ts]、四个前端 service（[ledgerStore.ts]/[store.ts]/[rawMaterialDict.ts]/[syncHelper.ts]）、五个自定义 Hook、后端 [storageService.ts]/[logService.ts]/两个路由文件，以及 9 个关键交互组件（[HelperSelect.tsx]/[LedgerPrintModal.tsx]/[LedgerPrintStyle1.tsx]/[LedgerPrintStyle2Consumable.tsx]/[LedgerStyle1Table.tsx]/[LedgerStyle2Flow.tsx]/[TableGrid.tsx]/[TableGridMatrixView.tsx]/[TableGridFocusView.tsx]）。详见 [ARCHITECTURE.md] 新增的"七、自动化测试体系"章节。
+- **意外收获：编写回归测试过程中发现并修复了 4 个此前从未被手工测试触发过的真实缺陷**（均属本会话开始前就存在于 `tsc --noEmit` 报错基线里、但从未被观察到实际影响的存量问题）：
+  1. **[store.ts] `updateCell()` 引用了未导入的 `RawMaterialsDictService`**，一旦触发会直接 `ReferenceError` 崩溃。已补上导入。
+  2. **[store.ts] `addPreparedItem()` 新建条目时漏填必填的 `dailyData` 字段**。已补齐 31 天零值初始化。
+  3. **[ledgerStore.ts] `cascadeUpdateMaterial()` 只接收 3 个参数，但唯一调用方（[rawMaterialDict.ts] 的 `updateMaterial()`）一直在传第 4 个 `newSpec` 参数**，导致原料字典侧修改"规格/备注"后从未真正级联同步到台账原料的 `spec` 字段。已扩展方法签名支持第 4 个可选参数。
+  4. **安全修复：[storageService.ts] 的 `restore(backupName)` 此前对 `backupName` 零校验就直接拼接进文件系统路径**，存在路径穿越漏洞（如传入 `"../../其他文件"` 可越权读写备份目录之外的文件）。已加入 `^db_[\w-]+\.json$` 白名单正则校验，非法文件名直接拒绝。
+- **重要提醒（非本次改动，仅记录发现）**：排查 bug ①②时发现 [App.tsx] 里 `<TableGrid>` 唯一的渲染点将 `readOnly` 硬编码为 `true`，且这一状态至少稳定存在了两次历史提交——意味着备餐细表（TableGrid）当前在界面上**完全不可直接编辑单元格**，真实的"记录采购"流程现在完全走台账录入模式的单向 `syncFromLedger` 同步。上述两个 bug 目前实际不可达，但修复本身仍然正确且必要（一旦未来 `readOnly` 被打开就会立刻暴露）。是否需要重新启用该只读开关，留待用户后续判断，本次未做任何改动。
+- **验证**：`npm test` 全量 318 个用例全部通过；`tsc --noEmit` 报错数由 22 降至 19（3 个真实 bug 修复带来的净减少，测试代码本身未引入任何新报错）；`vite build` 与 `npm run build`（含 esbuild 打包 `server/server.cjs`）均成功；抽样人为回退 `cascadeUpdateMaterial` 的第 4 参数修复，确认对应回归测试立即失败（`expected '散装' to be '精品装'`），证明测试套件确实有效而非空跑通过，随后正确恢复。

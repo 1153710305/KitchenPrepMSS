@@ -586,8 +586,9 @@ export class LedgerService {
 
   /**
    * @description 当从后台原料大底库修改了原料属性时，级联同步更新所有关联的已存台账采购原料项目参数
+   * @param newSpec 新规格描述（原料字典的备注字段），可选——不传时保留台账原料项目原有的规格不变
    */
-  public static cascadeUpdateMaterial(oldName: string, newName: string, newUnit: string): void {
+  public static cascadeUpdateMaterial(oldName: string, newName: string, newUnit: string, newSpec?: string): void {
     let changed = false;
     this.ledgerItems = this.ledgerItems.map((item) => {
       if (item.name === oldName) {
@@ -595,7 +596,8 @@ export class LedgerService {
         return {
           ...item,
           name: newName,
-          unit: newUnit
+          unit: newUnit,
+          spec: newSpec !== undefined ? newSpec : item.spec
         };
       }
       return item;
