@@ -331,6 +331,20 @@ describe("LedgerService", () => {
       expect(record.outQuantity).toBe(0);
     });
 
+    it("[V5.67.0] treats a NaN inQuantity/inPrice/outQuantity as zero rather than letting NaN slip through Math.max", async () => {
+      await LedgerService.updateDailyRecord(itemId, "2026-07-03", {
+        inQuantity: NaN,
+        inPrice: NaN,
+        outQuantity: NaN,
+        certification: "有"
+      });
+      const record = LedgerService.getLedgerItems().find((i) => i.id === itemId)!.dailyRecords["2026-07-03"];
+      expect(record.inQuantity).toBe(0);
+      expect(record.inPrice).toBe(0);
+      expect(record.outQuantity).toBe(0);
+      expect(record.inAmount).toBe(0);
+    });
+
     it("trims the note field", async () => {
       await LedgerService.updateDailyRecord(itemId, "2026-07-03", { note: "  备注内容  " });
       const record = LedgerService.getLedgerItems().find((i) => i.id === itemId)!.dailyRecords["2026-07-03"];

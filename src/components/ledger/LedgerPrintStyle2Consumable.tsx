@@ -83,16 +83,16 @@ export function LedgerPrintStyle2Consumable({
       `}</style>
       <table className="ledger-print-consumable-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "10%" }} />
           <col style={{ width: "8%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "9%" }} />
+          <col style={{ width: "5%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "15%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "23%" }} />
         </colgroup>
 
         <thead>

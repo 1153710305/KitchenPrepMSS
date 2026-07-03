@@ -119,4 +119,40 @@ describe("TableGridMatrixView", () => {
 
     expect(onDeleteItem).toHaveBeenCalledWith("item_1");
   });
+
+  it("[V5.67.0] allows the user to manually widen the table via a horizontal resize handle", () => {
+    const { container } = render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    const resizableWrapper = container.querySelector(".resize-x");
+    expect(resizableWrapper).toBeInTheDocument();
+    expect(resizableWrapper).toHaveStyle({ minWidth: "100%" });
+  });
+
+  it("[V5.67.0] uses a single consistent border color throughout the table (no undefined slate-350 utility class)", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    const anyBorderedCell = screen.getAllByRole("cell")[0];
+    expect(anyBorderedCell.className).not.toContain("slate-350");
+    expect(anyBorderedCell.className).not.toContain("border-gray-100");
+  });
 });

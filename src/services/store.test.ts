@@ -127,6 +127,17 @@ describe("PrepReportService", () => {
       await expect(PrepReportService.updateCell("does_not_exist", "1", 1, 1)).rejects.toThrow(/未找到ID为/);
     });
 
+    it("[V5.67.0] treats a NaN quantity/price as zero rather than letting NaN slip through Math.max", async () => {
+      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
+
+      await PrepReportService.updateCell("item_1", "1", NaN, NaN);
+
+      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
+      expect(entry.quantity).toBe(0);
+      expect(entry.price).toBe(0);
+      expect(entry.amount).toBe(0);
+    });
+
     it("reverse-syncs the edit into the ledger via updateDailyRecordByKey with a zero-padded date key", async () => {
       PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, year: 2026, month: 7, items: [makeItem()] })]);
 

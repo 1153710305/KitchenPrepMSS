@@ -494,11 +494,11 @@ export class LedgerService {
           ...fields
         };
 
-        // 对数值安全过滤并重算入库金额
-        mergedRecord.inQuantity = Math.max(0, mergedRecord.inQuantity ?? 0);
-        mergedRecord.inPrice = Math.max(0, mergedRecord.inPrice ?? 0);
+        // 对数值安全过滤并重算入库金额：非负数校验，同时兜底非法数字（如 NaN）不会绕过 Math.max 的负数拦截
+        mergedRecord.inQuantity = Number.isFinite(mergedRecord.inQuantity) ? Math.max(0, mergedRecord.inQuantity!) : 0;
+        mergedRecord.inPrice = Number.isFinite(mergedRecord.inPrice) ? Math.max(0, mergedRecord.inPrice!) : 0;
         mergedRecord.inAmount = Math.round(mergedRecord.inQuantity * mergedRecord.inPrice * 100) / 100;
-        mergedRecord.outQuantity = Math.max(0, mergedRecord.outQuantity ?? 0);
+        mergedRecord.outQuantity = Number.isFinite(mergedRecord.outQuantity) ? Math.max(0, mergedRecord.outQuantity!) : 0;
 
         if (mergedRecord.note !== undefined) {
           mergedRecord.note = mergedRecord.note.trim();

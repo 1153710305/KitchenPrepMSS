@@ -140,7 +140,15 @@ export function useLedgerRecording({
         inspector: "",
         keeper: ""
       };
-      const updatedRecord = { ...current, ...fields };
+      // 出入库数量/单价禁止负数或非法数字，录入草稿阶段就地拦截，避免不合理数据在保存前就已展示给用户
+      const sanitizedFields: Partial<DailyStockRecord> = { ...fields };
+      (["inQuantity", "inPrice", "outQuantity"] as const).forEach((field) => {
+        const value = sanitizedFields[field];
+        if (value !== undefined) {
+          sanitizedFields[field] = Number.isFinite(value) && value >= 0 ? value : 0;
+        }
+      });
+      const updatedRecord = { ...current, ...sanitizedFields };
       // 自动重算入库金额
       if (updatedRecord.inQuantity !== undefined || updatedRecord.inPrice !== undefined) {
         const qty = updatedRecord.inQuantity ?? 0;

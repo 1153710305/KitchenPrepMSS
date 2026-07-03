@@ -135,6 +135,37 @@ describe("useLedgerRecording", () => {
       expect(result.current.draftRecords["temp_柿子"].conversionUnitQuantity).toBe(20);
     });
 
+    it("[V5.67.0] clamps a negative inQuantity/inPrice/outQuantity to zero instead of letting it into the draft", () => {
+      const { result } = setup([makeItem("item_1", "土豆")]);
+      act(() => {
+        result.current.handleStartRecording();
+      });
+
+      act(() => {
+        result.current.handleDraftCellChange("item_1", { inQuantity: -5, inPrice: -2, outQuantity: -1 });
+      });
+
+      expect(result.current.draftRecords["item_1"].inQuantity).toBe(0);
+      expect(result.current.draftRecords["item_1"].inPrice).toBe(0);
+      expect(result.current.draftRecords["item_1"].outQuantity).toBe(0);
+    });
+
+    it("[V5.67.0] treats a NaN quantity/price (e.g. from a transient '-' or empty input) as zero rather than propagating NaN", () => {
+      const { result } = setup([makeItem("item_1", "土豆")]);
+      act(() => {
+        result.current.handleStartRecording();
+      });
+
+      act(() => {
+        result.current.handleDraftCellChange("item_1", { inQuantity: Number("-"), inPrice: Number("abc") });
+      });
+
+      expect(result.current.draftRecords["item_1"].inQuantity).toBe(0);
+      expect(result.current.draftRecords["item_1"].inPrice).toBe(0);
+      // 金额重算也不应残留 NaN
+      expect(result.current.draftRecords["item_1"].inAmount).toBe(0);
+    });
+
     it("persists the updated draft to localStorage under the ledger+date scoped key", () => {
       const { result } = setup([makeItem("item_1", "土豆")]);
       act(() => {

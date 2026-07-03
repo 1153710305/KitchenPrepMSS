@@ -1053,3 +1053,13 @@ pm2 startup
 - **需求**：用户要求低耗品专属打印模板的数据行行高变为原来的 1.3 倍。
 - **重构方案**：[ledgerConstants.ts] 的 `LEDGER_PRINT_CONSUMABLE_CONFIG` 新增 `dataRowHeight` 字段（28px × 1.3 = 36.4px）；[LedgerPrintStyle2Consumable.tsx] 中原先硬编码的两处 `height: "28px"`（真实数据行、空白占位行）统一改为引用该常量。
 - **验证**：新增 1 个回归测试断言空白占位行的行内 `height` 样式等于配置值；`npm test` 全量 339 个用例通过（同步把测试里此前硬编码的字号断言改为直接引用配置常量，避免下次配置调整时再次产生无关失败）；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测「幼儿备餐」台账「大黑袋」（低耗品）的图二打印预览，开发者工具确认空白占位行实际高度 36.3984px（≈ 28px × 1.3）；有真实数据的行因日期单元格换行而略高于该基准值，属预期的内容撑高行为，不是裁剪问题；控制台无报错。
+
+### 2026-07-04 - [V5.67.0] 修复每日采购细表边框虚化问题、支持手动拉宽表格、台账录入拦截负数/非法数字
+- **需求**：用户反馈①餐位分组页面下"EXCEL 日历总矩阵"每日采购细表的方框和线太虚，要求跟 Excel 一样的粗细和颜色，同时希望能手动拉宽细表避免单元格紧凑聚集；②台账数据录入时应避免不合理数据出现，比如出入库数量、单价不能是负数。
+- **排查结论**：[TableGridMatrixView.tsx] 边框"太虚"的根因是代码里大量使用了 `border-slate-350` 这个并不存在的 Tailwind 颜色类名（Tailwind 默认色阶只有 slate-300/400/500，没有 350），这类不存在的工具类不会生成任何 CSS，导致这些单元格的边框实际上完全没有颜色声明，退化成几乎不可见的默认状态；另有部分表头边框使用了极浅的 `border-gray-100`，在白色背景下同样接近不可见。
+- **重构方案**：
+  1. [TableGridMatrixView.tsx] 统一将表格全部边框（表头两行、数据行、粘性首列分隔线、表底合计行）替换为同一个真实存在、清晰可见的 `border-slate-400`，避免 `border-collapse` 场景下不同色号边框互相冲突消解导致的显示不确定性；同时移除失效的 `border-slate-350`/过浅的 `border-gray-100`。
+  2. 细表外层新增一个 `resize-x overflow-auto` 的可拖拽容器（`min-width: 100%` 保证不会被拖得比默认更窄），并在表格上方加入一行浅色提示文字："提示：可拖动表格右下角 ⤡ 手动调整宽度，方便查看密集的每日数据"，用户可通过浏览器原生的拖拽手柄自由把整张细表拉宽。
+  3. [useLedgerRecording.ts] 的 `handleDraftCellChange`（台账录入草稿变更的唯一入口，图一/图二两处输入框共用）新增数值校验：`inQuantity`/`inPrice`/`outQuantity` 三个字段在写入草稿前统一做 `Number.isFinite(value) && value >= 0 ? value : 0` 校验，非负数或非法数字（如输入框中间态的单个"-"号、空字符串转换出的 NaN）一律钳制为 0，避免不合理数据在保存前就已经展示给用户。
+  4. [ledgerStore.ts] 的 `updateDailyRecord` 与 [store.ts] 的 `updateCell` 这两个持久化层入口同步加固：原有的 `Math.max(0, value ?? 0)` 只能拦截 `null`/`undefined`，无法拦截 `NaN`（`Math.max(0, NaN)` 结果仍是 `NaN`），现改为 `Number.isFinite(value) ? Math.max(0, value) : 0`，双重兜底防止非法数字绕过校验持久化到数据里。
+- **验证**：`TableGridMatrixView.test.tsx` 新增 2 个用例（校验可拖拽容器的 className/最小宽度、校验不再包含失效的 `slate-350`/`gray-100` 类名）；`useLedgerRecording.test.ts`/`ledgerStore.test.ts`/`store.test.ts` 各新增负数与 NaN 钳制的回归用例；`npm test` 全量 345 个用例通过；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——「幼儿备餐」台账蔬菜细表边框在开发者工具下核对统一为 `rgb(148, 163, 184)`（slate-400），视觉上清晰可辨；表格右下角出现浏览器原生拖拽手柄；台账录入模式下向"土豆"的采购入库数量输入框写入 `-5`，确认草稿状态（`localStorage` 中的 `ledger_draft_*` 缓存）里对应字段被正确钳制为 `0`；控制台无报错。

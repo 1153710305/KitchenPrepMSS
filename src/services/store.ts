@@ -515,8 +515,9 @@ export class PrepReportService {
             const updatedDailyData = { ...item.dailyData };
             const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
 
-            entry.quantity = Math.max(0, quantity);
-            entry.price = Math.max(0, price);
+            // 非负数校验，同时兜底非法数字（如 NaN）不会绕过 Math.max 的负数拦截
+            entry.quantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+            entry.price = Number.isFinite(price) ? Math.max(0, price) : 0;
             entry.amount = calculateEntryAmount(entry.quantity, entry.price);
             updatedDailyData[day] = entry;
 
