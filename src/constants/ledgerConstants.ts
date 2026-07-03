@@ -263,13 +263,33 @@ export const LEDGER_PRINT_STYLE2_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格及页面内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "12px",
+  headerFontSize: "16px",
 
   /**
-   * @description 标题文字基础前缀
+   * @description 数据行字体大小
    */
-  titlePrefix: "宾县第二小学食堂食品原材料购销台账-"
+  dataFontSize: "14px",
+
+  /**
+   * @description 标题的字体大小
+   */
+  titleFontSize: "20px",
+
+  /**
+   * @description 标题下方日期行的字体大小
+   */
+  dateFontSize: "14px",
+
+  /**
+   * @description 贴右边缘的受众台账名副标题字体大小
+   */
+  subtitleFontSize: "14px",
+
+  /**
+   * @description 标题文字基础前缀（不含受众台账名，受众名单独展示在标题行最右侧）
+   */
+  titlePrefix: "宾县第二小学食堂食品原材料购销台账"
 };
 

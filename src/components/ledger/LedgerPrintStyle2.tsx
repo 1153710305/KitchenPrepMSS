@@ -51,8 +51,8 @@ export function LedgerPrintStyle2({
   }
 
   // 所选采购项目属于"低耗品"大类时，改用贴合纸质消耗品台账格式的专属打印模板，不与其余大类共用本样式
-  const dictCategory = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name)?.category;
-  if (dictCategory === FoodCategory.LOW_CONSUMP) {
+  const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name);
+  if (dictItem?.category === FoodCategory.LOW_CONSUMP) {
     return (
       <LedgerPrintStyle2Consumable
         activeLedger={activeLedger}
@@ -73,6 +73,10 @@ export function LedgerPrintStyle2({
   const printSupplier = recordForSelectedDate.supplier || sampleRecord.supplier || "宾县鑫百达百货超市";
   const printCert = recordForSelectedDate.certification || sampleRecord.certification || "";
 
+  // 采购数量列：优先展示换算后的数量与换算单位，无换算配置时展示原始数量与默认单位
+  const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
+  const displayUnit = hasConversion ? dictItem!.conversionUnit : (dictItem?.unit || activeItem.unit);
+
   // 累计每日结余，起初结余为早于 style2StartDate 的所有累计量
   let tempStock = activeItem.initialStock || 0;
   Object.entries(activeItem.dailyRecords).forEach(([dateKey, record]) => {
@@ -91,42 +95,59 @@ export function LedgerPrintStyle2({
   });
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize, color: "#000" }} className="text-center">
-      {/* 1. 大标题居中 */}
-      <div className="text-center mb-1">
-        <h2 className="text-xl font-black tracking-widest">
-          {LEDGER_PRINT_STYLE2_CONFIG.titlePrefix}{activeLedger?.name || ""}
-        </h2>
+    <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize, color: "#000" }} className="text-center">
+      {/* 标题区：标题+日期作为一个左对齐整体块居中摆放；受众台账名单独贴表格右边缘，纵向大致对齐在标题偏下方 */}
+      <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "end" }}>
+        <div />
+        <div className="text-left">
+          <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.titleFontSize, fontWeight: "bold" }} className="tracking-widest">
+            {LEDGER_PRINT_STYLE2_CONFIG.titlePrefix}
+          </div>
+          <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold", marginTop: "2px" }}>
+            日期：（  {style2StartDate} 至 {style2EndDate}  ）
+          </div>
+        </div>
+        <div className="text-right" style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize }}>
+          {activeLedger?.name || ""}
+        </div>
       </div>
 
-      {/* 2. 日期部分居中 */}
-      <div className="text-center text-xs mb-3 font-bold">
-        <span>日期：（  {style2StartDate} 至 {style2EndDate}  ）</span>
-      </div>
-
-      <table className="w-full text-center border-collapse border border-black text-xs mb-6" style={{ tableLayout: "fixed" }}>
+      {/* 主表格：线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，与图一打印样式保持一致 */}
+      <style>{`
+        .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
+          border: 1px solid #000000 !important;
+        }
+        @media print {
+          .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            border-color: #000000 !important;
+          }
+        }
+      `}</style>
+      <table className="ledger-print-style2-table w-full text-center border-collapse mb-6" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "13%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "10%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "25%" }} />
         </colgroup>
 
-        <thead>
+        <thead style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.headerFontSize }}>
           {/* 表头第一行：基础信息 */}
           <tr style={{ height: "28px" }}>
             <th className="border border-black px-1 font-bold bg-gray-50">采购项目</th>
-            <th colSpan={2} className="border border-black px-1 font-bold text-left">{activeItem.name}</th>
+            <th colSpan={2} className="border border-black px-1 font-bold text-center">{activeItem.name}</th>
             <th className="border border-black px-1 font-bold bg-gray-50">经销商</th>
-            <th colSpan={3} className="border border-black px-1 font-normal text-left">{printSupplier}</th>
+            <th colSpan={3} className="border border-black px-1 font-normal text-right">{printSupplier}</th>
             <th className="border border-black px-1 font-bold bg-gray-50">索证索票</th>
-            <th colSpan={2} className="border border-black px-1 font-normal text-left">{printCert}</th>
+            <th colSpan={2} className="border border-black px-1 font-normal text-center">{printCert}</th>
           </tr>
 
           {/* 表头第二行：大分类（入库/出库） */}
@@ -162,10 +183,15 @@ export function LedgerPrintStyle2({
               const balance = stockByDay[dStr];
               if (!hasActivity || !record) return null;
 
+              // 采购数量：优先展示换算后的数量与换算单位，无换算配置时展示原始数量与默认单位
+              const displayQty = record.inQuantity > 0
+                ? (hasConversion ? Number((record.inQuantity * dictItem!.conversionRatio!).toFixed(2)) : record.inQuantity)
+                : "";
+
               return (
-                <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize }}>
+                <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize }}>
                   <td className="border border-black font-mono text-[10px]">{dStr}</td>
-                  <td className="border border-black font-mono">{record.inQuantity || ""}</td>
+                  <td className="border border-black font-mono">{displayQty !== "" ? `${displayQty}${displayUnit}` : ""}</td>
                   <td className="border border-black">{record.buyer || ""}</td>
                   <td className="border border-black font-mono text-[10px]">{record.produceDate || ""}</td>
                   <td className="border border-black text-[10px]">{record.shelfLife || ""}</td>
@@ -185,7 +211,7 @@ export function LedgerPrintStyle2({
               <>
                 {renderedRows}
                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.contentFontSize }}>
+                  <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize }}>
                     {Array.from({ length: 10 }).map((_, j) => (
                       <td key={j} className="border border-black"></td>
                     ))}
