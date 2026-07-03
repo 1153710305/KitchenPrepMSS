@@ -115,14 +115,27 @@ export function LedgerPrintStyle1({
         </tbody>
       </table>
 
-      {/* 主表格 */}
-      <table className="w-full border-collapse border border-black text-center" style={{ tableLayout: "fixed" }}>
+      {/* 主表格：线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一 */}
+      <style>{`
+        .ledger-print-style1-table, .ledger-print-style1-table th, .ledger-print-style1-table td {
+          border: 1px solid #000000 !important;
+        }
+        @media print {
+          .ledger-print-style1-table, .ledger-print-style1-table th, .ledger-print-style1-table td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            border-color: #000000 !important;
+          }
+        }
+      `}</style>
+      <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "14%" }} />
+          {/* "原材料名称"三字宽、"食品索证"两字宽：窄列腾出的空间分配给"感官性状"/"供货商及地址"两个长文本列 */}
           <col style={{ width: "8%" }} />
           <col style={{ width: "8%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "16%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "8%" }} />
@@ -135,7 +148,7 @@ export function LedgerPrintStyle1({
           <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品索证</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品<br />索证</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>

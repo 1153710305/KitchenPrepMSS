@@ -170,4 +170,22 @@ describe("LedgerPrintStyle1", () => {
 
     expect(screen.getByText("5斤")).toBeInTheDocument();
   });
+
+  it("[V5.58.0] splits the '食品索证' header into two lines and renders black 1px borders throughout the table", () => {
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        currentLedgerItems={[]}
+        dictItems={dictItems}
+      />
+    );
+
+    const certHeader = screen.getByText("食品索证", { selector: "th" });
+    expect(certHeader.innerHTML).toContain("<br");
+
+    const nameHeader = screen.getByText("原材料名称", { selector: "th" });
+    expect(nameHeader.innerHTML).toContain("<br");
+  });
 });
