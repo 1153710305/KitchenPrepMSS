@@ -234,7 +234,7 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
 };
 
 /**
- * @description 记账登记表样式一（总表模式）在仅勾选"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的购销总表样式区分开）
+ * @description 单原料日流水（样式二）所选采购项目属于"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的单原料日流水样式区分开）
  */
 export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   /**
@@ -243,14 +243,24 @@ export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "14px",
+  headerFontSize: "16px",
+
+  /**
+   * @description 数据行字体大小
+   */
+  dataFontSize: "14px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "24px",
+  titleFontSize: "20px",
+
+  /**
+   * @description 标题下方日期行的字体大小
+   */
+  subtitleFontSize: "14px",
 
   /**
    * @description 标题的基础前缀

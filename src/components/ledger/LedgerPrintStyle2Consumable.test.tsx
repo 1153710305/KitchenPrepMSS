@@ -161,4 +161,40 @@ describe("LedgerPrintStyle2Consumable", () => {
     expect(screen.getByText(/2026-07-01/)).toBeInTheDocument();
     expect(screen.getByText(/2026-07-05/)).toBeInTheDocument();
   });
+
+  it("[V5.64.0] applies the scoped black-border className to the main table for consistent Excel-style gridlines", () => {
+    render(
+      <LedgerPrintStyle2Consumable
+        activeLedger={ledger}
+        activeItem={makeItem({})}
+        style2StartDate="2026-07-01"
+        style2EndDate="2026-07-05"
+        style2DatesArray={["2026-07-01"]}
+      />
+    );
+
+    const table = screen.getByText("序号").closest("table");
+    expect(table?.className).toContain("ledger-print-consumable-table");
+  });
+
+  it("[V5.64.0] renders the title/header/data text at their configured font sizes", () => {
+    render(
+      <LedgerPrintStyle2Consumable
+        activeLedger={ledger}
+        activeItem={makeItem({})}
+        style2StartDate="2026-07-01"
+        style2EndDate="2026-07-05"
+        style2DatesArray={["2026-07-01"]}
+      />
+    );
+
+    const titleSpan = screen.getByText(/消耗品出入库台账/);
+    expect(titleSpan).toHaveStyle({ fontSize: "20px" });
+
+    const dateLine = screen.getByText(/日期：/).closest("div");
+    expect(dateLine).toHaveStyle({ fontSize: "14px" });
+
+    const headerCell = screen.getByText("序号", { selector: "th" }).closest("tr");
+    expect(headerCell).toHaveStyle({ fontSize: "16px" });
+  });
 });

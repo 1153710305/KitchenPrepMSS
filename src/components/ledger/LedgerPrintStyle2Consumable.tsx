@@ -80,7 +80,7 @@ export function LedgerPrintStyle2Consumable({
   const emptyRowsCount = Math.max(0, LEDGER_PRINT_CONSUMABLE_CONFIG.minPrintRows - activeRows.length);
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_CONSUMABLE_CONFIG.fontFamily, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.contentFontSize, color: "#000" }} className="text-center">
+    <div style={{ fontFamily: LEDGER_PRINT_CONSUMABLE_CONFIG.fontFamily, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize, color: "#000" }} className="text-center">
       {/* 大标题：去掉黑色边框，标题加上下划线 */}
       <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
         <tbody>
@@ -101,12 +101,24 @@ export function LedgerPrintStyle2Consumable({
       </table>
 
       {/* 打印时间段说明 */}
-      <div className="text-center text-xs mb-3 font-bold">
+      <div className="text-center mb-3 font-bold" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize }}>
         <span>日期：（  {style2StartDate} 至 {style2EndDate}  ）</span>
       </div>
 
-      {/* 主表格：每行独立展示一天的出入库流水，不做跨行合并 */}
-      <table className="w-full border-collapse border border-black text-center" style={{ tableLayout: "fixed" }}>
+      {/* 主表格：每行独立展示一天的出入库流水，不做跨行合并；线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，与其余打印样式保持一致 */}
+      <style>{`
+        .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
+          border: 1px solid #000000 !important;
+        }
+        @media print {
+          .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            border-color: #000000 !important;
+          }
+        }
+      `}</style>
+      <table className="ledger-print-consumable-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
         <colgroup>
           {COLUMNS.map((col) => (
             <col key={col.label} style={{ width: col.width }} />
@@ -114,7 +126,7 @@ export function LedgerPrintStyle2Consumable({
         </colgroup>
 
         <thead>
-          <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.contentFontSize }}>
+          <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
             {COLUMNS.map((col) => (
               <th key={col.label} className="border border-black px-1 py-2 align-middle">{col.label}</th>
             ))}
@@ -123,7 +135,7 @@ export function LedgerPrintStyle2Consumable({
 
         <tbody>
           {activeRows.map(({ dStr, record }, idx) => (
-            <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.contentFontSize }}>
+            <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
               <td className="border border-black px-1 py-1 font-mono">{idx + 1}</td>
               <td className="border border-black px-1 py-1 text-left font-bold">{dictItem?.name ?? activeItem.name}</td>
               <td className="border border-black px-1 py-1">{dictItem?.remark || activeItem.spec || "-"}</td>
@@ -141,7 +153,7 @@ export function LedgerPrintStyle2Consumable({
 
           {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
           {Array.from({ length: emptyRowsCount }).map((_, i) => (
-            <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.contentFontSize }}>
+            <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
               {COLUMNS.map((col) => (
                 <td key={col.label} className="border border-black"></td>
               ))}
