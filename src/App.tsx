@@ -480,9 +480,16 @@ export default function App() {
 
         <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
 
+          {/* 自动保存状态展示器 */}
+          {saveToast && (
+            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-emerald-500/40 animate-fade-in font-medium font-sans shrink-0">
+              {saveToast}
+            </span>
+          )}
+
           {/* 关怀模式字号调节 */}
           <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-slate-300 font-bold shrink-0 select-none">
-            <span className="text-[10px] sm:text-[11px] px-1.5 text-slate-400 font-bold">字号</span>
+            <span className="hidden sm:inline text-[10px] sm:text-[11px] px-1.5 text-slate-400 font-bold">字号</span>
             <button
               onClick={() => setFontSizeMode("normal")}
               className={`px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] transition-all cursor-pointer ${
@@ -512,27 +519,34 @@ export default function App() {
             </button>
           </div>
 
-          {/* 库存总览快速入口 */}
-          <button
-            onClick={() => setIsInventoryOpen(true)}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-700 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-500 font-bold text-[11px] sm:text-[13px] text-slate-200 hover:text-white rounded cursor-pointer transition-all shadow-sm"
-            title="查看全部原料库存总览"
-          >
-            <Package size={11} />
-            <span className="hidden sm:inline">库存总览</span>
-          </button>
+          {/* 分组分隔线 */}
+          <div className="hidden sm:block w-px h-5 bg-slate-700 shrink-0" />
 
-          {/* 配置管理后台高权入口 */}
-          <button
-            onClick={handleAdminAccessAttempt}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 font-bold text-[11px] sm:text-[13px] text-white rounded cursor-pointer transition-all shadow-sm hover:shadow"
-            title="进入管理后台"
-          >
-            <Settings size={11} className="animate-spin-slow" />
-            <span><span className="hidden sm:inline">进入</span>管理后台</span>
-          </button>
+          {/* 功能入口：库存总览 + 管理后台 */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+            <button
+              onClick={() => setIsInventoryOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-700 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-500 font-bold text-[11px] sm:text-[13px] text-slate-200 hover:text-white rounded cursor-pointer transition-all shadow-sm"
+              title="查看全部原料库存总览"
+            >
+              <Package size={11} />
+              <span className="hidden sm:inline">库存总览</span>
+            </button>
 
-          {/* 安全登出系统 */}
+            <button
+              onClick={handleAdminAccessAttempt}
+              className="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 font-bold text-[11px] sm:text-[13px] text-white rounded cursor-pointer transition-all shadow-sm hover:shadow"
+              title="进入管理后台"
+            >
+              <Settings size={11} className="animate-spin-slow" />
+              <span><span className="hidden sm:inline">进入</span>管理后台</span>
+            </button>
+          </div>
+
+          {/* 分组分隔线 */}
+          <div className="hidden sm:block w-px h-5 bg-slate-700 shrink-0" />
+
+          {/* 会话控制：安全登出 */}
           <button
             onClick={handleLogout}
             className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[11px] sm:text-[13px] text-slate-300 hover:text-rose-200 rounded cursor-pointer transition-all shadow-sm"
@@ -541,18 +555,6 @@ export default function App() {
             <LogOut size={11} />
             <span className="hidden md:inline">安全登出</span>
           </button>
-
-          {/* 自动保存状态展示器 */}
-          {saveToast && (
-            <span className="text-[10px] sm:text-[11px] bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-emerald-500/40 animate-fade-in font-medium font-sans shrink-0">
-              {saveToast}
-            </span>
-          )}
-
-          <div className="hidden xl:flex items-center space-x-2 text-[13px] text-slate-400">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-1"></span>
-            <span>物理热同步</span>
-          </div>
         </div>
       </header>
 
@@ -771,24 +773,15 @@ export default function App() {
         </main>
       </div>
 
-      {/* 各项备餐审计说明页脚 */}
-      <footer className="px-6 py-2 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between shrink-0 text-[11px] text-slate-500 select-none font-sans">
-        <div className="flex space-x-6">
-          <div className="flex items-center uppercase tracking-widest font-sans">
-            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">当前聚焦:</span>
-            {`${dynamicGroupLabels[activeGroup]} / ${activeCategory ? dynamicCategoryLabels[activeCategory] : "合计汇总"} / 全月日对数核算`}
+      {/* 各项备餐审计说明页脚：仅在备餐记账视图下展示当前查看的分组/品类，台账等其他模块无对应上下文时不展示 */}
+      {activeGroup !== "LEDGER" && (
+        <footer className="px-6 py-2 bg-white border-t border-slate-200 flex items-center shrink-0 text-[11px] text-slate-500 select-none font-sans">
+          <div className="flex items-center">
+            <span className="font-bold text-slate-700 mr-2">当前查看：</span>
+            <span>{`${dynamicGroupLabels[activeGroup]} · ${activeCategory ? dynamicCategoryLabels[activeCategory] : "合计汇总"}`}</span>
           </div>
-          <div className="flex items-center uppercase tracking-widest font-sans">
-            <span className="font-bold text-slate-900 mr-2 underline decoration-emerald-500 decoration-2">操作权限:</span>
-            高密热加载模式（管理员已授权）
-          </div>
-        </div>
-        <div className="flex items-center space-x-1 font-mono text-[10px] text-slate-400">
-          <span>HOST: PORT_3000</span>
-          <span>|</span>
-          <span>SYSTEM_HOT_CONNECTED</span>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* 🔐 管理后台行政口令校验遮罩层 */}
       {isPasswordModalOpen && (

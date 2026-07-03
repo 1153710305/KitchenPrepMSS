@@ -29,9 +29,7 @@ import { useLedgerRecording } from "../../hooks/useLedgerRecording.ts";
 import {
   Calendar,
   AlertCircle,
-  FileText,
-  LayoutGrid,
-  TrendingUp
+  FileText
 } from "lucide-react";
 
 /**
@@ -638,34 +636,6 @@ export function LedgerSystem() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* 呈现样式选择 */}
-            {activeTab === "entry" && (
-              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
-                <button
-                  onClick={() => setLedgerStyle("style1")}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
-                    ledgerStyle === "style1" 
-                      ? "bg-white text-emerald-700 shadow-xs" 
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <LayoutGrid size={11} />
-                  <span>总表模式 (图一)</span>
-                </button>
-                <button
-                  onClick={() => setLedgerStyle("style2")}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
-                    ledgerStyle === "style2" 
-                      ? "bg-white text-emerald-700 shadow-xs" 
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <TrendingUp size={11} />
-                  <span>单原料日流水 (图二)</span>
-                </button>
-              </div>
-            )}
-
             {/* 日期选择器 */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-fit">
               <Calendar size={13} className="text-slate-500" />
@@ -722,6 +692,7 @@ export function LedgerSystem() {
           setActiveItemId={setActiveItemId}
           currentLedgerItems={currentLedgerItems}
           ledgerStyle={ledgerStyle}
+          setLedgerStyle={setLedgerStyle}
           dailyInwardItems={dailyInwardItems}
           dailyOutwardItems={dailyOutwardItems}
           batchOutHandler={batchOutHandler}
