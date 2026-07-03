@@ -115,7 +115,7 @@ export function LedgerPrintStyle2Consumable({
 
         <tbody>
           {activeRows.map(({ dStr, record }) => (
-            <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
+            <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
               <td className="border border-black px-1 py-1 font-bold">{displayName}</td>
               <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? record.inQuantity : ""}</td>
               <td className="border border-black px-1 py-1">{displaySpec}</td>
@@ -131,7 +131,7 @@ export function LedgerPrintStyle2Consumable({
 
           {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
           {Array.from({ length: emptyRowsCount }).map((_, i) => (
-            <tr key={`empty-${i}`} style={{ height: "28px", fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
+            <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
               {Array.from({ length: 10 }).map((_, j) => (
                 <td key={j} className="border border-black"></td>
               ))}

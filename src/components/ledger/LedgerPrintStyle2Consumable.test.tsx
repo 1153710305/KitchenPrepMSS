@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LedgerPrintStyle2Consumable } from "./LedgerPrintStyle2Consumable.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { LEDGER_PRINT_CONSUMABLE_CONFIG } from "../../constants/ledgerConstants.ts";
 import { FoodCategory } from "../../types/types.ts";
 import type { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 
@@ -222,12 +223,27 @@ describe("LedgerPrintStyle2Consumable", () => {
     );
 
     const titleDiv = screen.getByText("宾县第二小学食堂消耗品出入库台账");
-    expect(titleDiv).toHaveStyle({ fontSize: "20px" });
+    expect(titleDiv).toHaveStyle({ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize });
 
     const dateLine = screen.getByText(/日期：/);
-    expect(dateLine).toHaveStyle({ fontSize: "14px" });
+    expect(dateLine).toHaveStyle({ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize });
 
     const headerRow = screen.getByText("物品名称", { selector: "th" }).closest("tr");
-    expect(headerRow).toHaveStyle({ fontSize: "16px" });
+    expect(headerRow).toHaveStyle({ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize });
+  });
+
+  it("[V5.66.0] renders empty placeholder rows at 1.3x the original 28px height", () => {
+    render(
+      <LedgerPrintStyle2Consumable
+        activeLedger={ledger}
+        activeItem={makeItem({})}
+        style2StartDate="2026-07-01"
+        style2EndDate="2026-07-05"
+        style2DatesArray={["2026-07-01"]}
+      />
+    );
+
+    const emptyRow = screen.getAllByRole("row").at(-1);
+    expect(emptyRow).toHaveStyle({ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight });
   });
 });
