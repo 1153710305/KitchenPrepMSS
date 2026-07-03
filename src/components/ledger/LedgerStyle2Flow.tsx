@@ -71,7 +71,7 @@ export function LedgerStyle2Flow({
   if (!activeItemId) {
     return (
       <div className="text-center py-12 bg-white border border-slate-200 rounded-xl text-slate-400 italic">
-        该台账暂无采购原料项目。请点击右上方“新增原料采购项”添加原料以开启流水台账。
+        该台账暂无采购原料项目。请切换到总表模式（图一）点击左上方“开启今日录入”进入录入模式，选择字典中的原料并填写数据即可自动添加。
       </div>
     );
   }

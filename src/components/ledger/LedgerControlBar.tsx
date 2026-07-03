@@ -32,12 +32,6 @@ interface LedgerControlBarProps {
   setBatchOutHandler: (val: string) => void;
   batchOutRecipient: string;
   setBatchOutRecipient: (val: string) => void;
-  newMaterialName: string;
-  setNewMaterialName: (val: string) => void;
-  addMaterialSearchQuery: string;
-  setAddMaterialSearchQuery: (val: string) => void;
-  isAddDropdownOpen: boolean;
-  setIsAddDropdownOpen: (val: boolean) => void;
   setSaveToast: (val: string | null) => void;
   triggerError: (msg: string) => void;
   handleStartRecording: () => void;
@@ -67,12 +61,6 @@ export function LedgerControlBar({
   setBatchOutHandler,
   batchOutRecipient,
   setBatchOutRecipient,
-  newMaterialName,
-  setNewMaterialName,
-  addMaterialSearchQuery,
-  setAddMaterialSearchQuery,
-  isAddDropdownOpen,
-  setIsAddDropdownOpen,
   setSaveToast,
   triggerError,
   handleStartRecording,

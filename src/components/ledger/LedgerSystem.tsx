@@ -21,7 +21,6 @@ import { LedgerPrintPreviewOverlay } from "./LedgerPrintPreviewOverlay.tsx";
 import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";
 import { LedgerStyle2Flow } from "./LedgerStyle2Flow.tsx";
 import { LedgerInvoiceTab } from "./LedgerInvoiceTab.tsx";
-import { LedgerAddMaterialModal } from "./LedgerAddMaterialModal.tsx";
 import { LedgerPrintModal } from "./LedgerPrintModal.tsx";
 import { LedgerSidebar } from "./LedgerSidebar.tsx";
 import { LedgerControlBar } from "./LedgerControlBar.tsx";
@@ -71,16 +70,6 @@ export function LedgerSystem() {
   const [batchOutHandler, setBatchOutHandler] = useState<string>("");
   const [batchOutRecipient, setBatchOutRecipient] = useState<string>("");
 
-  // 新增原料明细相关表单状态
-  const [isAddMaterialOpen, setIsAddMaterialOpen] = useState<boolean>(false);
-  const [newMaterialName, setNewMaterialName] = useState<string>("");
-  const [newMaterialUnit, setNewMaterialUnit] = useState<string>("斤");
-  const [newMaterialSpec, setNewMaterialSpec] = useState<string>("");
-  const [newMaterialStock, setNewMaterialStock] = useState<number>(0);
-  // 新增原料模糊搜索检索词
-  const [addMaterialSearchQuery, setAddMaterialSearchQuery] = useState<string>("");
-  const [isAddDropdownOpen, setIsAddDropdownOpen] = useState<boolean>(false);
-  
   // 编辑原料明细相关状态
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [editMaterialName, setEditMaterialName] = useState<string>("");
@@ -153,21 +142,7 @@ export function LedgerSystem() {
       unit: item.unit,
       category: item.category
     }));
-  }, [isAddMaterialOpen, editingMaterialId]);
-
-  // ================= 数据加载及订阅变动 =================
-
-  // 监听全局点击事件，点击外部收起添加原料的联想下拉框
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".add-material-search-container")) {
-        setIsAddDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
+  }, [editingMaterialId]);
 
   // ================= 计算属性与动态过滤 =================
 
@@ -368,16 +343,6 @@ export function LedgerSystem() {
     };
   }, [selectedDate]);
 
-  /** 根据年月动态计算当月的实际天数列表（如：["01", "02", ..., "30"]） */
-  const daysArray = useMemo(() => {
-    const arr = [];
-    const daysInMonth = new Date(dateParts.year, dateParts.month, 0).getDate();
-    for (let d = 1; d <= daysInMonth; d++) {
-      arr.push(String(d).padStart(2, "0"));
-    }
-    return arr;
-  }, [dateParts]);
-
   /** 样式二（单原料日流水）自定义时间段内的所有日期列表 */
   const style2DatesArray = useMemo(() => {
     return getDatesBetween(style2StartDate, style2EndDate);
@@ -461,15 +426,6 @@ export function LedgerSystem() {
   };
 
   /**
-   * @description 物理删除台账
-   */
-  const handleDeleteLedger = (id: string) => {
-    if (confirm(LEDGER_UI_TEXT.deleteLedgerConfirm)) {
-      LedgerService.deleteLedger(id).catch((err) => triggerError(err.message));
-    }
-  };
-
-  /**
    * @description 重命名台账
    */
   const handleRenameLedgerSubmit = (e: React.FormEvent) => {
@@ -479,28 +435,6 @@ export function LedgerSystem() {
       .then(() => {
         setRenameLedgerId(null);
         setRenameLedgerName("");
-      })
-      .catch((err) => triggerError(err.message));
-  };
-
-  /**
-   * @description 新增采购原料项目
-   */
-  const handleAddMaterialSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMaterialName.trim()) return;
-    LedgerService.addLedgerItem(
-      activeLedgerId,
-      newMaterialName,
-      newMaterialUnit,
-      newMaterialSpec,
-      newMaterialStock
-    )
-      .then(() => {
-        setIsAddMaterialOpen(false);
-        setNewMaterialName("");
-        setNewMaterialSpec("");
-        setNewMaterialStock(0);
       })
       .catch((err) => triggerError(err.message));
   };
@@ -531,21 +465,6 @@ export function LedgerSystem() {
     if (confirm(LEDGER_UI_TEXT.deleteMaterialConfirm)) {
       LedgerService.deleteLedgerItem(id).catch((err) => triggerError(err.message));
     }
-  };
-
-  /**
-   * @description 失去焦点时，同步当前单元格的属性改变到本地缓存
-   */
-  const handleCellBlur = (
-    itemId: string,
-    dateStr: string,
-    fields: Partial<DailyStockRecord>
-  ) => {
-    LedgerService.updateDailyRecord(itemId, dateStr, fields)
-      .then(() => {
-        triggerSaveToast();
-      })
-      .catch((err) => triggerError(err.message));
   };
 
   /**
@@ -809,12 +728,6 @@ export function LedgerSystem() {
           setBatchOutHandler={setBatchOutHandler}
           batchOutRecipient={batchOutRecipient}
           setBatchOutRecipient={setBatchOutRecipient}
-          newMaterialName={newMaterialName}
-          setNewMaterialName={setNewMaterialName}
-          addMaterialSearchQuery={addMaterialSearchQuery}
-          setAddMaterialSearchQuery={setAddMaterialSearchQuery}
-          isAddDropdownOpen={isAddDropdownOpen}
-          setIsAddDropdownOpen={setIsAddDropdownOpen}
           setSaveToast={setSaveToast}
           triggerError={triggerError}
           handleStartRecording={handleStartRecording}
@@ -908,23 +821,6 @@ export function LedgerSystem() {
 
         </div>
       </div>
-
-      {/* 新增原料明细模态弹框 */}
-      <LedgerAddMaterialModal
-        isOpen={isAddMaterialOpen}
-        activeLedgerName={activeLedger?.name || ""}
-        newMaterialName={newMaterialName}
-        newMaterialUnit={newMaterialUnit}
-        newMaterialSpec={newMaterialSpec}
-        newMaterialStock={newMaterialStock}
-        dictOptions={dictOptions}
-        setNewMaterialName={setNewMaterialName}
-        setNewMaterialUnit={setNewMaterialUnit}
-        setNewMaterialSpec={setNewMaterialSpec}
-        setNewMaterialStock={setNewMaterialStock}
-        onClose={() => setIsAddMaterialOpen(false)}
-        onSubmit={handleAddMaterialSubmit}
-      />
 
       {/* 二级分类打印勾选模态弹框 */}
       <LedgerPrintModal
