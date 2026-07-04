@@ -69,8 +69,9 @@ describe("POST /api/storage/save", () => {
     expect(res.body.success).toBe(true);
     expect(typeof res.body.timestamp).toBe("string");
 
-    const raw = JSON.parse(fs.readFileSync(process.env.LOCAL_DB_PATH!, "utf8"));
-    expect(raw.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+    // 数据现由本地 SQLite 承载（阶段一浅迁移），不再直接落盘为 db.json，改为通过 /load 校验持久化结果
+    const loadRes = await request(app).get("/api/storage/load");
+    expect(loadRes.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
   });
 
   it("accepts an empty body without crashing", async () => {

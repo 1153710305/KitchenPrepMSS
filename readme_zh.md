@@ -1217,3 +1217,14 @@ pm2 startup
   2. 驱动选型是唯一真正影响离线部署的子决策：`better-sqlite3` 是原生二进制、会是本项目第一个原生依赖，与"整体拷贝 node_modules 到离线机器"的部署方式存在架构不匹配的真实风险；`sql.js`（WASM）与 `node:sqlite`（Node 22+ 内置）都能规避这个风险，优先考虑。
   3. 一次性数据迁移、备份恢复机制的 SQLite 等价实现、测试改造范围（浅迁移方案下预计约 24-28 个非直接相关的测试文件零改动）、部署文档改动点、验收清单，均已在文档中逐条列出。
 - **验证**：本次为纯规划文档新增，不涉及任何源码改动，`npm test`/`tsc --noEmit`/`vite build` 均无需重新验证（未改动任何被测代码）。
+
+### 2026-07-05 - [V5.84.0] 实施 SQLite 迁移阶段一（浅迁移）：本地存储由 JSON 文件切换为 SQLite
+- **需求**：用户确认启动 [SQLite迁移规划.md] 中的阶段一（浅迁移）改造。就 SQLite 驱动选型（`node:sqlite`/`better-sqlite3`/`sql.js`）向用户确认后，选定 `better-sqlite3`。
+- **重要发现**：实施过程中发现 `better-sqlite3` 的预编译二进制按 Node.js `NODE_MODULE_VERSION` 严格绑定——同一份二进制换一个 Node 大版本运行会直接报 `ERR_DLOPEN_FAILED`，而非可以正常降级运行。这一约束比规划阶段设想的"只需同操作系统/架构"更严格，据此在 `package.json` 新增 `"engines": {"node": "22.x"}` 明确锁定 Node 大版本，并同步更新了 `部署指南.md`：准备部署包与客户目标电脑必须使用完全相同的 Node 大版本，否则启动即报错。
+- **重构方案**：
+  1. [server/storageService.ts] 新增 SQLite schema：`kv_store`（key-value 整体存放 `reports`/`activeGroups`/`activeCategories`/`ledgers`/`ledgerItems` 骨架/`rawMaterialsDict`/`ledgerHelperDict` 共 7 个字段的 JSON 文本）+ `daily_records`（`item_id`/`date`/`data` 三列，取代旧版按年/月/日拆分的 JSON 文件）。
+  2. 正常保存路径 `importFullDataIntoSqlite()`：骨架字段整体覆盖 + `daily_records` 整体清空重建，全部包裹在同一个 SQLite 事务里——真正的"要么全部生效、要么全部回滚"，比 [V5.82.0] 手搓的"临时文件+rename"更强的原子性保证。顺带修复一个历史遗留 bug：旧版实现里某天最后一条记录被删除后，对应的日文件永远不会被清理，下次加载时会被错误"复活"；新版每次整体重建，天然不存在孤儿数据。
+  3. 备份/恢复机制刻意保持"浅"：备份快照仍是纯 JSON 文件（命名、目录、30 份保留策略完全不变），恢复时只把快照内容重新导入 SQLite 的骨架字段，绝不清空当前生效中的 `daily_records`（与旧版"restore() 从不触碰逐日流水文件"的既有限制保持一致，避免比旧版更严重的数据丢失回归）。
+  4. 新增一次性历史数据迁移 `migrateLegacyJsonIfNeeded()`：服务启动时若检测到 SQLite 完全没有数据、但磁盘上存在旧版 `data/db.json`，自动读取旧文件（含逐日流水）导入 SQLite；迁移后原始 JSON 文件不会被删除，永久保留作为人工回退手段；仅在 SQLite 为空时触发一次，不会重复迁移覆盖新产生的数据。
+  5. [server/routes/storage.ts] 顺手修复一处类型债：原本用 `(StorageService as any).localDbPath` 越权访问私有字段来判断"是否首次启动"，这个假设在新架构下不再成立（迁移后 `db.json` 会永久保留，但显然不再代表"首次启动"）。改为直接判断 `load()` 返回值是否为空对象，这处修复同时消掉了一个真实的 tsc 报错，基线报错数从 19 降到 18。
+- **验证**：`storageService.test.ts` 全面重写为 SQLite 版本（27 个用例），新增真实 SQL 事务回滚验证（构造 `NOT NULL` 约束冲突触发中途失败，确认整个事务完整回滚、不留部分写入）与一次性迁移的 3 个场景（首次迁移成功、SQLite 已有数据时不重复迁移、原始文件保留不被删除）；`storage.test.ts` 路由测试同步适配（不再直接读 `db.json`，改为通过 `/load` 接口校验持久化结果）；`npm test` 全量 385 个用例通过；`tsc --noEmit` 报错数降为 18（较改造前减少 1 个）；`vite build` 与 `esbuild server.ts` 打包均成功；浏览器实机验证——对真实生产 `data/db.json`（32 项原料、3 个台账、43 条逐日流水）完整跑过一次迁移，前端正确渲染迁移后的台账明细，并通过真实 UI 操作触发一次保存确认写入路径正常；额外验证了打包产物 `dist/server.cjs`（而非仅开发态 `tsx server.ts`）同样能正确加载 SQLite 并对外提供服务；控制台无报错。

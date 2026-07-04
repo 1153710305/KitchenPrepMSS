@@ -8,7 +8,6 @@
  */
 
 import express from "express";
-import fs from "fs";
 import { StorageService } from "../storageService.ts";
 
 /**
@@ -22,9 +21,10 @@ export const storageRouter = express.Router();
  */
 storageRouter.get("/load", async (req, res) => {
   try {
-    const localPath = (StorageService as any).localDbPath;
-    const isFirstBoot = StorageService.storageType === "local" ? !fs.existsSync(localPath) : false;
     const data = await StorageService.load();
+    // 首次启动判定：直接看加载结果是否为空对象即可，无需探测某个具体存储引擎的内部文件/连接细节。
+    // 这样无论本地 SQLite 阶段一迁移前后、还是云端 COS 模式，判定逻辑都是同一套，也不再需要越权访问私有字段
+    const isFirstBoot = Object.keys(data).length === 0;
     res.json({
       ...data,
       isFirstBoot

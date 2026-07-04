@@ -4,31 +4,47 @@
  */
 
 /**
- * @description 本地文件与腾讯云对象存储（COS）双模式持久化服务：负责主数据文件读写、台账逐日流水拆分存储、以及历史快照备份与恢复。
+ * @description 本地 SQLite（阶段一浅迁移，见 SQLite迁移规划.md）与腾讯云对象存储（COS）双模式持久化服务：负责主数据的整体读写、
+ * 台账逐日流水的存储与重组、历史快照备份与恢复，以及从旧版纯 JSON 文件存储的一次性自动迁移。
  */
 
 import path from "path";
 import fs from "fs";
+import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
 
+/** 整体状态里除 ledgerItems 之外、直接以 JSON 文本整体存入 kv_store 的顶层字段 */
+const SKELETON_KV_KEYS = ["reports", "activeGroups", "activeCategories", "ledgers", "rawMaterialsDict", "ledgerHelperDict"] as const;
+
 /**
- * @description 后端持久化数据同步引擎，支持本地 JSON 文件与腾讯云 COS 对象存储双模式切换
+ * @description 后端持久化数据同步引擎，支持本地 SQLite 与腾讯云 COS 对象存储双模式切换
  */
 export class StorageService {
   /**
-   * @description 存储类型：local（本地文件） 或 cos（腾讯云对象存储）
+   * @description 存储类型：local（本地 SQLite） 或 cos（腾讯云对象存储）
    */
   private static storageType: string = process.env.STORAGE_TYPE || "local";
 
   /**
-   * @description 本地文件存储路径，默认为项目根目录下 data/db.json
+   * @description 旧版纯 JSON 存储的主文件路径，默认为项目根目录下 data/db.json。
+   * 阶段一迁移后不再作为常态读写目标，仅在首次启动时用作"是否需要从旧版数据自动迁移"的判断依据与迁移源。
    */
   private static localDbPath: string = path.resolve(process.env.LOCAL_DB_PATH || "data/db.json");
 
   /**
-   * @description 本地历史备份存储目录
+   * @description 本地 SQLite 数据库文件路径，与旧版 db.json 同目录
+   */
+  private static sqliteDbPath: string = path.join(path.dirname(StorageService.localDbPath), "kpmss.sqlite");
+
+  /**
+   * @description 本地历史备份存储目录（备份快照仍然是人类可读的 JSON 文件，命名与保留策略均不变）
    */
   private static backupDir: string = path.resolve(path.dirname(StorageService.localDbPath), "backups");
+
+  /**
+   * @description 本地 SQLite 数据库连接（懒加载，全生命周期内复用同一个连接）
+   */
+  private static db: Database.Database | null = null;
 
   /**
    * @description 腾讯云 COS 客户端实例
@@ -64,10 +80,6 @@ export class StorageService {
   /**
    * @description 串行化所有写操作的互斥锁（Promise 链式实现）：save()/restore() 无论被并发触发多少次，
    * 都会被严格排队、逐一执行，前一个操作完成（无论成功或失败）后才轮到下一个开始。
-   * 当前所有本地写入都用的是同步 fs 调用，Node 单线程事件循环本身就不会在一次同步执行中途被抢占，
-   * 天然不会发生"两次写入交叉执行"；但这个隐含前提并不明显、也容易在未来改动中被破坏（比如为了不阻塞
-   * 事件循环而改用异步 fs.promises 写入后，交叉执行的风险就会重新出现）。显式加锁把"同一时刻只有一个
-   * 写操作在跑"这件事变成一个不依赖实现细节、任何人都能看懂的硬性保证。
    */
   private static writeLock: Promise<void> = Promise.resolve();
 
@@ -92,9 +104,7 @@ export class StorageService {
 
   /**
    * @description 原子写入本地文件：先写入同目录下的一个唯一临时文件，写入成功后再用 rename 替换目标文件。
-   * rename 在同一文件系统内是操作系统保证的原子操作（要么完全生效、要么完全不生效），不会出现"写了一半"
-   * 的中间状态；相比直接 fs.writeFileSync(targetPath, ...)，避免了进程崩溃/断电恰好发生在写入目标文件
-   * 过程中，导致该文件被截断成一份损坏、无法解析的 JSON。
+   * 仍用于备份快照 JSON 文件的落盘——正式数据本身的原子性已经由下方 SQLite 事务保证，不再需要这个手段。
    * @param {string} targetPath 最终要写入的目标文件路径
    * @param {string} content 要写入的文件内容
    * @returns {void}
@@ -106,27 +116,146 @@ export class StorageService {
   }
 
   /**
-   * @description 初始化存储引擎，创建必要的本地目录
+   * @description 获取（并按需懒创建）本地 SQLite 数据库连接与表结构。
+   * kv_store 以 key-value 形式整体存放 6 个骨架字段（外加 ledgerItems 本身剥离每日流水后的骨架数组）；
+   * daily_records 按 (item_id, date) 存放每一条台账每日出入库流水，取代旧版按年/月/日拆分的 JSON 文件，
+   * 天然支持按 item_id/date 索引查询，也天然修复了旧版"某天最后一条记录被删除后，对应日文件永远不会被清理，
+   * 下次加载时又被错误复活"的历史遗留问题（因为新版每次保存都会整体重建 daily_records，不存在孤儿文件）。
+   * @returns {Database.Database} SQLite 数据库连接
+   */
+  private static getDb(): Database.Database {
+    if (!StorageService.db) {
+      StorageService.db = new Database(StorageService.sqliteDbPath);
+      // WAL 模式：写入不阻塞并发读取，且每次事务提交都由 SQLite 引擎保证落盘的原子性与崩溃恢复能力
+      StorageService.db.pragma("journal_mode = WAL");
+      StorageService.db.exec(`
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS daily_records (
+          item_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          data TEXT NOT NULL,
+          PRIMARY KEY (item_id, date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_records_date ON daily_records(date);
+      `);
+    }
+    return StorageService.db;
+  }
+
+  /**
+   * @description 把"骨架"字段（ledgerItems 剥离每日流水后的数组，以及其余 6 个整体字段）整体覆盖写入 kv_store。
+   * 不涉及 daily_records，供 saveInternal（正常保存）与 restoreInternal（从备份恢复）共用。
+   * @param {Database.Database} db SQLite 数据库连接
+   * @param {any} data 需要写入的全量数据包
    * @returns {void}
    */
-  public static init(): void {
-    if (StorageService.storageType === "local") {
-      const dir = path.dirname(StorageService.localDbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log(`[STORAGE] 已成功创建本地数据存储目录: ${dir}`);
-      }
-      if (!fs.existsSync(StorageService.backupDir)) {
-        fs.mkdirSync(StorageService.backupDir, { recursive: true });
-        console.log(`[STORAGE] 已成功创建本地备份快照目录: ${StorageService.backupDir}`);
-      }
-    } else {
-      console.log("[STORAGE] 启动云端存储模式：已挂载腾讯云 COS 同步总线。");
+  private static upsertSkeletonKv(db: Database.Database, data: any): void {
+    const upsertKv = db.prepare(
+      "INSERT INTO kv_store (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    );
+    const ledgerItemsSkeleton = Array.isArray(data.ledgerItems)
+      ? data.ledgerItems.map((item: any) => {
+          const { dailyRecords, ...rest } = item || {};
+          return rest;
+        })
+      : [];
+    upsertKv.run("ledgerItems", JSON.stringify(ledgerItemsSkeleton));
+    for (const key of SKELETON_KV_KEYS) {
+      upsertKv.run(key, JSON.stringify(data[key] ?? []));
     }
   }
 
   /**
-   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的 JSON 流水文件，并合并到内存结构中
+   * @description 正常保存路径：骨架字段整体覆盖 + daily_records 整体重建（先清空再按当前 payload 完整重插入），
+   * 全部包裹在同一个 SQLite 事务里——要么全部生效，要么全部不生效，比"临时文件+rename"更强的原子性保证。
+   * @param {any} data 需要保存的全量数据包（ledgerItems[].dailyRecords 为完整的当前每日流水）
+   * @returns {void}
+   */
+  private static importFullDataIntoSqlite(data: any): void {
+    const db = StorageService.getDb();
+    const insertDaily = db.prepare("INSERT INTO daily_records (item_id, date, data) VALUES (?, ?, ?)");
+    const deleteAllDaily = db.prepare("DELETE FROM daily_records");
+
+    const run = db.transaction((payload: any) => {
+      StorageService.upsertSkeletonKv(db, payload);
+      deleteAllDaily.run();
+      if (Array.isArray(payload.ledgerItems)) {
+        for (const item of payload.ledgerItems) {
+          if (item && item.dailyRecords) {
+            for (const [dateStr, record] of Object.entries(item.dailyRecords)) {
+              if (!dateStr || !record) continue;
+              insertDaily.run(item.id, dateStr, JSON.stringify(record));
+            }
+          }
+        }
+      }
+    });
+    run(data);
+  }
+
+  /**
+   * @description 从备份恢复专用：只覆盖骨架字段，绝不触碰 daily_records。备份快照本身从不包含每日流水
+   * （与旧版实现的既有限制保持一致：旧版 restore() 只覆盖 db.json 骨架文件，从不touch ledgers/daily/** 目录），
+   * 若在这里也整体重建 daily_records，会把当前生效中的真实每日购销记录清空，属于比旧版更严重的数据丢失回归。
+   * @param {any} data 备份快照解析出的数据（ledgerItems[].dailyRecords 恒为空对象）
+   * @returns {void}
+   */
+  private static importSkeletonOnlyIntoSqlite(data: any): void {
+    const db = StorageService.getDb();
+    const run = db.transaction((payload: any) => {
+      StorageService.upsertSkeletonKv(db, payload);
+    });
+    run(data);
+  }
+
+  /**
+   * @description 从 SQLite 读出完整的应用状态对象，形状与旧版 JSON 文件方案的 load() 返回值完全一致
+   * （含把 daily_records 重新拼装回每个 ledgerItem 的 dailyRecords 字典）。kv_store 完全为空时返回 {}，
+   * 与旧版"文件不存在则返回空对象"的首次启动语义保持一致。
+   * @returns {any} 完整的应用状态对象
+   */
+  private static readDataFromSqlite(): any {
+    const db = StorageService.getDb();
+    const kvRows = db.prepare("SELECT key, value FROM kv_store").all() as Array<{ key: string; value: string }>;
+    if (kvRows.length === 0) {
+      return {};
+    }
+
+    const data: any = {};
+    for (const row of kvRows) {
+      try {
+        data[row.key] = JSON.parse(row.value);
+      } catch (e) {
+        console.error(`[STORAGE SQLITE] 解析 kv_store 字段 ${row.key} 失败:`, e);
+      }
+    }
+
+    const mergedDaily: Record<string, Record<string, any>> = {};
+    const dailyRows = db.prepare("SELECT item_id, date, data FROM daily_records").all() as Array<{ item_id: string; date: string; data: string }>;
+    for (const row of dailyRows) {
+      try {
+        if (!mergedDaily[row.item_id]) mergedDaily[row.item_id] = {};
+        mergedDaily[row.item_id][row.date] = JSON.parse(row.data);
+      } catch (e) {
+        console.error(`[STORAGE SQLITE] 解析每日流水记录失败 (item=${row.item_id}, date=${row.date}):`, e);
+      }
+    }
+
+    if (Array.isArray(data.ledgerItems)) {
+      for (const item of data.ledgerItems) {
+        item.dailyRecords = mergedDaily[item.id] || {};
+      }
+    }
+
+    return data;
+  }
+
+  /**
+   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的旧版 JSON 流水文件，并合并到内存结构中。
+   * 阶段一迁移后仅供 migrateLegacyJsonIfNeeded() 一次性导入历史数据时调用，不再是常态读取路径。
    * @param {string} dailyDir 日度数据根目录路径
    * @param {Record<string, Record<string, any>>} mergedDaily 用于在内存中重组的合并流水数据字典 (格式: { itemId: { YYYY-MM-DD: DailyStockRecord } })
    */
@@ -169,43 +298,60 @@ export class StorageService {
   }
 
   /**
-   * @description 将全量台账项目中的每日流水提取出来，按照年、月、天分散持久化到不同的文件夹中保存
-   * @param {string} dailyDir 日度数据根目录路径
-   * @param {any[]} ledgerItems 内存中的全量台账原料项列表
+   * @description 一次性历史数据迁移：若 SQLite 里还没有任何数据、但磁盘上存在旧版 JSON 骨架文件（db.json），
+   * 说明这是从旧的纯文件存储升级上来的部署，自动把旧数据（含按年/月/日拆分的每日流水）导入新的 SQLite 存储。
+   * 迁移完成后不会删除原始 JSON/逐日流水文件，保留作为人工回退的最后手段。仅在 SQLite 完全没有数据时才会触发，
+   * 避免每次重启都重复导入、用旧的 JSON 快照覆盖掉已经在 SQLite 里产生的新数据。
+   * @returns {void}
    */
-  private static writeDailyRecordsLocal(dailyDir: string, ledgerItems: any[]): void {
-    if (!ledgerItems || !Array.isArray(ledgerItems)) return;
+  private static migrateLegacyJsonIfNeeded(): void {
+    const db = StorageService.getDb();
+    const existingCount = (db.prepare("SELECT COUNT(*) as count FROM kv_store").get() as { count: number }).count;
+    if (existingCount > 0) {
+      return;
+    }
+    if (!fs.existsSync(StorageService.localDbPath)) {
+      return;
+    }
+
     try {
-      // 1. 将全量数据按日期进行逆向分组整理
-      // dateMap 格式: { YYYY-MM-DD: { itemId: DailyStockRecord } }
-      const dateMap: Record<string, Record<string, any>> = {};
-      for (const item of ledgerItems) {
-        if (item.dailyRecords) {
-          for (const [dateStr, record] of Object.entries(item.dailyRecords)) {
-            if (!dateStr || !record) continue;
-            if (!dateMap[dateStr]) {
-              dateMap[dateStr] = {};
-            }
-            dateMap[dateStr][item.id] = record;
-          }
+      const content = fs.readFileSync(StorageService.localDbPath, "utf8");
+      const legacyData = JSON.parse(content);
+
+      const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+      const mergedDaily: Record<string, Record<string, any>> = {};
+      StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
+      if (Array.isArray(legacyData.ledgerItems)) {
+        for (const item of legacyData.ledgerItems) {
+          item.dailyRecords = mergedDaily[item.id] || {};
         }
       }
 
-      // 2. 将数据按年月日写到相应的独立 json 文件中，限制单个文件过大
-      for (const [dateStr, dayRecords] of Object.entries(dateMap)) {
-        const parts = dateStr.split("-");
-        if (parts.length !== 3) continue;
-        const [year, month, day] = parts;
+      StorageService.importFullDataIntoSqlite(legacyData);
+      console.log(`[STORAGE SQLITE] 已自动将历史 JSON 数据（${StorageService.localDbPath}）迁移至 SQLite，原始文件予以保留。`);
+    } catch (err) {
+      console.error("[STORAGE SQLITE] 历史 JSON 数据迁移失败，将以空数据集启动：", err);
+    }
+  }
 
-        const targetDir = path.join(dailyDir, year, month);
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-        }
-        const targetPath = path.join(targetDir, `${day}.json`);
-        StorageService.atomicWriteFileSync(targetPath, JSON.stringify(dayRecords, null, 2));
+  /**
+   * @description 初始化存储引擎，创建必要的本地目录、打开 SQLite 连接，并按需自动迁移旧版历史数据
+   * @returns {void}
+   */
+  public static init(): void {
+    if (StorageService.storageType === "local") {
+      const dir = path.dirname(StorageService.localDbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`[STORAGE] 已成功创建本地数据存储目录: ${dir}`);
       }
-    } catch (e) {
-      console.error("[STORAGE] 写入日度分散台账文件失败:", e);
+      if (!fs.existsSync(StorageService.backupDir)) {
+        fs.mkdirSync(StorageService.backupDir, { recursive: true });
+        console.log(`[STORAGE] 已成功创建本地备份快照目录: ${StorageService.backupDir}`);
+      }
+      StorageService.migrateLegacyJsonIfNeeded();
+    } else {
+      console.log("[STORAGE] 启动云端存储模式：已挂载腾讯云 COS 同步总线。");
     }
   }
 
@@ -243,29 +389,10 @@ export class StorageService {
         });
       });
     } else {
-      // 本地存储模式
-      if (!fs.existsSync(StorageService.localDbPath)) {
-        return {};
-      }
       try {
-        const content = fs.readFileSync(StorageService.localDbPath, "utf8");
-        const data = JSON.parse(content);
-
-        // 加载按年月日分散在各子文件夹中的日度账单流水
-        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
-        const mergedDaily: Record<string, Record<string, any>> = {};
-        StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
-
-        // 重新拼装回 ledgerItems 对应的 dailyRecords 字典中
-        if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
-          for (const item of data.ledgerItems) {
-            item.dailyRecords = mergedDaily[item.id] || {};
-          }
-        }
-
-        return data;
+        return StorageService.readDataFromSqlite();
       } catch (err) {
-        console.error("[STORAGE LOCAL] 读取本地数据失败:", err);
+        console.error("[STORAGE SQLITE] 读取本地数据失败:", err);
         return {};
       }
     }
@@ -277,7 +404,7 @@ export class StorageService {
    * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
    */
   public static async save(data: any): Promise<boolean> {
-    // 整个保存流程（含云端双写、本地三步落盘）都在写锁内串行执行，防止并发触发的多次 save() 交叉写入
+    // 整个保存流程（含云端双写、本地 SQLite 事务+备份快照）都在写锁内串行执行，防止并发触发的多次 save() 交叉写入
     return StorageService.withWriteLock(() => StorageService.saveInternal(data));
   }
 
@@ -287,10 +414,10 @@ export class StorageService {
    * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
    */
   private static async saveInternal(data: any): Promise<boolean> {
-    const dataStr = JSON.stringify(data, null, 2);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
     if (StorageService.storageType === "cos") {
+      const dataStr = JSON.stringify(data, null, 2);
       const { Bucket, Region, Key } = StorageService.getCosConfig();
       // 1. 保存主数据
       const saveMain = new Promise<boolean>((resolve) => {
@@ -331,14 +458,12 @@ export class StorageService {
 
       return saveMain;
     } else {
-      // 本地存储模式
+      // 本地存储模式：整体状态经由 SQLite 事务原子写入（要么全部生效、要么全部不生效），
+      // 随后额外生成一份人类可读的 JSON 快照文件用于留档与手动核查（沿用既有的 30 份滚动保留策略与命名格式）
       try {
-        const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
+        StorageService.importFullDataIntoSqlite(data);
+        console.log("[STORAGE SQLITE] 结构与配置数据、逐日流水已通过事务写入本地 SQLite 数据库。");
 
-        // 1. 先将庞大的每日出入库流水提取整理，以 YYYY/MM/DD.json 分散文件物理落盘（内部已改为原子写入）
-        StorageService.writeDailyRecordsLocal(dailyDir, data.ledgerItems);
-
-        // 2. 深度克隆并清理内存快照中的 dailyRecords，避免主 db.json 及系统快照包体积无限膨胀
         const cleanedData = JSON.parse(JSON.stringify(data));
         if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
           for (const item of cleanedData.ledgerItems) {
@@ -347,20 +472,14 @@ export class StorageService {
         }
         const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
 
-        // 3. 保存去除了每日流水的主配置骨架文件（原子写入：先写临时文件再 rename，避免崩溃/断电写出半份损坏文件）
-        StorageService.atomicWriteFileSync(StorageService.localDbPath, cleanedDataStr);
-        console.log(`[STORAGE LOCAL] 结构与配置数据已写入主文件: ${StorageService.localDbPath}`);
-
-        // 4. 写入去除了每日流水的时间戳快照备份文件（同样原子写入）
         const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
         StorageService.atomicWriteFileSync(snapshotPath, cleanedDataStr);
         console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
 
-        // 5. 限制本地历史备份文件总数（最多保留30个版本）
         StorageService.trimLocalBackups();
         return true;
       } catch (err) {
-        console.error("[STORAGE LOCAL] 写入本地数据失败:", err);
+        console.error("[STORAGE SQLITE] 写入本地数据失败:", err);
         return false;
       }
     }
@@ -393,7 +512,7 @@ export class StorageService {
         });
       });
     } else {
-      // 本地存储模式
+      // 本地存储模式（备份快照仍是普通 JSON 文件，与阶段一迁移前完全一致）
       try {
         if (!fs.existsSync(StorageService.backupDir)) {
           return [];
@@ -424,7 +543,7 @@ export class StorageService {
       return null;
     }
 
-    // 恢复会覆盖主数据库文件，与 save() 写的是同一份文件，因此也必须纳入同一把写锁，
+    // 恢复会覆盖主数据，与 save() 写的是同一份 SQLite 数据库，因此也必须纳入同一把写锁，
     // 避免"恢复覆盖"与"正常保存"两个不同调用点的写入互相交叉
     return StorageService.withWriteLock(() => StorageService.restoreInternal(backupName));
   }
@@ -458,7 +577,8 @@ export class StorageService {
         });
       });
     } else {
-      // 本地存储模式
+      // 本地存储模式：备份快照仍是纯 JSON 文件，且从不包含每日流水（与阶段一迁移前的既有限制保持一致）。
+      // 恢复时只把快照里的骨架字段重新导入 SQLite，绝不清空/覆盖当前生效中的 daily_records
       const targetPath = path.join(StorageService.backupDir, backupName);
       if (!fs.existsSync(targetPath)) {
         return null;
@@ -466,10 +586,9 @@ export class StorageService {
       try {
         const content = fs.readFileSync(targetPath, "utf8");
         const parsed = JSON.parse(content);
-        // 将恢复的数据写回主库文件（原子写入）
-        StorageService.atomicWriteFileSync(StorageService.localDbPath, content);
-        console.log(`[STORAGE LOCAL] 成功从本地快照 ${backupName} 覆盖恢复主数据库`);
-        return parsed;
+        StorageService.importSkeletonOnlyIntoSqlite(parsed);
+        console.log(`[STORAGE SQLITE] 成功从本地快照 ${backupName} 覆盖恢复骨架数据`);
+        return StorageService.readDataFromSqlite();
       } catch (err) {
         console.error("[STORAGE LOCAL] 本地快照恢复失败:", err);
         return null;

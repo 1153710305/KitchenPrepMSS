@@ -4,9 +4,11 @@
  */
 
 /**
- * @description StorageService（本地文件持久化服务）单元测试：主数据文件读写往返、台账逐日流水拆分与合并、损坏 JSON 容错跳过、备份快照生成与保留策略裁剪、
- * 快照恢复，以及针对 restore() 新增的备份文件名安全校验（防路径穿越）的回归测试。测试通过临时目录 + 动态重新导入模块实现相互隔离，因为
- * StorageService 在类定义时就从 process.env 读取路径并缓存为 private static 字段，运行期不会重新读取。
+ * @description StorageService（本地 SQLite 持久化服务，阶段一浅迁移见 SQLite迁移规划.md）单元测试：主数据读写往返、
+ * 每日流水的存储与重组（含"删除后不应复活"的历史遗留 bug 回归）、损坏/首次启动状态容错、备份快照生成与保留策略裁剪、
+ * 快照恢复（骨架字段覆盖但绝不清空当前生效中的每日流水）、restore() 的备份文件名安全校验（防路径穿越）、
+ * 原子写入与写入锁、以及从旧版纯 JSON 文件存储一次性自动迁移的回归测试。测试通过临时目录 + 动态重新导入模块实现
+ * 相互隔离，因为 StorageService 在类定义时就从 process.env 读取路径并缓存为 private static 字段，运行期不会重新读取。
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -39,57 +41,37 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("StorageService (local mode)", () => {
+describe("StorageService (local mode, SQLite-backed)", () => {
   describe("init", () => {
     it("creates the data directory and the backups subdirectory on module load", () => {
       const dataDir = path.dirname(process.env.LOCAL_DB_PATH!);
       expect(fs.existsSync(dataDir)).toBe(true);
       expect(fs.existsSync(path.join(dataDir, "backups"))).toBe(true);
     });
+
+    it("creates the SQLite database file on module load", () => {
+      const dataDir = path.dirname(process.env.LOCAL_DB_PATH!);
+      expect(fs.existsSync(path.join(dataDir, "kpmss.sqlite"))).toBe(true);
+    });
   });
 
   describe("load", () => {
-    it("returns an empty object when no db.json file exists yet (first boot)", async () => {
+    it("returns an empty object when no data exists yet (first boot)", async () => {
       const data = await StorageService.load();
       expect(data).toEqual({});
     });
 
-    it("returns the parsed JSON content when a valid db.json exists", async () => {
-      const dbPath = process.env.LOCAL_DB_PATH!;
-      fs.writeFileSync(dbPath, JSON.stringify({ ledgers: [{ id: "KID", name: "幼儿备餐" }] }), "utf8");
+    it("returns the full state after a save, including daily records reattached onto the matching ledgerItem", async () => {
+      await StorageService.save({
+        ledgers: [{ id: "KID", name: "幼儿备餐" }],
+        ledgerItems: [
+          { id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } }
+        ]
+      });
 
       const data = await StorageService.load();
 
       expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
-    });
-
-    it("gracefully returns an empty object when db.json contains malformed JSON", async () => {
-      const dbPath = process.env.LOCAL_DB_PATH!;
-      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-      fs.writeFileSync(dbPath, "{ not valid json !!", "utf8");
-
-      const data = await StorageService.load();
-
-      expect(data).toEqual({});
-    });
-
-    it("merges per-day split ledger records back onto their matching ledgerItems by id", async () => {
-      const dbPath = process.env.LOCAL_DB_PATH!;
-      fs.writeFileSync(
-        dbPath,
-        JSON.stringify({ ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: {} }] }),
-        "utf8"
-      );
-      const dailyDayPath = path.join(path.dirname(dbPath), "ledgers", "daily", "2026", "07");
-      fs.mkdirSync(dailyDayPath, { recursive: true });
-      fs.writeFileSync(
-        path.join(dailyDayPath, "03.json"),
-        JSON.stringify({ item_1: { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } }),
-        "utf8"
-      );
-
-      const data = await StorageService.load();
-
       expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toEqual({
         inQuantity: 3,
         inPrice: 2,
@@ -98,63 +80,35 @@ describe("StorageService (local mode)", () => {
       });
     });
 
-    it("skips a corrupted per-day file without failing the entire load", async () => {
-      const dbPath = process.env.LOCAL_DB_PATH!;
-      fs.writeFileSync(
-        dbPath,
-        JSON.stringify({
-          ledgerItems: [
-            { id: "item_1", name: "土豆", dailyRecords: {} },
-            { id: "item_2", name: "柿子", dailyRecords: {} }
-          ]
-        }),
-        "utf8"
-      );
-      const dailyDayPath = path.join(path.dirname(dbPath), "ledgers", "daily", "2026", "07");
-      fs.mkdirSync(dailyDayPath, { recursive: true });
-      // item_1 当天文件损坏
-      fs.writeFileSync(path.join(dailyDayPath, "01.json"), "{ corrupted", "utf8");
-      // item_2 当天文件正常
-      fs.writeFileSync(
-        path.join(dailyDayPath, "02.json"),
-        JSON.stringify({ item_2: { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 } }),
-        "utf8"
-      );
+    it("keeps daily records for different items on different dates fully isolated from each other", async () => {
+      await StorageService.save({
+        ledgerItems: [
+          { id: "item_1", name: "土豆", dailyRecords: { "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } } },
+          { id: "item_2", name: "柿子", dailyRecords: { "2026-07-02": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 } } }
+        ]
+      });
 
       const data = await StorageService.load();
 
-      expect(data.ledgerItems[0].dailyRecords).toEqual({});
-      expect(data.ledgerItems[1].dailyRecords["2026-07-02"]).toBeDefined();
+      expect(data.ledgerItems[0].dailyRecords).toEqual({ "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } });
+      expect(data.ledgerItems[1].dailyRecords).toEqual({ "2026-07-02": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 } });
     });
   });
 
   describe("save", () => {
-    it("writes the config skeleton to db.json with ledgerItems' dailyRecords stripped out", async () => {
+    it("strips ledgerItems' dailyRecords out of the skeleton but preserves them via the reassembled daily_records table", async () => {
       const success = await StorageService.save({
         ledgers: [{ id: "KID", name: "幼儿备餐" }],
-        ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3 } } }]
+        ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } }]
       });
 
       expect(success).toBe(true);
-      const raw = JSON.parse(fs.readFileSync(process.env.LOCAL_DB_PATH!, "utf8"));
-      expect(raw.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
-      expect(raw.ledgerItems[0].dailyRecords).toEqual({});
+      const data = await StorageService.load();
+      expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+      expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeDefined();
     });
 
-    it("splits ledgerItems' dailyRecords out into per-day YYYY/MM/DD.json files", async () => {
-      await StorageService.save({
-        ledgerItems: [
-          { id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } }
-        ]
-      });
-
-      const dayFile = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "ledgers", "daily", "2026", "07", "03.json");
-      expect(fs.existsSync(dayFile)).toBe(true);
-      const dayContent = JSON.parse(fs.readFileSync(dayFile, "utf8"));
-      expect(dayContent.item_1).toEqual({ inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 });
-    });
-
-    it("creates a timestamped backup snapshot alongside the main file", async () => {
+    it("creates a timestamped JSON backup snapshot alongside every save", async () => {
       await StorageService.save({ ledgers: [] });
 
       const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
@@ -180,36 +134,63 @@ describe("StorageService (local mode)", () => {
         outQuantity: 0
       });
     });
+
+    it("REGRESSION: a daily record removed from the payload is correctly gone after the next save (no orphaned resurrection)", async () => {
+      // 旧版按天拆分文件的实现里，若某天最后一条记录被删除，对应的日文件永远不会被清理，
+      // 下次 load() 时又会被错误"复活"。新版 daily_records 表每次 save() 都整体重建，天然不存在孤儿数据
+      await StorageService.save({
+        ledgerItems: [
+          { id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } }
+        ]
+      });
+      let data = await StorageService.load();
+      expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeDefined();
+
+      // 客户端已经删除了该日期的记录，再次保存时该条目不再出现在 payload 里
+      await StorageService.save({
+        ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: {} }]
+      });
+      data = await StorageService.load();
+
+      expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeUndefined();
+      expect(data.ledgerItems[0].dailyRecords).toEqual({});
+    });
   });
 
-  describe("[V5.82.0] atomic writes (crash-safety)", () => {
-    it("leaves no leftover .tmp- temp files in the data directory after a normal save", async () => {
+  describe("[V5.84.0] SQLite transaction atomicity (真实事务回滚，取代旧版文件级 rename 原子性)", () => {
+    it("leaves no leftover .tmp- temp files after a normal save (backup snapshot is still written atomically)", async () => {
       await StorageService.save({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
 
-      const dataDir = path.dirname(process.env.LOCAL_DB_PATH!);
-      const leftoverTemp = fs.readdirSync(dataDir).filter((f) => f.includes(".tmp-"));
+      const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
+      const leftoverTemp = fs.readdirSync(backupDir).filter((f) => f.includes(".tmp-"));
       expect(leftoverTemp).toEqual([]);
     });
 
-    it("REGRESSION: does not touch/corrupt the existing db.json if the write is interrupted before the atomic rename", async () => {
-      const dbPath = process.env.LOCAL_DB_PATH!;
-      const originalContent = JSON.stringify({ ledgers: [{ id: "ORIGINAL", name: "原始数据" }] });
-      fs.writeFileSync(dbPath, originalContent, "utf8");
-
-      // 模拟"进程崩溃/断电恰好发生在写临时文件阶段"：第一次 fs.writeFileSync 调用（写入临时文件）直接抛错，
-      // renameSync 永远不会被执行到，验证原始 db.json 绝不会被替换成一份不完整的内容
-      const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementationOnce(() => {
-        throw new Error("模拟磁盘写入中断");
+    it("REGRESSION: a save() that fails partway through the SQLite transaction rolls back entirely — no partial writes survive", async () => {
+      await StorageService.save({
+        ledgers: [{ id: "ORIGINAL", name: "原始数据" }],
+        ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: { "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } } }]
       });
 
-      const success = await StorageService.save({ ledgers: [{ id: "NEW", name: "新数据" }] });
+      // 构造一个会在事务中途触发 SQLite NOT NULL 约束冲突的畸形 payload（item.id 为 null），
+      // 验证 SQLite 事务"要么全部生效、要么全部回滚"的特性：即便 item_2 排在 item_1 之后先被处理，
+      // 整个事务仍会完整回滚，不会留下任何"改了一半"的中间状态
+      const success = await StorageService.save({
+        ledgers: [{ id: "SHOULD_NOT_PERSIST", name: "不应生效" }],
+        ledgerItems: [
+          { id: "item_2", name: "柿子", dailyRecords: { "2026-07-02": { inQuantity: 2, inPrice: 2, inAmount: 4, outQuantity: 0 } } },
+          { id: null, name: "非法条目", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 3, inAmount: 9, outQuantity: 0 } } }
+        ]
+      });
 
       expect(success).toBe(false);
-      expect(fs.readFileSync(dbPath, "utf8")).toBe(originalContent);
-      writeSpy.mockRestore();
+      const data = await StorageService.load();
+      expect(data.ledgers).toEqual([{ id: "ORIGINAL", name: "原始数据" }]);
+      expect(data.ledgerItems.find((i: any) => i.id === "item_1")).toBeDefined();
+      expect(data.ledgerItems.find((i: any) => i.id === "item_2")).toBeUndefined();
     });
 
-    it("REGRESSION: concurrent save() calls never interleave — the final db.json always matches one complete payload, never a corrupted mix", async () => {
+    it("REGRESSION: concurrent save() calls never interleave — the final state always matches one complete payload, never a corrupted mix", async () => {
       const [resultA, resultB] = await Promise.all([
         StorageService.save({ ledgers: [{ id: "A", name: "台账A" }] }),
         StorageService.save({ ledgers: [{ id: "B", name: "台账B" }] })
@@ -218,14 +199,14 @@ describe("StorageService (local mode)", () => {
       expect(resultA).toBe(true);
       expect(resultB).toBe(true);
 
-      const finalContent = JSON.parse(fs.readFileSync(process.env.LOCAL_DB_PATH!, "utf8"));
-      const matchesA = JSON.stringify(finalContent.ledgers) === JSON.stringify([{ id: "A", name: "台账A" }]);
-      const matchesB = JSON.stringify(finalContent.ledgers) === JSON.stringify([{ id: "B", name: "台账B" }]);
+      const finalData = await StorageService.load();
+      const matchesA = JSON.stringify(finalData.ledgers) === JSON.stringify([{ id: "A", name: "台账A" }]);
+      const matchesB = JSON.stringify(finalData.ledgers) === JSON.stringify([{ id: "B", name: "台账B" }]);
       expect(matchesA || matchesB).toBe(true);
     });
   });
 
-  describe("[V5.82.0] write lock (internal mutex serializes save()/restore())", () => {
+  describe("write lock (internal mutex serializes save()/restore())", () => {
     it("serializes queued tasks so a later task never starts running before an earlier one finishes", async () => {
       const order: string[] = [];
       const slowTask = async () => {
@@ -309,7 +290,7 @@ describe("StorageService (local mode)", () => {
   });
 
   describe("restore", () => {
-    it("overwrites the main db.json with the content of the given backup and returns the parsed data", async () => {
+    it("overwrites the skeleton fields with the content of the given backup and returns the fully reassembled data", async () => {
       const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
       const backupContent = JSON.stringify({ ledgers: [{ id: "RESTORED", name: "已恢复" }] });
       fs.writeFileSync(path.join(backupDir, "db_2026-07-01T00-00-00-000Z.json"), backupContent);
@@ -317,8 +298,27 @@ describe("StorageService (local mode)", () => {
       const result = await StorageService.restore("db_2026-07-01T00-00-00-000Z.json");
 
       expect(result.ledgers).toEqual([{ id: "RESTORED", name: "已恢复" }]);
-      const mainFileContent = JSON.parse(fs.readFileSync(process.env.LOCAL_DB_PATH!, "utf8"));
-      expect(mainFileContent.ledgers).toEqual([{ id: "RESTORED", name: "已恢复" }]);
+      const reloaded = await StorageService.load();
+      expect(reloaded.ledgers).toEqual([{ id: "RESTORED", name: "已恢复" }]);
+    });
+
+    it("REGRESSION: restoring a skeleton-only backup never clears the daily records currently in effect", async () => {
+      // 备份快照本身从不包含每日流水（与迁移前的既有限制保持一致）；恢复时绝不能把当前生效中的
+      // daily_records 一并清空，否则会造成比旧版更严重的数据丢失回归
+      await StorageService.save({
+        ledgers: [{ id: "KID", name: "幼儿备餐" }],
+        ledgerItems: [
+          { id: "item_1", name: "土豆", dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } }
+        ]
+      });
+      const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
+      const backupName = fs.readdirSync(backupDir).find((f) => f.startsWith("db_"))!;
+
+      const result = await StorageService.restore(backupName);
+
+      expect(result.ledgerItems[0].dailyRecords["2026-07-03"]).toEqual({
+        inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0
+      });
     });
 
     it("returns null when the requested backup file does not exist", async () => {
@@ -326,7 +326,7 @@ describe("StorageService (local mode)", () => {
       expect(result).toBeNull();
     });
 
-    it("SECURITY REGRESSION: rejects a path-traversal backupName and does not touch any file outside the backups directory", async () => {
+    it("SECURITY REGRESSION: rejects a path-traversal backupName and does not touch any file outside the backups directory or import any data", async () => {
       // 在备份目录之外放一个"敏感文件"作为穿越目标，验证它绝对不会被读取或覆盖
       const sensitiveFile = path.join(tmpDir, "sensitive.txt");
       fs.writeFileSync(sensitiveFile, "top-secret-content");
@@ -335,10 +335,10 @@ describe("StorageService (local mode)", () => {
       const result = await StorageService.restore("../../sensitive.txt");
 
       expect(result).toBeNull();
-      // 主数据库文件不应该被这次非法请求写入任何内容
-      expect(fs.existsSync(process.env.LOCAL_DB_PATH!)).toBe(false);
       // 目标敏感文件内容必须完全未被改动
       expect(fs.readFileSync(sensitiveFile, "utf8")).toBe(sensitiveContentBefore);
+      // 非法请求不应向 SQLite 导入任何数据
+      expect(await StorageService.load()).toEqual({});
     });
 
     it("SECURITY REGRESSION: rejects a backupName containing a forward slash even without '..'", async () => {
@@ -352,7 +352,68 @@ describe("StorageService (local mode)", () => {
 
       const result = await StorageService.restore("db_2026-07-03T08-52-47-296Z.json");
 
-      expect(result).toEqual({ ledgers: [] });
+      expect(result.ledgers).toEqual([]);
+    });
+  });
+
+  describe("[V5.84.0] one-time legacy JSON migration (on init)", () => {
+    it("automatically migrates an existing legacy db.json + per-day split files into SQLite on first init", async () => {
+      const dbPath = process.env.LOCAL_DB_PATH!;
+      fs.writeFileSync(dbPath, JSON.stringify({
+        ledgers: [{ id: "KID", name: "幼儿备餐" }],
+        ledgerItems: [{ id: "item_1", name: "土豆", dailyRecords: {} }]
+      }), "utf8");
+      const dailyDayPath = path.join(path.dirname(dbPath), "ledgers", "daily", "2026", "07");
+      fs.mkdirSync(dailyDayPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(dailyDayPath, "03.json"),
+        JSON.stringify({ item_1: { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } }),
+        "utf8"
+      );
+
+      // 重新动态 import，让全新的模块实例的 init() 检测到磁盘上的旧版文件并触发一次性迁移
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      const MigratedStorageService = mod.StorageService;
+
+      const data = await MigratedStorageService.load();
+
+      expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+      expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toEqual({
+        inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0
+      });
+    });
+
+    it("does not re-run the migration (and does not let stale db.json content overwrite newer SQLite data) once SQLite already has data", async () => {
+      await StorageService.save({ ledgers: [{ id: "NEW", name: "新数据" }] });
+
+      // 模拟磁盘上仍残留着一份内容不同的旧版 db.json（迁移完成后本就不会被删除）
+      const dbPath = process.env.LOCAL_DB_PATH!;
+      fs.writeFileSync(dbPath, JSON.stringify({ ledgers: [{ id: "STALE", name: "旧数据不应生效" }] }), "utf8");
+
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      const data = await mod.StorageService.load();
+
+      expect(data.ledgers).toEqual([{ id: "NEW", name: "新数据" }]);
+    });
+
+    it("does not delete or modify the original db.json after migrating it, keeping it as a manual fallback", async () => {
+      const dbPath = process.env.LOCAL_DB_PATH!;
+      const legacyContent = JSON.stringify({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
+      fs.writeFileSync(dbPath, legacyContent, "utf8");
+
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      await mod.StorageService.load();
+
+      expect(fs.existsSync(dbPath)).toBe(true);
+      expect(fs.readFileSync(dbPath, "utf8")).toBe(legacyContent);
+    });
+
+    it("does nothing (no crash, empty state) on a genuinely fresh install with neither SQLite data nor a legacy db.json", async () => {
+      const data = await StorageService.load();
+      expect(data).toEqual({});
     });
   });
 });
