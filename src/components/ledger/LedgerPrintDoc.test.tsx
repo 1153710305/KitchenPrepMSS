@@ -13,6 +13,7 @@ import { render, screen } from "@testing-library/react";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
+import { LEDGER_PRINT_OUT_CONFIG } from "../../constants/ledgerConstants.ts";
 import type { Ledger } from "../../types/ledgerTypes.ts";
 
 const ledger: Ledger = { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" };
@@ -23,6 +24,57 @@ const makeOutwardItem = (name: string, record: Record<string, any> = {}) => ({
   spec: "散装",
   unit: "斤",
   record: { outQuantity: 1, outHandler: "", outRecipient: "", supplier: "", ...record }
+});
+
+describe("LedgerPrintDoc [V5.75.0] renders via a portal directly under document.body", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("mounts the print overlay as a direct child of document.body, escaping the host component's own DOM ancestry", () => {
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
+    const { container } = render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={[]}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Portal 挂载到 document.body 后，RTL 默认渲染容器内不应包含打印预览内容
+    expect(container.querySelector(".ledger-print-doc-overlay")).not.toBeInTheDocument();
+    // 而是作为 document.body 的直接子元素存在，不再受任何祖先容器（如 #root 的 overflow-hidden 布局树）的裁剪影响
+    const overlay = document.body.querySelector(".ledger-print-doc-overlay");
+    expect(overlay).toBeInTheDocument();
+    expect(overlay!.parentElement).toBe(document.body);
+  });
+
+  it("[V5.80.0] zeroes the overlay's vertical padding during print (avoiding double margin with @page) while keeping a small horizontal safety margin", () => {
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
+    render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={[]}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    const printStyleTag = Array.from(document.body.querySelectorAll("style")).find((el) =>
+      el.textContent?.includes(".ledger-print-doc-overlay")
+    );
+    expect(printStyleTag).toBeTruthy();
+    // 上下内边距必须清零，否则会与 PrintOutDoc 自身声明的 @page margin 重复叠加，蚕食行数预算原本预留的物理页面余量；
+    // 左右内边距保留一个小的安全值（而非完全清零），避免表格贴着物理纸张边缘导致真实打印机不可打印区域裁切内容
+    expect(printStyleTag!.textContent).toMatch(/\.ledger-print-doc-overlay\s*\{[^}]*padding:\s*0\s+6mm\s*!important/);
+  });
 });
 
 describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
@@ -77,7 +129,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
     expect(screen.queryByText(/土豆、大黑袋/)).not.toBeInTheDocument();
   });
 
-  it("keeps the total row count at minPrintRows (25) regardless of how many real items are present", () => {
+  it("keeps the total row count at minPrintRows regardless of how many real items are present", () => {
     const item = makeOutwardItem("土豆", { supplier: "合作基地直供" });
 
     render(
@@ -94,7 +146,9 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
 
     const table = screen.getByText("类别").closest("table")!;
     const bodyRows = table.querySelectorAll("tbody tr");
-    expect(bodyRows).toHaveLength(25);
+    const suppliersCount = 1; // 测试中仅提供了1个供货商 "合作基地直供"
+    const expectedLastPageRows = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - suppliersCount;
+    expect(bodyRows).toHaveLength(expectedLastPageRows);
   });
 
   it("shows the converted quantity and conversion unit when the dictionary defines a conversion ratio", () => {
@@ -147,9 +201,76 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     expect(screen.queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument();
   });
 
-  it("splits onto a second page when a category's items would exceed the 25-row page limit, without splitting the category itself", () => {
-    // 蔬菜品类 20 种 + 肉类品类 10 种 = 30 行，超过单页 25 行上限：
-    // 第1页放得下整组蔬菜(20行)，但肉类(10行)放不进剩余5格，因此肉类整组移到第2页，不允许被拆分
+  it("[V5.78.0] keeps a small number of rows plus more suppliers than maxSuppliersPerPage together on one page by shrinking the blank filler rows", () => {
+    // 回归复现用户反馈的真实场景：5 行记录 + 4 个供货商，总量远小于 minPrintRows+maxSuppliersPerPage 的单页组合容量，
+    // 不应该仅仅因为供货商数量超过 maxSuppliersPerPage 就把多余的供货商挤到续页
+    const names = ["土豆", "柿子", "黄瓜", "胡萝卜", "青椒"];
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
+      names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
+    );
+    const suppliers = ["合作基地直供", "宏发粮油批发", "绿野蔬菜配送", "科尔沁肉业"];
+    const items = names.map((name, i) => makeOutwardItem(name, { supplier: suppliers[i % suppliers.length] }));
+
+    render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-04"
+        dailyInwardItems={[]}
+        dailyOutwardItems={items}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
+    expect(screen.queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/供货商续页/)).not.toBeInTheDocument();
+    suppliers.forEach((name) => {
+      expect(screen.getByText(new RegExp(`供货商：${name}`))).toBeInTheDocument();
+    });
+  });
+
+  it("[V5.78.0] applies the same dynamic supplier capacity to the all-blank empty-day table, not just days with real data", () => {
+    // 当日无任何出库数据时，整张表都是补白空行；这种情况下供货商容量也应按同一套弹性规则计算，
+    // 而不是固定只给 maxSuppliersPerPage 条就分续页（此前遗留的边界 bug：空表场景的可用行数误按"已占满"计算）。
+    // 临时扩充占位供货商列表，使其超过 maxSuppliersPerPage，验证依旧能在空表这唯一一页里完整展示，用完即还原。
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
+    const originalSuppliers = [...LEDGER_PRINT_OUT_CONFIG.suppliers];
+    const extraCount = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage + 1;
+    LEDGER_PRINT_OUT_CONFIG.suppliers.length = 0;
+    LEDGER_PRINT_OUT_CONFIG.suppliers.push(
+      ...Array.from({ length: extraCount }, (_, i) => `供货商：占位供应商${i + 1}`)
+    );
+
+    try {
+      render(
+        <LedgerPrintDoc
+          printDocType="out"
+          activeLedger={ledger}
+          selectedDate="2026-07-04"
+          dailyInwardItems={[]}
+          dailyOutwardItems={[]}
+          dailyInTotalAmount={0}
+          onClose={vi.fn()}
+        />
+      );
+
+      expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
+      expect(screen.queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/供货商续页/)).not.toBeInTheDocument();
+      for (let i = 1; i <= extraCount; i++) {
+        expect(screen.getByText(new RegExp(`占位供应商${i}(?!\\d)`))).toBeInTheDocument();
+      }
+    } finally {
+      LEDGER_PRINT_OUT_CONFIG.suppliers.length = 0;
+      LEDGER_PRINT_OUT_CONFIG.suppliers.push(...originalSuppliers);
+    }
+  });
+
+  it("splits onto a second page when a category's items would exceed the page limit, without splitting the category itself", () => {
+    // 蔬菜品类 20 种 + 肉类品类 10 种 = 30 行，超过单页上限：
+    // 第1页放得下整组蔬菜(20行)，但肉类(10行)放不进剩余可用空格，因此肉类整组移到第2页，不允许被拆分
     const vegNames = Array.from({ length: 20 }, (_, i) => `蔬菜${i + 1}`);
     const meatNames = Array.from({ length: 10 }, (_, i) => `肉类${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
@@ -172,8 +293,11 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
 
     const tables = document.querySelectorAll(".ledger-print-out-table");
     expect(tables).toHaveLength(2);
-    expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(25);
-    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(25);
+    expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
+    
+    const suppliersCount = 1; // 仅 1 个 "合作基地直供"
+    const expectedLastPageRows = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - suppliersCount;
+    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(expectedLastPageRows);
 
     // 肉类品类整组只应出现在第2页，第1页不应出现被拆散的肉类行
     expect(tables[0].textContent).not.toContain("肉类1");
@@ -184,8 +308,11 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
   });
 
-  it("adds a dedicated supplier continuation page when more than maxSuppliersPerPage (3) distinct suppliers exist", () => {
-    const names = ["原料A", "原料B", "原料C", "原料D", "原料E"];
+  it("adds dedicated supplier continuation page(s) when distinct suppliers exceed maxSuppliersPerPage", () => {
+    // 供货商数量刻意比 maxSuppliersPerPage 多 3 条，确保无论该配置项当前取值多少，都必然触发至少一次续页
+    const maxPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+    const supplierCount = maxPerPage + 3;
+    const names = Array.from({ length: supplierCount }, (_, i) => `原料${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
       names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
     );
@@ -203,13 +330,29 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
       />
     );
 
-    // 5 条供货商信息只应产生 1 张行数据表（行数远小于25，无需分页），但供货商信息本身超过每页3条上限，需要多出1页续排
-    expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
-    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
-    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
-    expect(screen.getByText(/供货商续页/)).toBeInTheDocument();
+    // 动态计算在新规则下的总页数
+    const rowsUsed = items.length;
+    const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+    const firstChunkCapacity = Math.max(maxPerPage, maxCapacity - rowsUsed);
+    
+    let expectedTotalPages = 1;
+    let remainingSuppliersCount = supplierCount;
+    if (remainingSuppliersCount > firstChunkCapacity) {
+      remainingSuppliersCount -= firstChunkCapacity;
+      expectedTotalPages += Math.ceil(remainingSuppliersCount / maxCapacity);
+    }
 
-    expect(screen.getByText(/供货商：供货商1/)).toBeInTheDocument();
-    expect(screen.getByText(/供货商：供货商5/)).toBeInTheDocument();
+    expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
+    
+    if (expectedTotalPages > 1) {
+      expect(screen.getByText(`第 1 / ${expectedTotalPages} 页`)).toBeInTheDocument();
+      expect(screen.getByText(`第 ${expectedTotalPages} / ${expectedTotalPages} 页`)).toBeInTheDocument();
+      expect(screen.getAllByText(/供货商续页/).length).toBeGreaterThan(0);
+    } else {
+      expect(screen.queryByText(/供货商续页/)).not.toBeInTheDocument();
+    }
+
+    expect(screen.getByText(new RegExp(`供货商：供货商1(?!\\d)`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`供货商：供货商${supplierCount}`))).toBeInTheDocument();
   });
 });

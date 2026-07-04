@@ -8,6 +8,7 @@
  */
 
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
@@ -299,15 +300,35 @@ function PrintOutDoc({
     dynamicSupplierLines.push(`供货商：${supplierName}（${catLabels.join("、")}）`);
   });
 
-  // ==== 供货商信息分页：每页最多 maxSuppliersPerPage 条，超出部分另起续页（[V5.73.0]） ====
+  // ==== 供货商信息分页：首页容量动态伸缩，超出部分另起续页（[V5.77.1]） ====
   const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
   const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
   const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+  const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + maxSuppliersPerPage;
+  
+  // 获取最后一页的已用记录行数（如果是空表，则已用行数为 0）
+  const lastRowPage = rowPages[rowPages.length - 1];
+  const rowsUsedOnLastPage = lastRowPage ? lastRowPage.reduce((sum, g) => sum + g.items.length, 0) : 0;
+  
+  // 首个供货商块能容纳的数量：最大极限容量 - 已使用的记录行数（最少为 maxSuppliersPerPage）
+  const firstChunkCapacity = Math.max(maxSuppliersPerPage, maxCapacity - rowsUsedOnLastPage);
+
   const supplierChunks: string[][] = [];
-  for (let i = 0; i < supplierDisplayLines.length; i += maxSuppliersPerPage) {
-    supplierChunks.push(supplierDisplayLines.slice(i, i + maxSuppliersPerPage));
+  let remainingSuppliers = supplierDisplayLines;
+
+  if (remainingSuppliers.length > 0) {
+    supplierChunks.push(remainingSuppliers.slice(0, firstChunkCapacity));
+    remainingSuppliers = remainingSuppliers.slice(firstChunkCapacity);
+  } else {
+    supplierChunks.push([]);
   }
-  if (supplierChunks.length === 0) supplierChunks.push([]);
+
+  // 剩余的供货商放入纯续页，纯续页全是供货商，理论上可以放满满载容量 maxCapacity
+  while (remainingSuppliers.length > 0) {
+    supplierChunks.push(remainingSuppliers.slice(0, maxCapacity));
+    remainingSuppliers = remainingSuppliers.slice(maxCapacity);
+  }
+
   const firstSupplierChunk = supplierChunks[0];
   const extraSupplierChunks = supplierChunks.slice(1);
 
@@ -448,26 +469,29 @@ function PrintOutDoc({
             <table className="ledger-print-out-table w-full border-collapse" style={{ tableLayout: "fixed" }}>
               {renderTableHead()}
               <tbody>
-                {Array.from({ length: rowsPerPage }).map((_, i) => (
-                  <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
-                    {i === 0 ? (
-                      <>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                {(() => {
+                  const emptyRowCount = Math.max(0, LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - firstSupplierChunk.length);
+                  return Array.from({ length: emptyRowCount }).map((_, i) => (
+                    <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
+                      {i === 0 ? (
+                        <>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                        </>
+                      )}
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
             {renderSupplierFooter(firstSupplierChunk)}
@@ -476,8 +500,17 @@ function PrintOutDoc({
       ) : (
         rowPages.map((pageGroups, pageIndex) => {
           const rowsUsedOnThisPage = pageGroups.reduce((sum, g) => sum + g.items.length, 0);
-          const pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
           const isLastRowPage = pageIndex === rowPages.length - 1;
+
+          // [V5.77.0] 动态计算补全空行：保证记录和供货商在一页内，且供货商恰好置底
+          let pageEmptyRowsCount = 0;
+          if (isLastRowPage) {
+            const suppliersCount = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers.length : firstSupplierChunk.length;
+            const maxCapacity = rowsPerPage + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+            pageEmptyRowsCount = Math.max(0, maxCapacity - rowsUsedOnThisPage - suppliersCount);
+          } else {
+            pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
+          }
 
           return renderPageWrapper(pageIndex, (
             <>
@@ -487,10 +520,13 @@ function PrintOutDoc({
                 <tbody>
                   {/* 按品类分组渲染，类别格、出库人、接收人做 rowSpan 合并（合并范围限定在当前页内这一组的切片行数，不跨页） */}
                   {pageGroups.map((group, groupIdx) => {
-                    // 提前计算该品类分组切片内所有出库条目的出库人（去重）和接收人（去重）
+                    // [V5.77.0] 提前计算该品类在全天记录中的所有出库人（去重）和接收人（去重），避免跨页时取不到首条记录导致空缺
+                    const fullGroup = groupedByCategory.find(g => g.categoryLabel === group.categoryLabel);
+                    const itemsSource = fullGroup ? fullGroup.items : group.items;
+
                     const handlers = Array.from(
                       new Set(
-                        group.items
+                        itemsSource
                           .map(({ item }) => item.record.outHandler || "")
                           .filter(Boolean)
                       )
@@ -498,7 +534,7 @@ function PrintOutDoc({
 
                     const recipients = Array.from(
                       new Set(
-                        group.items
+                        itemsSource
                           .map(({ item }) => item.record.outRecipient || "")
                           .filter(Boolean)
                       )
@@ -610,8 +646,45 @@ export function LedgerPrintDoc({
 }: LedgerPrintDocProps) {
   const isPrintIn = printDocType === "in";
 
-  return (
-    <div className="fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+  // 修复分页打印失效问题（根因分两层，缺一不可）：
+  // 1) 本组件原先直接嵌在 App 主界面的 DOM 树里（#root 内部），外层还套着好几层 h-screen/overflow-hidden 的布局容器；
+  //    这些祖先容器平时不影响它——因为它自身是 position:fixed，视觉上能"跳出"祖先的裁剪覆盖满全屏——但打印引擎在决定
+  //    分页范围时，仍然只按它在文档流里"物理所处的那个位置与可用高度"来处理，祖先的 overflow:hidden/固定高度依旧会把
+  //    它限制在一屏之内，导致哪怕内部分页符正确，也只有第一页能被打印引擎"看见"。
+  // 2) 即使解决了祖先裁剪问题，本容器自身平时也用 position:fixed + overflow:auto 让预览区域能在屏幕上独立滚动——这类
+  //    "定高可滚动"容器在打印时同样会被引擎当成一个固定尺寸的单页画框，内部超出可视高度的部分直接被丢弃。
+  // 解决方式：用 createPortal 把整个打印预览挂到 document.body 下（彻底跳出 #root 及其所有 overflow-hidden 祖先），
+  // 再配合 @media print 规则：打印时把 #root（承载头部导航栏等其余界面）整体隐藏，避免其内容穿透进打印输出；
+  // 同时把这个 portal 容器自身在打印时强制退回普通文档流（position:static + overflow:visible + 高度自适应），
+  // 使其随多页内容自然撑高，分页符才能在真实的分页布局里生效，多页内容才能完整续排打印。
+  // 3) [V5.78.0] 修复"系统预览显示1页，实际打印显示2页"的残留偏差：本容器平时用 p-8（2rem，且会随全局
+  //    字号无障碍设置等比放大到 37px/43px）作为屏幕预览的视觉留白，但打印页边距已经由 PrintOutDoc 内部的
+  //    `@page { margin: 12mm }` 单独声明——两者叠加相当于每页上下各多出约 64px（字号放大时更多）的重复边距，
+  //    恰好蚕食掉"每页 minPrintRows 行 + maxSuppliersPerPage 条供货商"这套行数预算原本预留的余量，导致内容
+  //    在物理纸张上比行数预算计算时更容易溢出到下一页。打印时把该容器的上下内边距清零，只保留 @page margin
+  //    这一份纵向页边距来源，行数预算与实际物理可用高度才能真正对齐。
+  // 4) [V5.80.0] 修复右侧内容贴边溢出问题：上一步把左右内边距也一并清零后，表格横向只剩 @page 的 12mm
+  //    页边距兜底，没有任何额外缓冲——不同打印机的硬件不可打印区域往往比 CSS `@page margin` 声明的更大，
+  //    导致表格右边缘在真实纸张上出现被裁切/贴边的观感。左右内边距恢复为一个较小的安全值（不使用会随字号
+  //    无障碍设置放大的 p-8/rem 单位，改用固定的 mm 物理单位，与 @page margin 的度量方式保持一致），
+  //    纵向内边距依旧保持清零，避免重新引入分页行数预算的偏差。
+  return createPortal(
+    <div className="ledger-print-doc-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+      <style>{`
+        @media print {
+          #root {
+            display: none !important;
+          }
+          .ledger-print-doc-overlay {
+            position: static !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            padding: 0 6mm !important;
+            box-sizing: border-box !important;
+          }
+        }
+      `}</style>
       {/* 顶部退出预览条（打印时自动隐藏） */}
       <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
         <span className="text-sm text-gray-500 flex items-center gap-1.5">
@@ -641,6 +714,7 @@ export function LedgerPrintDoc({
           dailyOutwardItems={dailyOutwardItems}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

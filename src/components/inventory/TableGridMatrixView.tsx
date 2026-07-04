@@ -7,7 +7,7 @@
  * @description 备餐采购细表的"EXCEL 日历总矩阵"视图：以横向 31 天为列、纵向食材为行的大宽表形式展示每日数量/单价/金额，并在表底汇总每日与全月开销。
  */
 
-import React from "react";
+import React, { useRef } from "react";
 import { FoodCategory, PreparedItem } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
@@ -47,41 +47,122 @@ export function TableGridMatrixView({
   readOnly,
   onDeleteItem
 }: TableGridMatrixViewProps) {
+  /** @description 左右拖拽滚动的容器引用 */
+  const containerRef = useRef<HTMLDivElement>(null);
+  /** @description 是否处于鼠标按下拖拽中 */
+  const isDownRef = useRef<boolean>(false);
+  /** @description 鼠标按下时的初始横向坐标 */
+  const startXRef = useRef<number>(0);
+  /** @description 鼠标按下时的初始滚动位置 */
+  const scrollLeftRef = useRef<number>(0);
+
+  /**
+   * @description 处理鼠标按下事件，初始化拖拽滚动
+   * @param e 鼠标事件
+   */
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // 仅响应鼠标左键按下
+    if (e.button !== 0) return;
+    
+    // 避免在按钮、输入框等交互元素上触发拖拽
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("input") || target.closest("select") || target.closest("a")) {
+      return;
+    }
+
+    if (!containerRef.current) return;
+    isDownRef.current = true;
+    containerRef.current.classList.remove("cursor-grab");
+    containerRef.current.classList.add("cursor-grabbing");
+    startXRef.current = e.pageX - containerRef.current.offsetLeft;
+    scrollLeftRef.current = containerRef.current.scrollLeft;
+  };
+
+  /**
+   * @description 处理鼠标离开容器事件，终止拖拽
+   */
+  const handleMouseLeave = () => {
+    isDownRef.current = false;
+    if (containerRef.current) {
+      containerRef.current.classList.remove("cursor-grabbing");
+      containerRef.current.classList.add("cursor-grab");
+    }
+  };
+
+  /**
+   * @description 处理鼠标抬起事件，终止拖拽
+   */
+  const handleMouseUp = () => {
+    isDownRef.current = false;
+    if (containerRef.current) {
+      containerRef.current.classList.remove("cursor-grabbing");
+      containerRef.current.classList.add("cursor-grab");
+    }
+  };
+
+  /**
+   * @description 处理鼠标移动事件，按拖动偏移更新滚动位置
+   * @param e 鼠标事件
+   */
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDownRef.current || !containerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    // 1.5倍滚动灵敏度系数
+    const walk = (x - startXRef.current) * 1.5;
+    containerRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
+
   return (
-    // 允许用户手动向右拖拽右下角把整张细表拉宽，避免默认宽度下单元格挤在一起看不清；min-width 保证不会被拖得比容器还窄
-    <div className="resize-x overflow-auto" style={{ minWidth: "100%" }}>
-      <p className="text-[11px] text-gray-400 mb-1.5 select-none">提示：可拖动表格右下角 ⤡ 手动调整宽度，方便查看密集的每日数据</p>
+    // 去掉 resize-x，改用固定外框与鼠标左右拖拽滚动
+    <div className="overflow-hidden w-full select-none">
+      <p className="text-[11px] text-gray-400 mb-1.5 select-none">提示：可在下方的表格区域内按住鼠标左右拖动查看不同日期的明细数据</p>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+        <div
+          ref={containerRef}
+          onMouseDown={handleMouseDown}
+          onMouseLeave={handleMouseLeave}
+          onMouseUp={handleMouseUp}
+          onMouseMove={handleMouseMove}
+          className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent cursor-grab active:cursor-grabbing"
+        >
         <table className="w-full border-collapse text-left text-[13px] text-gray-500">
           <thead className="bg-gray-50/75 text-gray-600 text-[12px] font-semibold">
-            {/* 一级头: 日期编号号 */}
+            {/* 一级头: 日期编号 */}
             <tr>
               <th className="p-3 border-b-2 border-r-2 border-black sticky left-0 bg-gray-50 min-w-[124px] z-20">日期/品类</th>
-              {days.map((day) => (
-                <th
-                  key={`col-day-${day}`}
-                  colSpan={3}
-                  className={`px-2 py-1.5 text-center border-b-2 border-r-2 border-black ${activeTheme.lightBg} ${activeTheme.primaryText}`}
-                >
-                  <div className="flex items-center justify-center">
-                    <span>{day}号</span>
-                  </div>
-                </th>
-              ))}
+              {days.map((day) => {
+                const isOdd = parseInt(day, 10) % 2 !== 0;
+                return (
+                  <th
+                    key={`col-day-${day}`}
+                    colSpan={3}
+                    className={`px-2 py-1.5 text-center border-b-2 border-r-2 border-black ${
+                      isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center">
+                      <span>{day}号</span>
+                    </div>
+                  </th>
+                );
+              })}
               <th colSpan={2} className="p-3 text-center border-b-2 border-black bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
             </tr>
 
             {/* 二级头: [数量/单价/金额] 三胞胎 */}
             <tr className="bg-slate-100 text-[11px] text-slate-700 font-bold border-b-2 border-black">
               <th className="p-2.5 border-b-2 border-r-2 border-black sticky left-0 bg-slate-100 z-20">食材细分项目</th>
-              {days.map((day) => (
-                <React.Fragment key={`sub-dt-${day}`}>
-                  <th className="px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-semibold bg-slate-100/70 text-slate-800">数量</th>
-                  <th className="px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-semibold bg-slate-100/50 text-slate-800">单价</th>
-                  <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-black ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
-                </React.Fragment>
-              ))}
+              {days.map((day) => {
+                const isOdd = parseInt(day, 10) % 2 !== 0;
+                return (
+                  <React.Fragment key={`sub-dt-${day}`}>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-amber-100 text-amber-900" : "bg-teal-100 text-teal-900"}`}>数量</th>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-amber-50 text-amber-900" : "bg-teal-50 text-teal-900"}`}>单价</th>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-black ${isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"}`}>金额</th>
+                  </React.Fragment>
+                );
+              })}
               <th className="p-2 text-center border-b-2 border-r-2 border-black font-bold bg-slate-100 text-slate-800">月总用量</th>
               <th className="p-2 text-center border-b-2 border-r-2 border-black font-black text-indigo-900 bg-indigo-100">月总开销</th>
             </tr>
@@ -127,15 +208,17 @@ export function TableGridMatrixView({
                   {/* 渲染31天每日录入小卡格 */}
                   {days.map((day) => {
                     const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
+                    const isOdd = parseInt(day, 10) % 2 !== 0;
                     return (
                       <React.Fragment key={`cell-${item.id}-${day}`}>
-                        <td className="p-1.5 border-b-2 border-r-2 border-black text-center font-mono text-[13px] font-semibold text-slate-900 bg-white">
+                        {/* 奇数天使用高对比度橘黄色（Amber）背景，偶数天使用高对比度蓝绿色（Teal）背景。日期两侧用更深的黑线分割 (border-r-2 border-black) */}
+                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}>
                           {entry.quantity || 0}
                         </td>
-                        <td className="p-1.5 border-b-2 border-r-2 border-black text-center font-mono text-[13px] font-semibold text-slate-900 bg-slate-50">
+                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-100/50" : "bg-teal-100/50"}`}>
                           ¥{entry.price || 0}
                         </td>
-                        <td className={`p-1.5 border-b-2 border-r-2 border-black text-center text-[13px] font-black font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
+                        <td className={`p-1.5 border-b-2 border-r-2 border-black text-center text-[13px] font-black font-mono ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}>
                           {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                         </td>
                       </React.Fragment>
@@ -159,14 +242,17 @@ export function TableGridMatrixView({
               <td className="p-3 sticky left-0 bg-slate-200 text-slate-900 border-r-2 border-black font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-[13px]">
                 【{PrepReportService.getActiveCategories().find(c => c.key === selectedCategory)?.label || selectedCategory}】每日开支合计
               </td>
-              {days.map((day) => (
-                <React.Fragment key={`tot-cell-${day}`}>
-                  <td colSpan={2} className="px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase whitespace-nowrap">合计金额:</td>
-                  <td className={`px-1 py-3 text-center text-[13px] font-black border-r-2 border-black ${activeTheme.accentText} ${activeTheme.accentBg} font-mono`}>
-                    ¥{dayTotals[day]}
-                  </td>
-                </React.Fragment>
-              ))}
+              {days.map((day) => {
+                const isOdd = parseInt(day, 10) % 2 !== 0;
+                return (
+                  <React.Fragment key={`tot-cell-${day}`}>
+                    <td colSpan={2} className={`px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase whitespace-nowrap border-r border-slate-300 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}>合计金额:</td>
+                    <td className={`px-1 py-3 text-center text-[13px] font-black border-r-2 border-black font-mono ${isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"}`}>
+                      ¥{dayTotals[day]}
+                    </td>
+                  </React.Fragment>
+                );
+              })}
               <th colSpan={2} className="p-3 text-center text-indigo-950 bg-indigo-200/50 font-black text-[13px]">
                 ¥{Math.round(Object.values(dayTotals).reduce((s, v) => s + v, 0) * 100) / 100}
               </th>
