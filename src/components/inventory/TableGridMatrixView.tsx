@@ -138,7 +138,7 @@ export function TableGridMatrixView({
                     key={`col-day-${day}`}
                     colSpan={3}
                     className={`px-2 py-1.5 text-center border-b-2 border-r-2 border-black ${
-                      isOdd ? "bg-orange-100/70 text-orange-950" : `${activeTheme.lightBg} ${activeTheme.primaryText}`
+                      isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"
                     }`}
                   >
                     <div className="flex items-center justify-center">
@@ -157,9 +157,9 @@ export function TableGridMatrixView({
                 const isOdd = parseInt(day, 10) % 2 !== 0;
                 return (
                   <React.Fragment key={`sub-dt-${day}`}>
-                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-orange-50/80 text-orange-900" : "bg-slate-100/70 text-slate-800"}`}>数量</th>
-                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-orange-50/50 text-orange-900" : "bg-slate-100/50 text-slate-800"}`}>单价</th>
-                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-black ${isOdd ? "bg-orange-100 text-orange-950" : `${activeTheme.primaryText} ${activeTheme.lightBg}`}`}>金额</th>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-amber-100 text-amber-900" : "bg-teal-100 text-teal-900"}`}>数量</th>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r border-slate-300 font-semibold ${isOdd ? "bg-amber-50 text-amber-900" : "bg-teal-50 text-teal-900"}`}>单价</th>
+                    <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-black ${isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"}`}>金额</th>
                   </React.Fragment>
                 );
               })}
@@ -211,14 +211,14 @@ export function TableGridMatrixView({
                     const isOdd = parseInt(day, 10) % 2 !== 0;
                     return (
                       <React.Fragment key={`cell-${item.id}-${day}`}>
-                        {/* 奇数天使用橘黄色柔和背景，偶数天使用默认的黑白/灰色背景以增强视觉对比度。日期两侧用更深的黑线分割 (border-r-2 border-black) */}
-                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-50/20" : "bg-white"}`}>
+                        {/* 奇数天使用高对比度橘黄色（Amber）背景，偶数天使用高对比度蓝绿色（Teal）背景。日期两侧用更深的黑线分割 (border-r-2 border-black) */}
+                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}>
                           {entry.quantity || 0}
                         </td>
-                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-100/30" : "bg-slate-50"}`}>
+                        <td className={`p-1.5 border-b-2 border-r border-slate-300 text-center font-mono text-[13px] font-semibold text-slate-900 ${isOdd ? "bg-amber-100/50" : "bg-teal-100/50"}`}>
                           ¥{entry.price || 0}
                         </td>
-                        <td className={`p-1.5 border-b-2 border-r-2 border-black text-center text-[13px] font-black font-mono ${isOdd ? "bg-orange-100/30 text-orange-950" : `${activeTheme.primaryText} ${activeTheme.lightBg}`}`}>
+                        <td className={`p-1.5 border-b-2 border-r-2 border-black text-center text-[13px] font-black font-mono ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}>
                           {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                         </td>
                       </React.Fragment>
@@ -246,8 +246,8 @@ export function TableGridMatrixView({
                 const isOdd = parseInt(day, 10) % 2 !== 0;
                 return (
                   <React.Fragment key={`tot-cell-${day}`}>
-                    <td colSpan={2} className={`px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase whitespace-nowrap border-r border-slate-300 ${isOdd ? "bg-orange-50/20" : "bg-slate-100/10"}`}>合计金额:</td>
-                    <td className={`px-1 py-3 text-center text-[13px] font-black border-r-2 border-black font-mono ${isOdd ? "bg-orange-200/50 text-orange-950" : `${activeTheme.accentText} ${activeTheme.accentBg}`}`}>
+                    <td colSpan={2} className={`px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase whitespace-nowrap border-r border-slate-300 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}>合计金额:</td>
+                    <td className={`px-1 py-3 text-center text-[13px] font-black border-r-2 border-black font-mono ${isOdd ? "bg-amber-200 text-amber-950" : "bg-teal-200 text-teal-950"}`}>
                       ¥{dayTotals[day]}
                     </td>
                   </React.Fragment>
