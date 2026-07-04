@@ -1166,3 +1166,9 @@ pm2 startup
   1. **跨页提取修正**：在渲染表格循环输出 handlers/recipients 时，放弃基于切割后的 `group.items`（仅含当页子集）提取的做法。通过 `groupedByCategory.find` 回溯查出该品类的全量数据 `fullGroup.items`，从而在所有页都能够根据全量记录集准确提取并去重到完整的操作人名单，保证续页不再缺失。
   2. **尾页弹性高度**：针对最后一页应用弹性补齐行数算法 `pageEmptyRowsCount = Math.max(0, maxCapacity - rowsUsedOnThisPage - suppliersCount)`，其中 `maxCapacity` 为表格与供货商总容量 `minPrintRows + maxSuppliersPerPage`。这保证了表格+供货商的总占据行数绝对恒定，完美地将供货商信息推向页面最底端。
 - **验证**：运行 `npm test` 并同步修复了 `LedgerPrintDoc.test.tsx` 中验证尾页动态容量的断言，全量 371 个测试用例通过。
+
+### 2026-07-04 - [V5.77.1] 优化出库单最后一页供货商容量弹性折叠逻辑
+- **需求**：针对 V5.77.0 的供货商排版算法进一步完善。当供货商有很多行时（如 5 行及以上），如果实际记录行加上所有供货商的行数不超过页面最大极限容量，则应该将原本用于垫底的空白行空间让给供货商，从而将所有供货商平铺在第一页，避免无谓的分页断档。
+- **排查结论**：原算法中，首页供货商的截断条数被硬编码为 `maxSuppliersPerPage`（如 3 条），超出的供货商被强制推入额外的续页中。这导致即使首页由于记录稀少而剩下大片空隙，也被强行填充了空白行，而供货商却被迫换页。
+- **重构方案**：在 `LedgerPrintDoc.tsx` 的供货商切割逻辑中，打破强制截断数量的限制，引入动态截断容量算法：`firstChunkCapacity = Math.max(maxSuppliersPerPage, maxCapacity - rowsUsedOnLastPage)`。在最后一行页面尚有盈余空间时，自动吞并空白行额度，优先将剩余的所有供货商尽可能地填充至首页内。仅当首页连缩减空白行后依然无法容纳（即真实记录行与真实供货商数量之和超过了极限物理容量）时，才触发续页逻辑。
+- **验证**：运行 `npm test`，同步更新了 `LedgerPrintDoc.test.tsx` 中的断言逻辑，动态计算在新算法下的折叠预期页数并验证无多余空白分页出现，全量测试用例稳定通过。

@@ -240,13 +240,27 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
       />
     );
 
-    // 行数据远小于25，只应产生 1 张行数据表；供货商信息按 maxSuppliersPerPage 分页后应产生的续页数
-    const expectedTotalPages = Math.ceil(supplierCount / maxPerPage);
+    // 动态计算在新规则下的总页数
+    const rowsUsed = items.length;
+    const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+    const firstChunkCapacity = Math.max(maxPerPage, maxCapacity - rowsUsed);
+    
+    let expectedTotalPages = 1;
+    let remainingSuppliersCount = supplierCount;
+    if (remainingSuppliersCount > firstChunkCapacity) {
+      remainingSuppliersCount -= firstChunkCapacity;
+      expectedTotalPages += Math.ceil(remainingSuppliersCount / maxCapacity);
+    }
+
     expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
-    expect(screen.getByText(`第 1 / ${expectedTotalPages} 页`)).toBeInTheDocument();
-    expect(screen.getByText(`第 ${expectedTotalPages} / ${expectedTotalPages} 页`)).toBeInTheDocument();
-    // 供货商续页可能不止一页（取决于 maxSuppliersPerPage 与供货商总数的差值），只需确认至少出现一次续页标注
-    expect(screen.getAllByText(/供货商续页/).length).toBeGreaterThan(0);
+    
+    if (expectedTotalPages > 1) {
+      expect(screen.getByText(`第 1 / ${expectedTotalPages} 页`)).toBeInTheDocument();
+      expect(screen.getByText(`第 ${expectedTotalPages} / ${expectedTotalPages} 页`)).toBeInTheDocument();
+      expect(screen.getAllByText(/供货商续页/).length).toBeGreaterThan(0);
+    } else {
+      expect(screen.queryByText(/供货商续页/)).not.toBeInTheDocument();
+    }
 
     expect(screen.getByText(new RegExp(`供货商：供货商1(?!\\d)`))).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`供货商：供货商${supplierCount}`))).toBeInTheDocument();

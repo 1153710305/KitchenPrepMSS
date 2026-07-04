@@ -300,15 +300,35 @@ function PrintOutDoc({
     dynamicSupplierLines.push(`供货商：${supplierName}（${catLabels.join("、")}）`);
   });
 
-  // ==== 供货商信息分页：每页最多 maxSuppliersPerPage 条，超出部分另起续页（[V5.73.0]） ====
+  // ==== 供货商信息分页：首页容量动态伸缩，超出部分另起续页（[V5.77.1]） ====
   const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
   const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
   const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+  const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + maxSuppliersPerPage;
+  
+  // 获取最后一页的已用记录行数
+  const lastRowPage = rowPages[rowPages.length - 1];
+  const rowsUsedOnLastPage = lastRowPage ? lastRowPage.reduce((sum, g) => sum + g.items.length, 0) : LEDGER_PRINT_OUT_CONFIG.minPrintRows;
+  
+  // 首个供货商块能容纳的数量：最大极限容量 - 已使用的记录行数（最少为 maxSuppliersPerPage）
+  const firstChunkCapacity = Math.max(maxSuppliersPerPage, maxCapacity - rowsUsedOnLastPage);
+
   const supplierChunks: string[][] = [];
-  for (let i = 0; i < supplierDisplayLines.length; i += maxSuppliersPerPage) {
-    supplierChunks.push(supplierDisplayLines.slice(i, i + maxSuppliersPerPage));
+  let remainingSuppliers = supplierDisplayLines;
+
+  if (remainingSuppliers.length > 0) {
+    supplierChunks.push(remainingSuppliers.slice(0, firstChunkCapacity));
+    remainingSuppliers = remainingSuppliers.slice(firstChunkCapacity);
+  } else {
+    supplierChunks.push([]);
   }
-  if (supplierChunks.length === 0) supplierChunks.push([]);
+
+  // 剩余的供货商放入纯续页，纯续页全是供货商，理论上可以放满满载容量 maxCapacity
+  while (remainingSuppliers.length > 0) {
+    supplierChunks.push(remainingSuppliers.slice(0, maxCapacity));
+    remainingSuppliers = remainingSuppliers.slice(maxCapacity);
+  }
+
   const firstSupplierChunk = supplierChunks[0];
   const extraSupplierChunks = supplierChunks.slice(1);
 
@@ -449,26 +469,29 @@ function PrintOutDoc({
             <table className="ledger-print-out-table w-full border-collapse" style={{ tableLayout: "fixed" }}>
               {renderTableHead()}
               <tbody>
-                {Array.from({ length: rowsPerPage }).map((_, i) => (
-                  <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
-                    {i === 0 ? (
-                      <>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                        <td className="border border-black"></td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                {(() => {
+                  const emptyRowCount = Math.max(0, LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - firstSupplierChunk.length);
+                  return Array.from({ length: emptyRowCount }).map((_, i) => (
+                    <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
+                      {i === 0 ? (
+                        <>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                          <td className="border border-black" rowSpan={emptyRowCount}>-</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                        </>
+                      )}
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
             {renderSupplierFooter(firstSupplierChunk)}
