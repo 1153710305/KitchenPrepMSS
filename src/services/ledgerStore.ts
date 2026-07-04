@@ -33,8 +33,9 @@ export class LedgerService {
   /** 状态变动侦听器列表 */
   private static changeListeners: LedgerChangeListener[] = [];
 
-  /** 
-   * @description 台账录入常用辅助人员与供货商字典配置，包含供货商、采购员、检验员、保管员、出库人、接收人 
+  /**
+   * @description 台账录入常用辅助人员与供货商字典配置，包含供货商、采购员、检验员、保管员、出库人、接收人，
+   * 以及可由管理员在后台自定义的"感官性状""保质期"下拉候选项
    */
   private static helperDict = {
     suppliers: ["合作基地直供", "宏发粮油批发", "绿野蔬菜配送", "科尔沁肉业"],
@@ -42,7 +43,13 @@ export class LedgerService {
     inspectors: ["王检验", "赵检验", "孙检验"],
     keepers: ["李保管", "钱保管", "周保管"],
     outHandlers: ["吴发料", "郑发料", "冯发料"],
-    outRecipients: ["赵领料", "孙领料", "马领料"]
+    outRecipients: ["赵领料", "孙领料", "马领料"],
+    sensoryOptions: [
+      "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好",
+      "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满",
+      "光泽度好", "颜色鲜艳", "合格", "不合格"
+    ],
+    shelfLifeOptions: ["2天", "15天", "1个月", "3个月", "6个月", "1年", "一年以上", "保质期较短"]
   };
 
   /**
@@ -122,7 +129,8 @@ export class LedgerService {
             this.ledgers = serverData.ledgers;
             this.ledgerItems = serverData.ledgerItems;
             if (serverData.ledgerHelperDict) {
-              this.helperDict = serverData.ledgerHelperDict;
+              // 与默认字典浅合并，兼容旧版本存量数据里尚未包含 sensoryOptions/shelfLifeOptions 两个新字段的情况
+              this.helperDict = { ...this.helperDict, ...serverData.ledgerHelperDict };
             }
             LogBroker.publish("INFO", "LedgerService", "成功从服务器同步载入原料购销台账及原料项目明细");
           } else {

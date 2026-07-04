@@ -508,14 +508,9 @@ export function LedgerStyle1Table({
                             className="bg-white border border-slate-200 px-2 py-1 rounded outline-none w-28 text-[13px] cursor-pointer focus:border-emerald-400"
                           >
                             <option value="">-- 选择 --</option>
-                            <option value="2天">2天</option>
-                            <option value="15天">15天</option>
-                            <option value="1个月">1个月</option>
-                            <option value="3个月">3个月</option>
-                            <option value="6个月">6个月</option>
-                            <option value="1年">1年</option>
-                            <option value="一年以上">一年以上</option>
-                            <option value="保质期较短">保质期较短</option>
+                            {LedgerService.getHelperDict().shelfLifeOptions.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
                           </select>
                         ) : (
                           <input

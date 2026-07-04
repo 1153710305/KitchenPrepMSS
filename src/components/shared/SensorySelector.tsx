@@ -8,6 +8,7 @@
  */
 
 import React from "react";
+import { LedgerService } from "../../services/ledgerStore.ts";
 
 /**
  * @description SensorySelector 组件入参接口
@@ -41,12 +42,8 @@ export function SensorySelector({
   const [isOpen, setIsOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  /** 备选感官性状字典项 */
-  const options = [
-    "包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好",
-    "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满",
-    "光泽度好", "颜色鲜艳", "合格", "不合格"
-  ];
+  /** 备选感官性状字典项：由管理员在后台"台账人员与供货商"Tab 自定义维护 */
+  const options = LedgerService.getHelperDict().sensoryOptions;
 
   /** 解析当前逗号或顿号分割的选中值 */
   const selectedValues = value ? value.split("、").filter(Boolean) : [];

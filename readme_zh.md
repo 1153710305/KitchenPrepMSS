@@ -1063,3 +1063,12 @@ pm2 startup
   3. [useLedgerRecording.ts] 的 `handleDraftCellChange`（台账录入草稿变更的唯一入口，图一/图二两处输入框共用）新增数值校验：`inQuantity`/`inPrice`/`outQuantity` 三个字段在写入草稿前统一做 `Number.isFinite(value) && value >= 0 ? value : 0` 校验，非负数或非法数字（如输入框中间态的单个"-"号、空字符串转换出的 NaN）一律钳制为 0，避免不合理数据在保存前就已经展示给用户。
   4. [ledgerStore.ts] 的 `updateDailyRecord` 与 [store.ts] 的 `updateCell` 这两个持久化层入口同步加固：原有的 `Math.max(0, value ?? 0)` 只能拦截 `null`/`undefined`，无法拦截 `NaN`（`Math.max(0, NaN)` 结果仍是 `NaN`），现改为 `Number.isFinite(value) ? Math.max(0, value) : 0`，双重兜底防止非法数字绕过校验持久化到数据里。
 - **验证**：`TableGridMatrixView.test.tsx` 新增 2 个用例（校验可拖拽容器的 className/最小宽度、校验不再包含失效的 `slate-350`/`gray-100` 类名）；`useLedgerRecording.test.ts`/`ledgerStore.test.ts`/`store.test.ts` 各新增负数与 NaN 钳制的回归用例；`npm test` 全量 345 个用例通过；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——「幼儿备餐」台账蔬菜细表边框在开发者工具下核对统一为 `rgb(148, 163, 184)`（slate-400），视觉上清晰可辨；表格右下角出现浏览器原生拖拽手柄；台账录入模式下向"土豆"的采购入库数量输入框写入 `-5`，确认草稿状态（`localStorage` 中的 `ledger_draft_*` 缓存）里对应字段被正确钳制为 `0`；控制台无报错。
+
+### 2026-07-04 - [V5.68.0] 管理后台支持自定义配置"感官性状""保质期"下拉候选项
+- **需求**：用户要求管理员可以在管理后台配置台账录入界面里"感官性状"和"保质期"两个下拉框的候选内容，此前这两处都是硬编码在组件代码里的固定列表，无法在不改代码的情况下调整。
+- **重构方案**：
+  1. [ledgerStore.ts] 的 `LedgerService.helperDict`（此前已承载供货商/采购员/检验员/保管员/出库人/接收人六大常用名单，并已有完整的后台配置+云端持久化能力）扩展新增 `sensoryOptions`（感官性状候选项，17 项默认种子）与 `shelfLifeOptions`（保质期候选项，8 项默认种子）两个字段，复用同一套 `getHelperDict()`/`updateHelperDict()` 接口，无需新建任何服务或持久化通道；`initLedgerStore()` 从服务端加载时改为与默认字典浅合并（而非整体覆盖），确保存量部署里尚未包含这两个新字段的旧数据不会丢失新增的候选项默认值。
+  2. [AdminLedgerHelpersTab.tsx] 复用既有的通用列表编辑卡片（新增/删除/去重/回车快速新增），追加"感官性状候选项""保质期候选项"两张卡片，管理员操作方式与其余六项完全一致。
+  3. [SensorySelector.tsx]（台账样式一/样式二共用的感官性状多选组件）候选项来源由组件内部硬编码数组改为直接读取 `LedgerService.getHelperDict().sensoryOptions`。
+  4. [LedgerStyle1Table.tsx]/[LedgerStyle2Flow.tsx] 里各自重复硬编码的"保质期"`<select>` 选项列表，统一改为遍历 `LedgerService.getHelperDict().shelfLifeOptions` 动态渲染。
+- **验证**：新增 `SensorySelector.test.tsx`（6 个用例，覆盖候选项来源于配置字典、多选切换、清空、点击外部收起、禁用态）与 `AdminLedgerHelpersTab.test.tsx`（5 个用例，覆盖两个新卡片渲染、新增、去重拦截、删除）；同步修复 `LedgerStyle1Table.test.tsx`/`LedgerStyle2Flow.test.tsx` 里因字典类型扩展而需要补全 mock 字段的 2 处；`npm test` 全量 356 个用例通过；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——管理后台"台账人员与供货商"Tab 正确显示"感官性状候选项 (17 项)""保质期候选项 (8 项)"两张新卡片，手动添加/删除候选项后立即生效并正确持久化到 `data/db.json`。

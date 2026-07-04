@@ -48,7 +48,9 @@ describe("LedgerStyle2Flow", () => {
       inspectors: ["王检验"],
       keepers: ["李保管"],
       outHandlers: ["吴发料"],
-      outRecipients: ["孙领料"]
+      outRecipients: ["孙领料"],
+      sensoryOptions: ["新鲜", "合格"],
+      shelfLifeOptions: ["2天", "15天"]
     });
   });
 
