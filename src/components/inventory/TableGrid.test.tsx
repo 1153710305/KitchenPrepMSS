@@ -72,6 +72,46 @@ describe("TableGrid", () => {
 
       expect(screen.getByText("全品类预算合计汇总")).toBeInTheDocument();
     });
+
+    it("[V5.70.0] shows the restored '全月备餐开支日耗曲线' chart with a total matching the 总预算耗资 badge", () => {
+      vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([]);
+      const reportWithData: GroupMonthlyReport = {
+        targetGroup: TargetGroup.KID,
+        year: 2026,
+        month: 7,
+        items: [
+          {
+            id: "item_1",
+            name: "土豆",
+            category: FoodCategory.VEGETABLE,
+            targetGroup: TargetGroup.KID,
+            unit: "斤",
+            dailyData: {
+              "1": { quantity: 5, price: 2, amount: 10 },
+              "2": { quantity: 0, price: 0, amount: 0 }
+            }
+          },
+          {
+            id: "item_2",
+            name: "精肉",
+            category: FoodCategory.MEAT,
+            targetGroup: TargetGroup.KID,
+            unit: "斤",
+            dailyData: {
+              "1": { quantity: 0, price: 0, amount: 0 },
+              "2": { quantity: 2, price: 20, amount: 40 }
+            }
+          }
+        ]
+      };
+
+      render(<TableGrid {...baseProps} report={reportWithData} selectedCategory={null} />);
+
+      // 总预算耗资徽章与图表"本月累计"都应是两个品类金额之和 10+40=50，二者数据来源一致
+      expect(screen.getByText("总预算耗资: ¥50")).toBeInTheDocument();
+      expect(screen.getByText("全月备餐开支日耗曲线")).toBeInTheDocument();
+      expect(screen.getByText("本月累计: ¥50")).toBeInTheDocument();
+    });
   });
 
   describe("detail table (selectedCategory set)", () => {

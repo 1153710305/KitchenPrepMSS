@@ -164,6 +164,19 @@ export const TableGrid: React.FC<TableGridProps> = ({
     return totals;
   }, [filteredItems, days]);
 
+  // 3. 合计汇总表专用：按 report.items（与"总预算耗资"徽章同一数据源，不受品类/搜索过滤影响）统计每日全品类汇总金额
+  const summaryDailyTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    days.forEach((day) => {
+      let sum = 0;
+      report.items.forEach((item) => {
+        sum += item.dailyData[day]?.amount || 0;
+      });
+      totals[day] = Math.round(sum * 100) / 100;
+    });
+    return totals;
+  }, [report.items, days]);
+
   // 高性能修改跟踪，用于在 input 失去焦点(onBlur)时记录变动日志，避免打字时的实时输入卡顿
   const editTrackerRef = useRef<{
     itemId: string;
@@ -319,6 +332,18 @@ export const TableGrid: React.FC<TableGridProps> = ({
           <span className="text-[15px] font-semibold text-indigo-700 bg-indigo-50 px-4 py-1.5 rounded-full">
             总预算耗资: ¥{grandTotal.toLocaleString()}
           </span>
+        </div>
+
+        {/* 全月备餐开支日耗曲线：还原此前被整体移除的"日开支走势"功能的图表样式 */}
+        <div className="mb-4">
+          <MonthlySpendingChart
+            days={days}
+            dayTotals={summaryDailyTotals}
+            groupLabel={getGroupLabel(report.targetGroup)}
+            categoryLabel=""
+            activeTheme={activeTheme}
+            titleOverride="全月备餐开支日耗曲线"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

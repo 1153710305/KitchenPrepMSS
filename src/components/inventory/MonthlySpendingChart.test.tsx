@@ -28,7 +28,8 @@ describe("MonthlySpendingChart", () => {
     );
 
     expect(screen.getByText("本月该品类暂无任何采购花销记录")).toBeInTheDocument();
-    expect(document.querySelector("svg")).not.toBeInTheDocument();
+    // 空态下不应渲染折线图本体（图标本身的小 svg 除外）
+    expect(document.querySelector("polyline")).not.toBeInTheDocument();
   });
 
   it("renders the group/category label and the summed monthly total", () => {
@@ -44,6 +45,23 @@ describe("MonthlySpendingChart", () => {
 
     expect(screen.getByText("「幼儿备餐」蔬菜类 - 本月每日采购花销趋势")).toBeInTheDocument();
     expect(screen.getByText("本月累计: ¥338")).toBeInTheDocument();
+    expect(screen.getByText("横向日期：1号 至 3号 (月末)")).toBeInTheDocument();
+  });
+
+  it("[V5.70.0] uses titleOverride verbatim instead of the auto-generated group/category title when provided", () => {
+    render(
+      <MonthlySpendingChart
+        days={days}
+        dayTotals={{ "1": 110, "2": 0, "3": 228 }}
+        groupLabel="幼儿备餐"
+        categoryLabel=""
+        activeTheme={THEME_MAP.emerald}
+        titleOverride="全月备餐开支日耗曲线"
+      />
+    );
+
+    expect(screen.getByText("全月备餐开支日耗曲线")).toBeInTheDocument();
+    expect(screen.queryByText(/「幼儿备餐」/)).not.toBeInTheDocument();
   });
 
   it("renders one data point circle per day with a per-day tooltip", () => {

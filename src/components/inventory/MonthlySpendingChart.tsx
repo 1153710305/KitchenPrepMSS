@@ -7,6 +7,7 @@
  * @description 备餐采购细表的"当月采购花销趋势图"：以折线图形式展示当前受众、当前二级品类在本月每一天的采购金额走势，默认由外层按钮控制显示/隐藏。
  */
 
+import { TrendingUp } from "lucide-react";
 import type { ThemeStyle } from "../../hooks/useTableTheme.ts";
 
 /**
@@ -23,6 +24,8 @@ interface MonthlySpendingChartProps {
   categoryLabel: string;
   /** 当前主题对应的完整样式类名映射 */
   activeTheme: ThemeStyle;
+  /** 标题文案整体覆盖（不传时按"「受众」品类类 - 本月每日采购花销趋势"自动拼接，用于合计汇总表等无单一品类语境的场景） */
+  titleOverride?: string;
 }
 
 /** 图表内绘图区域的像素尺寸（viewBox 坐标系） */
@@ -44,7 +47,7 @@ const THEME_COLOR_MAP: Record<string, string> = {
 /**
  * @description 当月采购花销趋势折线图组件
  */
-export function MonthlySpendingChart({ days, dayTotals, groupLabel, categoryLabel, activeTheme }: MonthlySpendingChartProps) {
+export function MonthlySpendingChart({ days, dayTotals, groupLabel, categoryLabel, activeTheme, titleOverride }: MonthlySpendingChartProps) {
   const values = days.map((d) => dayTotals[d] || 0);
   const maxValue = Math.max(...values, 0);
   // 顶部留白：最大值的 15%，避免折线紧贴图表上边缘；最大值为 0 时兜底给 1，避免除以 0
@@ -69,11 +72,19 @@ export function MonthlySpendingChart({ days, dayTotals, groupLabel, categoryLabe
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-[13px] font-bold text-gray-700">
-          「{groupLabel}」{categoryLabel}类 - 本月每日采购花销趋势
-        </h4>
-        <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg ${activeTheme.lightBg} ${activeTheme.primaryText}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`p-2 rounded-xl ${activeTheme.lightBg} ${activeTheme.primaryText}`}>
+            <TrendingUp size={16} />
+          </span>
+          <div>
+            <h4 className="text-[13px] font-bold text-gray-700">
+              {titleOverride || `「${groupLabel}」${categoryLabel}类 - 本月每日采购花销趋势`}
+            </h4>
+            <p className="text-[11px] text-gray-400 mt-0.5">横向日期：1号 至 {days.length}号 (月末)</p>
+          </div>
+        </div>
+        <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${activeTheme.lightBg} ${activeTheme.primaryText}`}>
           本月累计: ¥{monthTotal.toLocaleString()}
         </span>
       </div>
