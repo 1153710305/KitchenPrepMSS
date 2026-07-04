@@ -26,6 +26,34 @@ const makeOutwardItem = (name: string, record: Record<string, any> = {}) => ({
   record: { outQuantity: 1, outHandler: "", outRecipient: "", supplier: "", ...record }
 });
 
+describe("LedgerPrintDoc [V5.75.0] renders via a portal directly under document.body", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("mounts the print overlay as a direct child of document.body, escaping the host component's own DOM ancestry", () => {
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
+    const { container } = render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={[]}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Portal 挂载到 document.body 后，RTL 默认渲染容器内不应包含打印预览内容
+    expect(container.querySelector(".ledger-print-doc-overlay")).not.toBeInTheDocument();
+    // 而是作为 document.body 的直接子元素存在，不再受任何祖先容器（如 #root 的 overflow-hidden 布局树）的裁剪影响
+    const overlay = document.body.querySelector(".ledger-print-doc-overlay");
+    expect(overlay).toBeInTheDocument();
+    expect(overlay!.parentElement).toBe(document.body);
+  });
+});
+
 describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([

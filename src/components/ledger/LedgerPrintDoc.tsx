@@ -8,6 +8,7 @@
  */
 
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
@@ -610,16 +611,24 @@ export function LedgerPrintDoc({
 }: LedgerPrintDocProps) {
   const isPrintIn = printDocType === "in";
 
-  return (
+  // 修复分页打印失效问题（根因分两层，缺一不可）：
+  // 1) 本组件原先直接嵌在 App 主界面的 DOM 树里（#root 内部），外层还套着好几层 h-screen/overflow-hidden 的布局容器；
+  //    这些祖先容器平时不影响它——因为它自身是 position:fixed，视觉上能"跳出"祖先的裁剪覆盖满全屏——但打印引擎在决定
+  //    分页范围时，仍然只按它在文档流里"物理所处的那个位置与可用高度"来处理，祖先的 overflow:hidden/固定高度依旧会把
+  //    它限制在一屏之内，导致哪怕内部分页符正确，也只有第一页能被打印引擎"看见"。
+  // 2) 即使解决了祖先裁剪问题，本容器自身平时也用 position:fixed + overflow:auto 让预览区域能在屏幕上独立滚动——这类
+  //    "定高可滚动"容器在打印时同样会被引擎当成一个固定尺寸的单页画框，内部超出可视高度的部分直接被丢弃。
+  // 解决方式：用 createPortal 把整个打印预览挂到 document.body 下（彻底跳出 #root 及其所有 overflow-hidden 祖先），
+  // 再配合 @media print 规则：打印时把 #root（承载头部导航栏等其余界面）整体隐藏，避免其内容穿透进打印输出；
+  // 同时把这个 portal 容器自身在打印时强制退回普通文档流（position:static + overflow:visible + 高度自适应），
+  // 使其随多页内容自然撑高，分页符才能在真实的分页布局里生效，多页内容才能完整续排打印。
+  return createPortal(
     <div className="ledger-print-doc-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
-      {/* 修复分页打印失效问题：本容器平时用 position:fixed + overflow:auto 让预览区域可在屏幕上独立滚动，
-          但浏览器打印引擎会把它当成一个尺寸固定（=视口大小）的可滚动盒子，容器自身内容一旦超出这个盒子的高度，
-          即使内部有 CSS 分页符（break-before: page）也不会被识别成"跨物理页"，实际打印/打印预览里永远只输出第一屏、
-          即第一页看得见的那部分内容——这正是出库单分页打印在屏幕预览里能看到第2页，但真正打印/打印预览只出1页的根因。
-          打印时强制让该容器退回普通文档流（position:static + overflow:visible + 取消固定高度），
-          容器高度改为随多页内容自然撑高，分页符才能在真实的分页布局里生效，多页内容才能完整续排打印。 */}
       <style>{`
         @media print {
+          #root {
+            display: none !important;
+          }
           .ledger-print-doc-overlay {
             position: static !important;
             overflow: visible !important;
@@ -657,6 +666,7 @@ export function LedgerPrintDoc({
           dailyOutwardItems={dailyOutwardItems}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
