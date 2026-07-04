@@ -57,44 +57,44 @@ export function TableGridMatrixView({
           <thead className="bg-gray-50/75 text-gray-600 text-[12px] font-semibold">
             {/* 一级头: 日期编号号 */}
             <tr>
-              <th className="p-3 border-b border-r border-slate-400 sticky left-0 bg-gray-50 min-w-[124px] z-20">日期/品类</th>
+              <th className="p-3 border-b-2 border-r-2 border-black sticky left-0 bg-gray-50 min-w-[124px] z-20">日期/品类</th>
               {days.map((day) => (
                 <th
                   key={`col-day-${day}`}
                   colSpan={3}
-                  className={`px-2 py-1.5 text-center border-b border-r border-slate-400 ${activeTheme.lightBg} ${activeTheme.primaryText}`}
+                  className={`px-2 py-1.5 text-center border-b-2 border-r-2 border-black ${activeTheme.lightBg} ${activeTheme.primaryText}`}
                 >
                   <div className="flex items-center justify-center">
                     <span>{day}号</span>
                   </div>
                 </th>
               ))}
-              <th colSpan={2} className="p-3 text-center border-b border-slate-400 bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
+              <th colSpan={2} className="p-3 text-center border-b-2 border-black bg-indigo-100 text-indigo-900 font-extrabold">全月累加</th>
             </tr>
 
             {/* 二级头: [数量/单价/金额] 三胞胎 */}
-            <tr className="bg-slate-100 text-[11px] text-slate-700 font-bold border-b border-slate-400">
-              <th className="p-2.5 border-b border-r border-slate-400 sticky left-0 bg-slate-100 z-20">食材细分项目</th>
+            <tr className="bg-slate-100 text-[11px] text-slate-700 font-bold border-b-2 border-black">
+              <th className="p-2.5 border-b-2 border-r-2 border-black sticky left-0 bg-slate-100 z-20">食材细分项目</th>
               {days.map((day) => (
                 <React.Fragment key={`sub-dt-${day}`}>
-                  <th className="px-1 py-1 text-center border-b border-r border-slate-400 font-semibold bg-slate-100/70 text-slate-800">数量</th>
-                  <th className="px-1 py-1 text-center border-b border-r border-slate-400 font-semibold bg-slate-100/50 text-slate-800">单价</th>
-                  <th className={`px-1 py-1 text-center border-b border-r border-slate-400 font-black ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
+                  <th className="px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-semibold bg-slate-100/70 text-slate-800">数量</th>
+                  <th className="px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-semibold bg-slate-100/50 text-slate-800">单价</th>
+                  <th className={`px-1.5 py-1 text-center whitespace-nowrap border-b-2 border-r-2 border-black font-black ${activeTheme.primaryText} ${activeTheme.lightBg}`}>金额</th>
                 </React.Fragment>
               ))}
-              <th className="p-2 text-center border-b border-r border-slate-400 font-bold bg-slate-100 text-slate-800">月总用量</th>
-              <th className="p-2 text-center border-b border-r border-slate-400 font-black text-indigo-900 bg-indigo-100">月总开销</th>
+              <th className="p-2 text-center border-b-2 border-r-2 border-black font-bold bg-slate-100 text-slate-800">月总用量</th>
+              <th className="p-2 text-center border-b-2 border-r-2 border-black font-black text-indigo-900 bg-indigo-100">月总开销</th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-400">
+          <tbody className="divide-y-2 divide-black">
             {filteredItems.map((item) => {
               const monthlySummary = getItemMonthlySummary(item, days);
               return (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-400">
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b-2 border-black">
 
                   {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                  <td className="p-3 sticky left-0 bg-white border-r-2 border-slate-400 z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  <td className="p-3 sticky left-0 bg-white border-r-2 border-black z-10 font-extrabold text-slate-900 flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                     <span className="truncate max-w-[110px] text-[13px] font-bold" title={item.name}>
                       {(() => {
                         const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
@@ -129,13 +129,13 @@ export function TableGridMatrixView({
                     const entry = item.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
                     return (
                       <React.Fragment key={`cell-${item.id}-${day}`}>
-                        <td className="p-1.5 border-b border-r border-slate-400 text-center font-mono text-[13px] font-semibold text-slate-900 bg-white">
+                        <td className="p-1.5 border-b-2 border-r-2 border-black text-center font-mono text-[13px] font-semibold text-slate-900 bg-white">
                           {entry.quantity || 0}
                         </td>
-                        <td className="p-1.5 border-b border-r border-slate-400 text-center font-mono text-[13px] font-semibold text-slate-900 bg-slate-50">
+                        <td className="p-1.5 border-b-2 border-r-2 border-black text-center font-mono text-[13px] font-semibold text-slate-900 bg-slate-50">
                           ¥{entry.price || 0}
                         </td>
-                        <td className={`p-1.5 border-b border-r border-slate-400 text-center text-[13px] font-black font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
+                        <td className={`p-1.5 border-b-2 border-r-2 border-black text-center text-[13px] font-black font-mono ${activeTheme.primaryText} ${activeTheme.lightBg}`}>
                           {entry.amount > 0 ? `¥${entry.amount}` : "0"}
                         </td>
                       </React.Fragment>
@@ -143,7 +143,7 @@ export function TableGridMatrixView({
                   })}
 
                   {/* 全月累加列 */}
-                  <td className="p-2.5 border-r border-slate-400 text-center font-black font-mono text-[13px] text-slate-900 bg-slate-100/60">
+                  <td className="p-2.5 border-r-2 border-black text-center font-black font-mono text-[13px] text-slate-900 bg-slate-100/60">
                     {monthlySummary.totalQty} {item.unit}
                   </td>
                   <td className="p-2.5 text-center font-black font-mono text-[13px] text-indigo-950 bg-indigo-100/50">
@@ -155,14 +155,14 @@ export function TableGridMatrixView({
             })}
 
             {/* 表底累加汇总：各单日大类整体耗资 */}
-            <tr className="bg-slate-200 font-extrabold text-slate-900 border-t-2 border-slate-400">
-              <td className="p-3 sticky left-0 bg-slate-200 text-slate-900 border-r border-slate-400 font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-[13px]">
+            <tr className="bg-slate-200 font-extrabold text-slate-900 border-t-2 border-black">
+              <td className="p-3 sticky left-0 bg-slate-200 text-slate-900 border-r-2 border-black font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-[13px]">
                 【{PrepReportService.getActiveCategories().find(c => c.key === selectedCategory)?.label || selectedCategory}】每日开支合计
               </td>
               {days.map((day) => (
                 <React.Fragment key={`tot-cell-${day}`}>
-                  <td colSpan={2} className="px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase">合计金额:</td>
-                  <td className={`px-1 py-3 text-center text-[13px] font-black border-r border-slate-400 ${activeTheme.accentText} ${activeTheme.accentBg} font-mono`}>
+                  <td colSpan={2} className="px-1 py-3 text-[11px] text-slate-500 text-center font-bold uppercase whitespace-nowrap">合计金额:</td>
+                  <td className={`px-1 py-3 text-center text-[13px] font-black border-r-2 border-black ${activeTheme.accentText} ${activeTheme.accentBg} font-mono`}>
                     ¥{dayTotals[day]}
                   </td>
                 </React.Fragment>

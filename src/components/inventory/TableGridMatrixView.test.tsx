@@ -155,4 +155,41 @@ describe("TableGridMatrixView", () => {
     expect(anyBorderedCell.className).not.toContain("slate-350");
     expect(anyBorderedCell.className).not.toContain("border-gray-100");
   });
+
+  it("[V5.72.0] uses pure-black, 2px-thick Excel-style borders instead of the pale 1px slate-400 grid", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    const anyBorderedCell = screen.getAllByRole("cell")[0];
+    expect(anyBorderedCell.className).not.toContain("slate-400");
+    expect(anyBorderedCell.className).toContain("border-black");
+    expect(anyBorderedCell.className).toMatch(/border-[btrl]-2/);
+  });
+
+  it("[V5.72.0] displays the 数量/单价/金额 sub-header labels on a single line instead of wrapping vertically", () => {
+    render(
+      <TableGridMatrixView
+        days={days}
+        filteredItems={[makeItem()]}
+        dayTotals={{ "1": 6, "2": 0 }}
+        activeTheme={THEME_MAP.emerald}
+        selectedCategory={FoodCategory.VEGETABLE}
+        readOnly={false}
+        onDeleteItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText("数量")[0].className).toContain("whitespace-nowrap");
+    expect(screen.getAllByText("单价")[0].className).toContain("whitespace-nowrap");
+    expect(screen.getAllByText("金额")[0].className).toContain("whitespace-nowrap");
+  });
 });
