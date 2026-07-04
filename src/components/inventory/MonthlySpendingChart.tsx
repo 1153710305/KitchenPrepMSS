@@ -1,0 +1,125 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description 备餐采购细表的"当月采购花销趋势图"：以折线图形式展示当前受众、当前二级品类在本月每一天的采购金额走势，默认由外层按钮控制显示/隐藏。
+ */
+
+import type { ThemeStyle } from "../../hooks/useTableTheme.ts";
+
+/**
+ * @description MonthlySpendingChart 组件入参接口
+ */
+interface MonthlySpendingChartProps {
+  /** 当月包含的日期数组 (["1", "2", ..., "31"]) */
+  days: string[];
+  /** 每个日期(1-31号)在该类目下的总开销汇总 */
+  dayTotals: Record<string, number>;
+  /** 当前受众人群展示名称 */
+  groupLabel: string;
+  /** 当前二级品类展示名称 */
+  categoryLabel: string;
+  /** 当前主题对应的完整样式类名映射 */
+  activeTheme: ThemeStyle;
+}
+
+/** 图表内绘图区域的像素尺寸（viewBox 坐标系） */
+const CHART_WIDTH = 920;
+const CHART_HEIGHT = 200;
+const PADDING_LEFT = 48;
+const PADDING_RIGHT = 16;
+const PADDING_TOP = 16;
+const PADDING_BOTTOM = 28;
+
+/** 主题名到折线/填充色值的映射（SVG stroke/fill 需要真实颜色值，无法直接复用 Tailwind 类名） */
+const THEME_COLOR_MAP: Record<string, string> = {
+  "bg-sky-600": "#0284c7",
+  "bg-emerald-600": "#059669",
+  "bg-violet-600": "#7c3aed",
+  "bg-slate-700": "#334155"
+};
+
+/**
+ * @description 当月采购花销趋势折线图组件
+ */
+export function MonthlySpendingChart({ days, dayTotals, groupLabel, categoryLabel, activeTheme }: MonthlySpendingChartProps) {
+  const values = days.map((d) => dayTotals[d] || 0);
+  const maxValue = Math.max(...values, 0);
+  // 顶部留白：最大值的 15%，避免折线紧贴图表上边缘；最大值为 0 时兜底给 1，避免除以 0
+  const yAxisMax = maxValue > 0 ? maxValue * 1.15 : 1;
+  const monthTotal = Math.round(values.reduce((sum, v) => sum + v, 0) * 100) / 100;
+  const lineColor = THEME_COLOR_MAP[activeTheme.primaryBg] || "#059669";
+
+  const plotWidth = CHART_WIDTH - PADDING_LEFT - PADDING_RIGHT;
+  const plotHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+
+  /** 把第 idx 天(0-based)换算为图表 x 像素坐标 */
+  const xForIndex = (idx: number) => PADDING_LEFT + (days.length <= 1 ? 0 : (idx / (days.length - 1)) * plotWidth);
+  /** 把某个金额换算为图表 y 像素坐标（数值越大越靠上） */
+  const yForValue = (val: number) => PADDING_TOP + plotHeight - (val / yAxisMax) * plotHeight;
+
+  const linePoints = values.map((v, idx) => `${xForIndex(idx)},${yForValue(v)}`).join(" ");
+  const areaPoints = `${xForIndex(0)},${yForValue(0)} ${linePoints} ${xForIndex(values.length - 1)},${yForValue(0)}`;
+
+  // Y 轴取 4 条水平参考网格线（含 0 与最大值）
+  const gridLineCount = 4;
+  const gridLines = Array.from({ length: gridLineCount + 1 }, (_, i) => (yAxisMax / gridLineCount) * i);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[13px] font-bold text-gray-700">
+          「{groupLabel}」{categoryLabel}类 - 本月每日采购花销趋势
+        </h4>
+        <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg ${activeTheme.lightBg} ${activeTheme.primaryText}`}>
+          本月累计: ¥{monthTotal.toLocaleString()}
+        </span>
+      </div>
+
+      {maxValue === 0 ? (
+        <div className="py-10 text-center text-gray-400 text-[13px] italic">本月该品类暂无任何采购花销记录</div>
+      ) : (
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="w-full" style={{ maxHeight: "220px" }}>
+          {/* 水平网格线与 Y 轴金额刻度 */}
+          {gridLines.map((val, i) => {
+            const y = yForValue(val);
+            return (
+              <g key={i}>
+                <line x1={PADDING_LEFT} y1={y} x2={CHART_WIDTH - PADDING_RIGHT} y2={y} stroke="#e5e7eb" strokeWidth={1} />
+                <text x={PADDING_LEFT - 6} y={y + 3} textAnchor="end" fontSize={9} fill="#9ca3af">
+                  ¥{Math.round(val)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* 折线下方的渐变填充区域 */}
+          <polygon points={areaPoints} fill={lineColor} fillOpacity={0.08} />
+
+          {/* 折线本身 */}
+          <polyline points={linePoints} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+
+          {/* 每日数据点，鼠标悬浮显示当天具体金额 */}
+          {values.map((v, idx) => (
+            <circle key={idx} cx={xForIndex(idx)} cy={yForValue(v)} r={2.5} fill={lineColor}>
+              <title>{days[idx]}号: ¥{v.toFixed(2)}</title>
+            </circle>
+          ))}
+
+          {/* X 轴日期刻度：为避免拥挤，每 5 天标注一次，首尾始终标注 */}
+          {days.map((day, idx) => {
+            const shouldLabel = idx === 0 || idx === days.length - 1 || (idx + 1) % 5 === 0;
+            if (!shouldLabel) return null;
+            return (
+              <text key={day} x={xForIndex(idx)} y={CHART_HEIGHT - PADDING_BOTTOM + 16} textAnchor="middle" fontSize={9} fill="#9ca3af">
+                {day}号
+              </text>
+            );
+          })}
+        </svg>
+      )}
+    </div>
+  );
+}

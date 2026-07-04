@@ -172,5 +172,26 @@ describe("TableGrid", () => {
       expect(createObjectURLSpy).toHaveBeenCalled();
       expect(clickSpy).toHaveBeenCalled();
     });
+
+    it("[V5.69.0] hides the monthly spending chart by default and shows it after clicking the toggle button", async () => {
+      const user = userEvent.setup();
+      const item = makeLedgerItem({
+        "2026-07-01": { inQuantity: 5, inPrice: 3, inAmount: 15, outQuantity: 0 }
+      });
+      vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
+
+      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+
+      expect(screen.queryByText(/本月每日采购花销趋势/)).not.toBeInTheDocument();
+
+      await user.click(screen.getByText("本月花销趋势图"));
+
+      expect(screen.getByText(/本月每日采购花销趋势/)).toBeInTheDocument();
+      expect(screen.getByText("隐藏花销趋势图")).toBeInTheDocument();
+
+      await user.click(screen.getByText("隐藏花销趋势图"));
+
+      expect(screen.queryByText(/本月每日采购花销趋势/)).not.toBeInTheDocument();
+    });
   });
 });

@@ -1072,3 +1072,11 @@ pm2 startup
   3. [SensorySelector.tsx]（台账样式一/样式二共用的感官性状多选组件）候选项来源由组件内部硬编码数组改为直接读取 `LedgerService.getHelperDict().sensoryOptions`。
   4. [LedgerStyle1Table.tsx]/[LedgerStyle2Flow.tsx] 里各自重复硬编码的"保质期"`<select>` 选项列表，统一改为遍历 `LedgerService.getHelperDict().shelfLifeOptions` 动态渲染。
 - **验证**：新增 `SensorySelector.test.tsx`（6 个用例，覆盖候选项来源于配置字典、多选切换、清空、点击外部收起、禁用态）与 `AdminLedgerHelpersTab.test.tsx`（5 个用例，覆盖两个新卡片渲染、新增、去重拦截、删除）；同步修复 `LedgerStyle1Table.test.tsx`/`LedgerStyle2Flow.test.tsx` 里因字典类型扩展而需要补全 mock 字段的 2 处；`npm test` 全量 356 个用例通过；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——管理后台"台账人员与供货商"Tab 正确显示"感官性状候选项 (17 项)""保质期候选项 (8 项)"两张新卡片，手动添加/删除候选项后立即生效并正确持久化到 `data/db.json`。
+
+### 2026-07-04 - [V5.69.0] 餐位分组页面二级品类下新增当月采购花销趋势折线图
+- **需求**：用户反馈餐位分组页面下的每日采购细表看不出当天的采购花销走势，要求在二级品类下新增一个"当前受众、当前品类"的当月采购花销折线图，并用按钮控制显示/隐藏，默认隐藏。
+- **重构方案**：
+  1. 新增 [MonthlySpendingChart.tsx]：纯展示型 SVG 折线图组件，直接复用 [TableGrid.tsx] 里已经算好的 `dayTotals`（每日金额汇总，[V5.x] 起就已存在，无需新增任何数据计算逻辑），横轴为当月 1~31 号，纵轴为当日采购金额，含网格参考线、Y 轴刻度、折线下方渐变填充区、每个数据点悬浮显示当天具体金额（原生 `<title>` tooltip），当整月无任何花销时显示"本月该品类暂无任何采购花销记录"空态提示，标题栏展示"「受众」品类类 - 本月每日采购花销趋势"与"本月累计"金额；线条颜色跟随 [TableGrid.tsx] 当前选定的表格主题色。
+  2. [TableGrid.tsx] 新增 `showSpendingChart` 状态（默认 `false`），在过滤条按钮组新增"本月花销趋势图"/"隐藏花销趋势图"切换按钮，点击后在过滤条与主表格之间条件渲染 `MonthlySpendingChart`，传入当前受众名称（`getGroupLabel`）与当前二级品类名称（`getCategoryLabel`），均复用组件内已有的辅助函数。
+  3. 项目未引入任何第三方图表库（package.json 里没有 recharts/chart.js 等依赖），本次改动手写 SVG 折线图，未新增任何依赖。
+- **验证**：新增 `MonthlySpendingChart.test.tsx`（4 个用例，覆盖空态提示、标题与累计金额、每日数据点及悬浮提示、首末日期坐标轴标注）；`TableGrid.test.tsx` 新增 1 个用例覆盖默认隐藏+点击展开/收起；`npm test` 全量 361 个用例通过；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——「幼儿备餐」蔬菜品类默认不显示趋势图，点击"本月花销趋势图"后正确展开折线图，"本月累计: ¥338"与表格数据（110+6+222）吻合，2~3 号出现的采购高峰在折线图上正确呈现为陡峭尖峰，再次点击"隐藏花销趋势图"后正确收起；控制台无报错。
