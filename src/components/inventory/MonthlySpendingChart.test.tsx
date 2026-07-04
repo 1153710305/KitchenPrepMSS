@@ -5,11 +5,12 @@
 
 /**
  * @description MonthlySpendingChart（当月采购花销趋势折线图）组件测试：本月累计金额展示、无任何花销时的空态提示、
- * 按数据点数量渲染折线图坐标点、每个数据点的悬浮提示文案。
+ * 按数据点数量渲染折线图坐标点、每个数据点的悬浮提示文案、[V5.71.0] 鼠标悬浮某一天数据点时弹出的自定义提示框。
  */
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MonthlySpendingChart } from "./MonthlySpendingChart.tsx";
 import { THEME_MAP } from "../../hooks/useTableTheme.ts";
 
@@ -64,7 +65,7 @@ describe("MonthlySpendingChart", () => {
     expect(screen.queryByText(/「幼儿备餐」/)).not.toBeInTheDocument();
   });
 
-  it("renders one data point circle per day with a per-day tooltip", () => {
+  it("renders a visible dot plus a larger hover hit-target per day, each carrying the day's native tooltip text", () => {
     render(
       <MonthlySpendingChart
         days={days}
@@ -75,10 +76,53 @@ describe("MonthlySpendingChart", () => {
       />
     );
 
+    // 每个数据点渲染 2 个 <circle>：可见小圆点 + 悬浮命中用的透明大圆点
     const circles = document.querySelectorAll("circle");
-    expect(circles).toHaveLength(3);
+    expect(circles).toHaveLength(days.length * 2);
     expect(screen.getByText("1号: ¥110.00")).toBeInTheDocument();
     expect(screen.getByText("3号: ¥228.00")).toBeInTheDocument();
+  });
+
+  it("[V5.71.0] shows no custom tooltip box until a data point is hovered", () => {
+    render(
+      <MonthlySpendingChart
+        days={days}
+        dayTotals={{ "1": 110, "2": 0, "3": 228 }}
+        groupLabel="幼儿备餐"
+        categoryLabel="蔬菜"
+        activeTheme={THEME_MAP.emerald}
+      />
+    );
+
+    expect(document.querySelector("rect")).not.toBeInTheDocument();
+  });
+
+  it("[V5.71.0] shows a custom tooltip box with the exact day/amount when hovering a data point, and hides it on mouse-leave", async () => {
+    const user = userEvent.setup();
+    render(
+      <MonthlySpendingChart
+        days={days}
+        dayTotals={{ "1": 110, "2": 0, "3": 228 }}
+        groupLabel="幼儿备餐"
+        categoryLabel="蔬菜"
+        activeTheme={THEME_MAP.emerald}
+      />
+    );
+
+    const hitTargets = document.querySelectorAll("circle[r='10']");
+    expect(hitTargets).toHaveLength(days.length);
+
+    await user.hover(hitTargets[2]);
+
+    const tooltipRect = document.querySelector("rect");
+    expect(tooltipRect).toBeInTheDocument();
+    // "3号"同时出现在 X 轴刻度与提示框里，限定在提示框所在的 <g> 内断言避免多重匹配
+    const tooltipGroup = tooltipRect!.parentElement!;
+    expect(tooltipGroup.textContent).toBe("3号¥228.00");
+
+    await user.unhover(hitTargets[2]);
+
+    expect(document.querySelector("rect")).not.toBeInTheDocument();
   });
 
   it("labels the first and last day on the x-axis", () => {
