@@ -661,8 +661,13 @@ export function LedgerPrintDoc({
   //    字号无障碍设置等比放大到 37px/43px）作为屏幕预览的视觉留白，但打印页边距已经由 PrintOutDoc 内部的
   //    `@page { margin: 12mm }` 单独声明——两者叠加相当于每页上下各多出约 64px（字号放大时更多）的重复边距，
   //    恰好蚕食掉"每页 minPrintRows 行 + maxSuppliersPerPage 条供货商"这套行数预算原本预留的余量，导致内容
-  //    在物理纸张上比行数预算计算时更容易溢出到下一页。打印时把该容器的内边距清零，只保留 @page margin 这一份
-  //    页边距来源，行数预算与实际物理可用高度才能真正对齐。
+  //    在物理纸张上比行数预算计算时更容易溢出到下一页。打印时把该容器的上下内边距清零，只保留 @page margin
+  //    这一份纵向页边距来源，行数预算与实际物理可用高度才能真正对齐。
+  // 4) [V5.80.0] 修复右侧内容贴边溢出问题：上一步把左右内边距也一并清零后，表格横向只剩 @page 的 12mm
+  //    页边距兜底，没有任何额外缓冲——不同打印机的硬件不可打印区域往往比 CSS `@page margin` 声明的更大，
+  //    导致表格右边缘在真实纸张上出现被裁切/贴边的观感。左右内边距恢复为一个较小的安全值（不使用会随字号
+  //    无障碍设置放大的 p-8/rem 单位，改用固定的 mm 物理单位，与 @page margin 的度量方式保持一致），
+  //    纵向内边距依旧保持清零，避免重新引入分页行数预算的偏差。
   return createPortal(
     <div className="ledger-print-doc-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
       <style>{`
@@ -675,7 +680,8 @@ export function LedgerPrintDoc({
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
-            padding: 0 !important;
+            padding: 0 6mm !important;
+            box-sizing: border-box !important;
           }
         }
       `}</style>

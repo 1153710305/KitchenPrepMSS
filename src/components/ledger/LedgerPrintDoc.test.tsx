@@ -53,7 +53,7 @@ describe("LedgerPrintDoc [V5.75.0] renders via a portal directly under document.
     expect(overlay!.parentElement).toBe(document.body);
   });
 
-  it("[V5.78.0] clears the overlay's own padding during print so it doesn't double up with the @page margin and starve the row/supplier budget", () => {
+  it("[V5.80.0] zeroes the overlay's vertical padding during print (avoiding double margin with @page) while keeping a small horizontal safety margin", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
     render(
       <LedgerPrintDoc
@@ -71,9 +71,9 @@ describe("LedgerPrintDoc [V5.75.0] renders via a portal directly under document.
       el.textContent?.includes(".ledger-print-doc-overlay")
     );
     expect(printStyleTag).toBeTruthy();
-    // @media print 覆盖规则里必须清零内边距，否则会与 PrintOutDoc 自身声明的 @page margin 重复叠加，
-    // 蚕食行数预算原本预留的物理页面余量，导致本应一页打完的内容被挤到下一页
-    expect(printStyleTag!.textContent).toMatch(/\.ledger-print-doc-overlay\s*\{[^}]*padding:\s*0\s*!important/);
+    // 上下内边距必须清零，否则会与 PrintOutDoc 自身声明的 @page margin 重复叠加，蚕食行数预算原本预留的物理页面余量；
+    // 左右内边距保留一个小的安全值（而非完全清零），避免表格贴着物理纸张边缘导致真实打印机不可打印区域裁切内容
+    expect(printStyleTag!.textContent).toMatch(/\.ledger-print-doc-overlay\s*\{[^}]*padding:\s*0\s+6mm\s*!important/);
   });
 });
 
