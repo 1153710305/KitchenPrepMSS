@@ -306,9 +306,9 @@ function PrintOutDoc({
   const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
   const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + maxSuppliersPerPage;
   
-  // 获取最后一页的已用记录行数
+  // 获取最后一页的已用记录行数（如果是空表，则已用行数为 0）
   const lastRowPage = rowPages[rowPages.length - 1];
-  const rowsUsedOnLastPage = lastRowPage ? lastRowPage.reduce((sum, g) => sum + g.items.length, 0) : LEDGER_PRINT_OUT_CONFIG.minPrintRows;
+  const rowsUsedOnLastPage = lastRowPage ? lastRowPage.reduce((sum, g) => sum + g.items.length, 0) : 0;
   
   // 首个供货商块能容纳的数量：最大极限容量 - 已使用的记录行数（最少为 maxSuppliersPerPage）
   const firstChunkCapacity = Math.max(maxSuppliersPerPage, maxCapacity - rowsUsedOnLastPage);
