@@ -119,3 +119,97 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
     expect(screen.getByText("40")).toBeInTheDocument();
   });
 });
+
+describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量时的分页打印", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not show a page indicator when everything fits on a single page (existing single-page behavior unaffected)", () => {
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
+      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+    ]);
+    const item = makeOutwardItem("土豆", { supplier: "合作基地直供" });
+
+    render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={[item]}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
+    expect(screen.queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument();
+  });
+
+  it("splits onto a second page when a category's items would exceed the 25-row page limit, without splitting the category itself", () => {
+    // 蔬菜品类 20 种 + 肉类品类 10 种 = 30 行，超过单页 25 行上限：
+    // 第1页放得下整组蔬菜(20行)，但肉类(10行)放不进剩余5格，因此肉类整组移到第2页，不允许被拆分
+    const vegNames = Array.from({ length: 20 }, (_, i) => `蔬菜${i + 1}`);
+    const meatNames = Array.from({ length: 10 }, (_, i) => `肉类${i + 1}`);
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
+      ...vegNames.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" })),
+      ...meatNames.map((name) => ({ name, category: FoodCategory.MEAT, unit: "斤", remark: "" }))
+    ]);
+    const items = [...vegNames, ...meatNames].map((name) => makeOutwardItem(name, { supplier: "合作基地直供" }));
+
+    render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={items}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    const tables = document.querySelectorAll(".ledger-print-out-table");
+    expect(tables).toHaveLength(2);
+    expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(25);
+    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(25);
+
+    // 肉类品类整组只应出现在第2页，第1页不应出现被拆散的肉类行
+    expect(tables[0].textContent).not.toContain("肉类1");
+    expect(tables[1].textContent).toContain("肉类1");
+    expect(tables[1].textContent).toContain("肉类10");
+
+    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
+    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
+  });
+
+  it("adds a dedicated supplier continuation page when more than maxSuppliersPerPage (3) distinct suppliers exist", () => {
+    const names = ["原料A", "原料B", "原料C", "原料D", "原料E"];
+    vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
+      names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
+    );
+    const items = names.map((name, i) => makeOutwardItem(name, { supplier: `供货商${i + 1}` }));
+
+    render(
+      <LedgerPrintDoc
+        printDocType="out"
+        activeLedger={ledger}
+        selectedDate="2026-07-03"
+        dailyInwardItems={[]}
+        dailyOutwardItems={items}
+        dailyInTotalAmount={0}
+        onClose={vi.fn()}
+      />
+    );
+
+    // 5 条供货商信息只应产生 1 张行数据表（行数远小于25，无需分页），但供货商信息本身超过每页3条上限，需要多出1页续排
+    expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
+    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
+    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
+    expect(screen.getByText(/供货商续页/)).toBeInTheDocument();
+
+    expect(screen.getByText(/供货商：供货商1/)).toBeInTheDocument();
+    expect(screen.getByText(/供货商：供货商5/)).toBeInTheDocument();
+  });
+});

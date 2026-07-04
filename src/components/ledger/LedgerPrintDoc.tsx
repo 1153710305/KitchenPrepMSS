@@ -7,6 +7,7 @@
  * @description 台账出入库凭证单的纯净打印模板组件：按食品行业规范排版出库登记表，供物理打印或导出留档使用。
  */
 
+import type { ReactNode } from "react";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
@@ -137,7 +138,57 @@ function PrintInDoc({
 }
 
 /**
- * @description 新版出库单打印模板内容组件（按图片样式：按品类合并行展示）
+ * @description 按每页固定行数(rowsPerPage)对品类分组做贪心装箱分页：品类组整体不跨页拆分（组内条目一律移到下一页），
+ * 仅当单个品类组自身条目数就超过整页容量时才在组内部拆分并标记续页(continued)——这种极端情况在当前原料字典规模下基本不会触发，
+ * 但仍需正确处理避免死循环或数据丢失。
+ */
+function paginateGroupedItems(
+  groups: Array<{ categoryLabel: string; items: Array<{ item: any; rowIndex: number }> }>,
+  rowsPerPage: number
+): Array<Array<{ categoryLabel: string; items: Array<{ item: any; rowIndex: number }>; continued: boolean }>> {
+  const pages: Array<Array<{ categoryLabel: string; items: Array<{ item: any; rowIndex: number }>; continued: boolean }>> = [];
+  let currentPage: Array<{ categoryLabel: string; items: Array<{ item: any; rowIndex: number }>; continued: boolean }> = [];
+  let currentRows = 0;
+
+  groups.forEach((group) => {
+    let remainingItems = group.items;
+    let isFirstSlice = true;
+
+    while (remainingItems.length > 0) {
+      const spaceLeft = rowsPerPage - currentRows;
+
+      if (remainingItems.length <= spaceLeft) {
+        // 当前页容得下整组（或该组尚未渲染的剩余部分）
+        currentPage.push({ categoryLabel: group.categoryLabel, items: remainingItems, continued: !isFirstSlice });
+        currentRows += remainingItems.length;
+        remainingItems = [];
+      } else if (currentRows === 0) {
+        // 当前页是全新空页，但整组仍放不下一整页——单组行数超过整页容量的兜底分支，此时才允许组内拆分
+        const slice = remainingItems.slice(0, rowsPerPage);
+        currentPage.push({ categoryLabel: group.categoryLabel, items: slice, continued: !isFirstSlice });
+        remainingItems = remainingItems.slice(rowsPerPage);
+        pages.push(currentPage);
+        currentPage = [];
+        currentRows = 0;
+        isFirstSlice = false;
+      } else {
+        // 当前页已有内容且放不下整组剩余部分——整组（不拆分）移到下一页
+        pages.push(currentPage);
+        currentPage = [];
+        currentRows = 0;
+      }
+    }
+  });
+
+  if (currentPage.length > 0 || pages.length === 0) {
+    pages.push(currentPage);
+  }
+
+  return pages;
+}
+
+/**
+ * @description 新版出库单打印模板内容组件（按图片样式：按品类合并行展示；[V5.73.0] 支持超出单页容量时自动分页续排）
  */
 function PrintOutDoc({
   activeLedger,
@@ -200,9 +251,9 @@ function PrintOutDoc({
     }
   });
 
-  // 填充空行至 minPrintRows
-  const totalDataRows = globalIndex - 1;
-  const emptyRowsCount = Math.max(0, LEDGER_PRINT_OUT_CONFIG.minPrintRows - totalDataRows);
+  // ==== 分页：出库单表格每页固定 minPrintRows 行，超出部分按品类整体移到下一页（[V5.73.0]） ====
+  const rowsPerPage = LEDGER_PRINT_OUT_CONFIG.minPrintRows;
+  const rowPages = groupedByCategory.length > 0 ? paginateGroupedItems(groupedByCategory, rowsPerPage) : [];
 
   // ==== 日期解析：自动填入完整年月日 ====
   const dateParts = selectedDate.split("-");
@@ -248,45 +299,137 @@ function PrintOutDoc({
     dynamicSupplierLines.push(`供货商：${supplierName}（${catLabels.join("、")}）`);
   });
 
-  return (
-    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize, color: "#000" }}>
-      {/* 出库单标题和日期行（无黑色边框，独立结构） */}
-      <table className="w-full border-collapse mb-2" style={{ tableLayout: "fixed" }}>
-        <tbody>
-          <tr>
-            <td
-              className="py-2 px-0 text-center relative"
-              style={{ border: "none" }}
+  // ==== 供货商信息分页：每页最多 maxSuppliersPerPage 条，超出部分另起续页（[V5.73.0]） ====
+  const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
+  const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
+  const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+  const supplierChunks: string[][] = [];
+  for (let i = 0; i < supplierDisplayLines.length; i += maxSuppliersPerPage) {
+    supplierChunks.push(supplierDisplayLines.slice(i, i + maxSuppliersPerPage));
+  }
+  if (supplierChunks.length === 0) supplierChunks.push([]);
+  const firstSupplierChunk = supplierChunks[0];
+  const extraSupplierChunks = supplierChunks.slice(1);
+
+  // 总页数：行数据表页数（当日无数据时仍固定展示 1 页空表）+ 供货商续页数
+  const totalPages = Math.max(rowPages.length, 1) + extraSupplierChunks.length;
+
+  /**
+   * @description 渲染每一页顶部重复的标题+日期栏；总页数大于 1 时额外展示"第 N / 共 M 页"，供货商续页额外标注
+   */
+  const renderTitleBlock = (pageIndex: number, isSupplierContinuationPage: boolean) => (
+    <table className="w-full border-collapse mb-2" style={{ tableLayout: "fixed" }}>
+      <tbody>
+        <tr>
+          <td className="py-2 px-0 text-center relative" style={{ border: "none" }}>
+            <div>
+              <span style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocTitleFontSize, fontWeight: "bold" }}>
+                {LEDGER_PRINT_OUT_CONFIG.outDocTitle}
+              </span>
+              <span style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize, fontWeight: "bold" }}>
+                （{activeLedger?.name}{isSupplierContinuationPage ? "·供货商续页" : ""}）
+              </span>
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                bottom: "2px",
+                fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize,
+                fontWeight: "bold"
+              }}
             >
-              <div>
-                <span style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocTitleFontSize, fontWeight: "bold" }}>
-                  {LEDGER_PRINT_OUT_CONFIG.outDocTitle}
-                </span>
-                <span style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize, fontWeight: "bold" }}>
-                  （{activeLedger?.name}）
-                </span>
-              </div>
+              {printYear}年{printMonth}月{printDay}日
+            </div>
+            {totalPages > 1 && (
               <div
                 style={{
                   position: "absolute",
-                  right: 0,
+                  left: 0,
                   bottom: "2px",
                   fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize,
-                  fontWeight: "bold"
+                  fontWeight: "normal",
+                  color: "#444"
                 }}
               >
-                {printYear}年{printMonth}月{printDay}日
+                第 {pageIndex + 1} / {totalPages} 页
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            )}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
 
-      {/* 出库明细主表格：类别3字宽、品名6字宽，出库人/接收人两列相应加宽，腾出的空间从其余列按比例收窄换得 */}
-      {/* 线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一，与图一/图二打印样式保持一致 */}
+  /**
+   * @description 渲染底部供货商信息栏；无真实供货商数据时展示灰色占位提示文案（保持原有行为不变）
+   */
+  const renderSupplierFooter = (lines: string[]) => (
+    <div className="mt-2 text-black leading-6" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
+      {lines.map((line, i) => (
+        <div key={i} className={isPlaceholderSuppliers ? "text-gray-400" : undefined}>
+          {isPlaceholderSuppliers ? `${line}（请在出库记录中填写对应供货商）` : line}
+        </div>
+      ))}
+    </div>
+  );
+
+  /**
+   * @description 每页内容外层容器：除首页外，打印时强制插入分页符另起一页（page-break，含新旧两种 CSS 属性兜底浏览器兼容性）；
+   * 屏幕预览（非打印态）下额外展示浅色分页提示，方便操作员在打印前确认断页位置
+   */
+  const renderPageWrapper = (pageIndex: number, children: ReactNode) => (
+    <div
+      key={`print-page-${pageIndex}`}
+      style={{
+        breakBefore: pageIndex === 0 ? "auto" : "page",
+        pageBreakBefore: pageIndex === 0 ? "auto" : "always"
+      }}
+    >
+      {pageIndex > 0 && (
+        <div className="print:hidden text-center text-[11px] text-gray-400 my-3 select-none">
+          －－－ 以下另起第 {pageIndex + 1} 页打印 －－－
+        </div>
+      )}
+      {children}
+    </div>
+  );
+
+  /** 主表格固定列宽 colgroup + 表头，各页共用，避免重复书写导致后续调整列宽时遗漏某一页 */
+  const renderTableHead = () => (
+    <>
+      <colgroup>
+        <col style={{ width: "9%" }} />
+        <col style={{ width: "7%" }} />
+        <col style={{ width: "17%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "22%" }} />
+        <col style={{ width: "33%" }} />
+      </colgroup>
+      <thead>
+        <tr className="bg-gray-50 text-center font-bold" style={{ height: "28px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
+          <th className="border border-black px-1">类别</th>
+          <th className="border border-black px-1">序号</th>
+          <th className="border border-black px-1">品名</th>
+          <th className="border border-black px-1">数量</th>
+          <th className="border border-black px-1">出库人</th>
+          <th className="border border-black px-1">接收人</th>
+        </tr>
+      </thead>
+    </>
+  );
+
+  return (
+    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize, color: "#000" }}>
+      {/* 线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一，与图一/图二打印样式保持一致；
+          同时声明 A4 纸张与页边距，配合各页容器的强制分页符，保证内容行数/供货商条数超出单页容量时完整续排到下一页，不再被物理纸张边缘截断 */}
       <style>{`
         .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
           border: 1px solid #000000 !important;
+        }
+        @page {
+          size: A4;
+          margin: 12mm;
         }
         @media print {
           .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
@@ -296,159 +439,158 @@ function PrintOutDoc({
           }
         }
       `}</style>
-      <table
-        className="ledger-print-out-table w-full border-collapse"
-        style={{ tableLayout: "fixed" }}
-      >
-        <colgroup>
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "17%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "33%" }} />
-        </colgroup>
-        <thead>
-          <tr className="bg-gray-50 text-center font-bold" style={{ height: "28px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
-            <th className="border border-black px-1">类别</th>
-            <th className="border border-black px-1">序号</th>
-            <th className="border border-black px-1">品名</th>
-            <th className="border border-black px-1">数量</th>
-            <th className="border border-black px-1">出库人</th>
-            <th className="border border-black px-1">接收人</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groupedByCategory.length === 0 ? (
-            /* 当日无出库数据时只展示空白行，空行也按品类合并 */
-            Array.from({ length: LEDGER_PRINT_OUT_CONFIG.minPrintRows }).map((_, i) => (
-              <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
-                {i === 0 ? (
-                  <>
-                    <td className="border border-black" rowSpan={LEDGER_PRINT_OUT_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black" rowSpan={LEDGER_PRINT_OUT_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black" rowSpan={LEDGER_PRINT_OUT_CONFIG.minPrintRows}>-</td>
-                  </>
-                ) : (
-                  <>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                  </>
-                )}
-              </tr>
-            ))
-          ) : (
+
+      {rowPages.length === 0 ? (
+        // 当日无任何出库数据：保持原有单页空表展示（不涉及分页），仅在末尾追加供货商信息栏
+        renderPageWrapper(0, (
+          <>
+            {renderTitleBlock(0, extraSupplierChunks.length > 0)}
+            <table className="ledger-print-out-table w-full border-collapse" style={{ tableLayout: "fixed" }}>
+              {renderTableHead()}
+              <tbody>
+                {Array.from({ length: rowsPerPage }).map((_, i) => (
+                  <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
+                    {i === 0 ? (
+                      <>
+                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
+                        <td className="border border-black" rowSpan={rowsPerPage}>-</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {renderSupplierFooter(firstSupplierChunk)}
+          </>
+        ))
+      ) : (
+        rowPages.map((pageGroups, pageIndex) => {
+          const rowsUsedOnThisPage = pageGroups.reduce((sum, g) => sum + g.items.length, 0);
+          const pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
+          const isLastRowPage = pageIndex === rowPages.length - 1;
+
+          return renderPageWrapper(pageIndex, (
             <>
-              {/* 按品类分组渲染，类别格、出库人、接收人做 rowSpan 合并 */}
-              {groupedByCategory.map((group) => {
-                // 提前计算该品类分组内所有出库条目的出库人（去重）和接收人（去重）
-                const handlers = Array.from(
-                  new Set(
-                    group.items
-                      .map(({ item }) => item.record.outHandler || "")
-                      .filter(Boolean)
-                  )
-                ).join("、") || "-";
+              {renderTitleBlock(pageIndex, false)}
+              <table className="ledger-print-out-table w-full border-collapse" style={{ tableLayout: "fixed" }}>
+                {renderTableHead()}
+                <tbody>
+                  {/* 按品类分组渲染，类别格、出库人、接收人做 rowSpan 合并（合并范围限定在当前页内这一组的切片行数，不跨页） */}
+                  {pageGroups.map((group, groupIdx) => {
+                    // 提前计算该品类分组切片内所有出库条目的出库人（去重）和接收人（去重）
+                    const handlers = Array.from(
+                      new Set(
+                        group.items
+                          .map(({ item }) => item.record.outHandler || "")
+                          .filter(Boolean)
+                      )
+                    ).join("、") || "-";
 
-                const recipients = Array.from(
-                  new Set(
-                    group.items
-                      .map(({ item }) => item.record.outRecipient || "")
-                      .filter(Boolean)
-                  )
-                ).join("、") || "-";
+                    const recipients = Array.from(
+                      new Set(
+                        group.items
+                          .map(({ item }) => item.record.outRecipient || "")
+                          .filter(Boolean)
+                      )
+                    ).join("、") || "-";
 
-                return group.items.map(({ item, rowIndex }, idx) => {
-                  const isFirstInGroup = idx === 0;
-                  const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
-                  const displayName = dictItem?.name ?? item.name;
-                  const displayUnit = dictItem?.unit ?? item.unit;
+                    return group.items.map(({ item, rowIndex }, idx) => {
+                      const isFirstInGroup = idx === 0;
+                      const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
+                      const displayName = dictItem?.name ?? item.name;
+                      const displayUnit = dictItem?.unit ?? item.unit;
 
-                  /**
-                   * @description 判断当前原料是否设置了有效的换算单位与换算比例
-                   */
-                  const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
-                  /** 优先展示换算单位，若无则展示普通单位 */
-                  const displayPrintUnit = hasConversion ? dictItem.conversionUnit : displayUnit;
-                  /** 优先展示换算计算后的数量，若无则展示普通出库数量 */
-                  const displayPrintQty = (hasConversion && item.record.outQuantity)
-                    ? Number((item.record.outQuantity * dictItem.conversionRatio).toFixed(2))
-                    : (item.record.outQuantity || "");
+                      /**
+                       * @description 判断当前原料是否设置了有效的换算单位与换算比例
+                       */
+                      const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
+                      /** 优先展示换算单位，若无则展示普通单位 */
+                      const displayPrintUnit = hasConversion ? dictItem.conversionUnit : displayUnit;
+                      /** 优先展示换算计算后的数量，若无则展示普通出库数量 */
+                      const displayPrintQty = (hasConversion && item.record.outQuantity)
+                        ? Number((item.record.outQuantity * dictItem.conversionRatio).toFixed(2))
+                        : (item.record.outQuantity || "");
 
-                  return (
-                    <tr key={item.id} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight }} className="text-center">
-                      {isFirstInGroup && (
-                        <td
-                          className="border border-black font-bold"
-                          rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
-                        >
-                          {group.categoryLabel}
-                        </td>
-                      )}
-                      <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
-                      <td className="border border-black text-center px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
-                        {displayName}（{displayPrintUnit}）
-                      </td>
-                      <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
-                        {displayPrintQty}
-                      </td>
-                      {isFirstInGroup && (
-                        <td
-                          className="border border-black font-bold"
-                          rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
-                        >
-                          {handlers}
-                        </td>
-                      )}
-                      {isFirstInGroup && (
-                        <td
-                          className="border border-black font-bold"
-                          rowSpan={group.items.length}
-                          style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
-                        >
-                          {recipients}
-                        </td>
-                      )}
+                      return (
+                        <tr key={`${item.id}-p${pageIndex}g${groupIdx}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight }} className="text-center">
+                          {isFirstInGroup && (
+                            <td
+                              className="border border-black font-bold"
+                              rowSpan={group.items.length}
+                              style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
+                            >
+                              {group.categoryLabel}{group.continued ? "（续）" : ""}
+                            </td>
+                          )}
+                          <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
+                          <td className="border border-black text-center px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
+                            {displayName}（{displayPrintUnit}）
+                          </td>
+                          <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
+                            {displayPrintQty}
+                          </td>
+                          {isFirstInGroup && (
+                            <td
+                              className="border border-black font-bold"
+                              rowSpan={group.items.length}
+                              style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
+                            >
+                              {handlers}
+                            </td>
+                          )}
+                          {isFirstInGroup && (
+                            <td
+                              className="border border-black font-bold"
+                              rowSpan={group.items.length}
+                              style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
+                            >
+                              {recipients}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    });
+                  })}
+
+                  {/* 补充空行至本页固定行数 */}
+                  {Array.from({ length: pageEmptyRowsCount }).map((_, i) => (
+                    <tr key={`empty-${pageIndex}-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
+                      <td className="border border-black"></td>
+                      <td className="border border-black"></td>
+                      <td className="border border-black"></td>
+                      <td className="border border-black"></td>
+                      <td className="border border-black"></td>
+                      <td className="border border-black"></td>
                     </tr>
-                  );
-                });
-              })}
-
-              {/* 补充空行至最小行数 */}
-              {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                </tr>
-              ))}
+                  ))}
+                </tbody>
+              </table>
+              {isLastRowPage && renderSupplierFooter(firstSupplierChunk)}
             </>
-          )}
-        </tbody>
-      </table>
+          ));
+        })
+      )}
 
-      {/* 底部供货商信息：动态提取当日实际出库记录里的真实供货商，按供货商分组列出其对应二级品类（不展示具体原料名称） */}
-      <div className="mt-2 text-black leading-6" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
-        {dynamicSupplierLines.length > 0 ? (
-          dynamicSupplierLines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))
-        ) : (
-          // 当出库记录均无供货商信息时展示占位提示
-          LEDGER_PRINT_OUT_CONFIG.suppliers.map((line, i) => (
-            <div key={i} className="text-gray-400">{line}（请在出库记录中填写对应供货商）</div>
-          ))
-        )}
-      </div>
+      {/* 供货商信息超过每页上限时的续页：仅展示标题与剩余供货商信息，不重复行数据表格 */}
+      {extraSupplierChunks.map((chunk, chunkIdx) => {
+        const pageIndex = Math.max(rowPages.length, 1) + chunkIdx;
+        return renderPageWrapper(pageIndex, (
+          <>
+            {renderTitleBlock(pageIndex, true)}
+            {renderSupplierFooter(chunk)}
+          </>
+        ));
+      })}
     </div>
   );
 }
