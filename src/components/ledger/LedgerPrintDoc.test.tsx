@@ -13,6 +13,7 @@ import { render, screen } from "@testing-library/react";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
+import { LEDGER_PRINT_OUT_CONFIG } from "../../constants/ledgerConstants.ts";
 import type { Ledger } from "../../types/ledgerTypes.ts";
 
 const ledger: Ledger = { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" };
@@ -184,8 +185,11 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
   });
 
-  it("adds a dedicated supplier continuation page when more than maxSuppliersPerPage (3) distinct suppliers exist", () => {
-    const names = ["原料A", "原料B", "原料C", "原料D", "原料E"];
+  it("adds dedicated supplier continuation page(s) when distinct suppliers exceed maxSuppliersPerPage", () => {
+    // 供货商数量刻意比 maxSuppliersPerPage 多 3 条，确保无论该配置项当前取值多少，都必然触发至少一次续页
+    const maxPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+    const supplierCount = maxPerPage + 3;
+    const names = Array.from({ length: supplierCount }, (_, i) => `原料${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
       names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
     );
@@ -203,13 +207,15 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
       />
     );
 
-    // 5 条供货商信息只应产生 1 张行数据表（行数远小于25，无需分页），但供货商信息本身超过每页3条上限，需要多出1页续排
+    // 行数据远小于25，只应产生 1 张行数据表；供货商信息按 maxSuppliersPerPage 分页后应产生的续页数
+    const expectedTotalPages = Math.ceil(supplierCount / maxPerPage);
     expect(document.querySelectorAll(".ledger-print-out-table")).toHaveLength(1);
-    expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
-    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
-    expect(screen.getByText(/供货商续页/)).toBeInTheDocument();
+    expect(screen.getByText(`第 1 / ${expectedTotalPages} 页`)).toBeInTheDocument();
+    expect(screen.getByText(`第 ${expectedTotalPages} / ${expectedTotalPages} 页`)).toBeInTheDocument();
+    // 供货商续页可能不止一页（取决于 maxSuppliersPerPage 与供货商总数的差值），只需确认至少出现一次续页标注
+    expect(screen.getAllByText(/供货商续页/).length).toBeGreaterThan(0);
 
-    expect(screen.getByText(/供货商：供货商1/)).toBeInTheDocument();
-    expect(screen.getByText(/供货商：供货商5/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`供货商：供货商1(?!\\d)`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`供货商：供货商${supplierCount}`))).toBeInTheDocument();
   });
 });

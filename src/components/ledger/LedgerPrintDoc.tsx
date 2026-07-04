@@ -611,7 +611,23 @@ export function LedgerPrintDoc({
   const isPrintIn = printDocType === "in";
 
   return (
-    <div className="fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+    <div className="ledger-print-doc-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+      {/* 修复分页打印失效问题：本容器平时用 position:fixed + overflow:auto 让预览区域可在屏幕上独立滚动，
+          但浏览器打印引擎会把它当成一个尺寸固定（=视口大小）的可滚动盒子，容器自身内容一旦超出这个盒子的高度，
+          即使内部有 CSS 分页符（break-before: page）也不会被识别成"跨物理页"，实际打印/打印预览里永远只输出第一屏、
+          即第一页看得见的那部分内容——这正是出库单分页打印在屏幕预览里能看到第2页，但真正打印/打印预览只出1页的根因。
+          打印时强制让该容器退回普通文档流（position:static + overflow:visible + 取消固定高度），
+          容器高度改为随多页内容自然撑高，分页符才能在真实的分页布局里生效，多页内容才能完整续排打印。 */}
+      <style>{`
+        @media print {
+          .ledger-print-doc-overlay {
+            position: static !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+        }
+      `}</style>
       {/* 顶部退出预览条（打印时自动隐藏） */}
       <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
         <span className="text-sm text-gray-500 flex items-center gap-1.5">

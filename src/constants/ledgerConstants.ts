@@ -160,7 +160,7 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   /**
    * 出库单底部供货商信息每页最多展示的条数，超出部分另起一页续排
    */
-  maxSuppliersPerPage: 3,
+  maxSuppliersPerPage: 2,
 
   /**
    * @description 出库单打印的字体家族设置（宋体）
