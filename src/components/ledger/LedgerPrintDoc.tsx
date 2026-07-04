@@ -657,6 +657,12 @@ export function LedgerPrintDoc({
   // 再配合 @media print 规则：打印时把 #root（承载头部导航栏等其余界面）整体隐藏，避免其内容穿透进打印输出；
   // 同时把这个 portal 容器自身在打印时强制退回普通文档流（position:static + overflow:visible + 高度自适应），
   // 使其随多页内容自然撑高，分页符才能在真实的分页布局里生效，多页内容才能完整续排打印。
+  // 3) [V5.78.0] 修复"系统预览显示1页，实际打印显示2页"的残留偏差：本容器平时用 p-8（2rem，且会随全局
+  //    字号无障碍设置等比放大到 37px/43px）作为屏幕预览的视觉留白，但打印页边距已经由 PrintOutDoc 内部的
+  //    `@page { margin: 12mm }` 单独声明——两者叠加相当于每页上下各多出约 64px（字号放大时更多）的重复边距，
+  //    恰好蚕食掉"每页 minPrintRows 行 + maxSuppliersPerPage 条供货商"这套行数预算原本预留的余量，导致内容
+  //    在物理纸张上比行数预算计算时更容易溢出到下一页。打印时把该容器的内边距清零，只保留 @page margin 这一份
+  //    页边距来源，行数预算与实际物理可用高度才能真正对齐。
   return createPortal(
     <div className="ledger-print-doc-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
       <style>{`
@@ -669,6 +675,7 @@ export function LedgerPrintDoc({
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
+            padding: 0 !important;
           }
         }
       `}</style>
