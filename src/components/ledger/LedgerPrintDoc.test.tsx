@@ -123,7 +123,9 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
 
     const table = screen.getByText("类别").closest("table")!;
     const bodyRows = table.querySelectorAll("tbody tr");
-    expect(bodyRows).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
+    const suppliersCount = 1; // 测试中仅提供了1个供货商 "合作基地直供"
+    const expectedLastPageRows = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - suppliersCount;
+    expect(bodyRows).toHaveLength(expectedLastPageRows);
   });
 
   it("shows the converted quantity and conversion unit when the dictionary defines a conversion ratio", () => {
@@ -202,7 +204,10 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     const tables = document.querySelectorAll(".ledger-print-out-table");
     expect(tables).toHaveLength(2);
     expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
-    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
+    
+    const suppliersCount = 1; // 仅 1 个 "合作基地直供"
+    const expectedLastPageRows = LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - suppliersCount;
+    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(expectedLastPageRows);
 
     // 肉类品类整组只应出现在第2页，第1页不应出现被拆散的肉类行
     expect(tables[0].textContent).not.toContain("肉类1");

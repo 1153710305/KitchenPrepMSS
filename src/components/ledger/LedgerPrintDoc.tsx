@@ -477,8 +477,17 @@ function PrintOutDoc({
       ) : (
         rowPages.map((pageGroups, pageIndex) => {
           const rowsUsedOnThisPage = pageGroups.reduce((sum, g) => sum + g.items.length, 0);
-          const pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
           const isLastRowPage = pageIndex === rowPages.length - 1;
+
+          // [V5.77.0] 动态计算补全空行：保证记录和供货商在一页内，且供货商恰好置底
+          let pageEmptyRowsCount = 0;
+          if (isLastRowPage) {
+            const suppliersCount = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers.length : firstSupplierChunk.length;
+            const maxCapacity = rowsPerPage + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+            pageEmptyRowsCount = Math.max(0, maxCapacity - rowsUsedOnThisPage - suppliersCount);
+          } else {
+            pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
+          }
 
           return renderPageWrapper(pageIndex, (
             <>
@@ -488,10 +497,13 @@ function PrintOutDoc({
                 <tbody>
                   {/* 按品类分组渲染，类别格、出库人、接收人做 rowSpan 合并（合并范围限定在当前页内这一组的切片行数，不跨页） */}
                   {pageGroups.map((group, groupIdx) => {
-                    // 提前计算该品类分组切片内所有出库条目的出库人（去重）和接收人（去重）
+                    // [V5.77.0] 提前计算该品类在全天记录中的所有出库人（去重）和接收人（去重），避免跨页时取不到首条记录导致空缺
+                    const fullGroup = groupedByCategory.find(g => g.categoryLabel === group.categoryLabel);
+                    const itemsSource = fullGroup ? fullGroup.items : group.items;
+
                     const handlers = Array.from(
                       new Set(
-                        group.items
+                        itemsSource
                           .map(({ item }) => item.record.outHandler || "")
                           .filter(Boolean)
                       )
@@ -499,7 +511,7 @@ function PrintOutDoc({
 
                     const recipients = Array.from(
                       new Set(
-                        group.items
+                        itemsSource
                           .map(({ item }) => item.record.outRecipient || "")
                           .filter(Boolean)
                       )
