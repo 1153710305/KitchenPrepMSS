@@ -182,6 +182,90 @@ describe("StorageService (local mode)", () => {
     });
   });
 
+  describe("[V5.82.0] atomic writes (crash-safety)", () => {
+    it("leaves no leftover .tmp- temp files in the data directory after a normal save", async () => {
+      await StorageService.save({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
+
+      const dataDir = path.dirname(process.env.LOCAL_DB_PATH!);
+      const leftoverTemp = fs.readdirSync(dataDir).filter((f) => f.includes(".tmp-"));
+      expect(leftoverTemp).toEqual([]);
+    });
+
+    it("REGRESSION: does not touch/corrupt the existing db.json if the write is interrupted before the atomic rename", async () => {
+      const dbPath = process.env.LOCAL_DB_PATH!;
+      const originalContent = JSON.stringify({ ledgers: [{ id: "ORIGINAL", name: "原始数据" }] });
+      fs.writeFileSync(dbPath, originalContent, "utf8");
+
+      // 模拟"进程崩溃/断电恰好发生在写临时文件阶段"：第一次 fs.writeFileSync 调用（写入临时文件）直接抛错，
+      // renameSync 永远不会被执行到，验证原始 db.json 绝不会被替换成一份不完整的内容
+      const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementationOnce(() => {
+        throw new Error("模拟磁盘写入中断");
+      });
+
+      const success = await StorageService.save({ ledgers: [{ id: "NEW", name: "新数据" }] });
+
+      expect(success).toBe(false);
+      expect(fs.readFileSync(dbPath, "utf8")).toBe(originalContent);
+      writeSpy.mockRestore();
+    });
+
+    it("REGRESSION: concurrent save() calls never interleave — the final db.json always matches one complete payload, never a corrupted mix", async () => {
+      const [resultA, resultB] = await Promise.all([
+        StorageService.save({ ledgers: [{ id: "A", name: "台账A" }] }),
+        StorageService.save({ ledgers: [{ id: "B", name: "台账B" }] })
+      ]);
+
+      expect(resultA).toBe(true);
+      expect(resultB).toBe(true);
+
+      const finalContent = JSON.parse(fs.readFileSync(process.env.LOCAL_DB_PATH!, "utf8"));
+      const matchesA = JSON.stringify(finalContent.ledgers) === JSON.stringify([{ id: "A", name: "台账A" }]);
+      const matchesB = JSON.stringify(finalContent.ledgers) === JSON.stringify([{ id: "B", name: "台账B" }]);
+      expect(matchesA || matchesB).toBe(true);
+    });
+  });
+
+  describe("[V5.82.0] write lock (internal mutex serializes save()/restore())", () => {
+    it("serializes queued tasks so a later task never starts running before an earlier one finishes", async () => {
+      const order: string[] = [];
+      const slowTask = async () => {
+        order.push("A-start");
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        order.push("A-end");
+      };
+      const fastTask = async () => {
+        order.push("B-start");
+        order.push("B-end");
+      };
+
+      const withWriteLock = (StorageService as any).withWriteLock.bind(StorageService);
+      const pA = withWriteLock(slowTask);
+      const pB = withWriteLock(fastTask);
+      await Promise.all([pA, pB]);
+
+      // 即便 B 任务本身瞬间完成，也必须等 A 任务（含其内部 30ms 延迟）完全结束后才能开始执行
+      expect(order).toEqual(["A-start", "A-end", "B-start", "B-end"]);
+    });
+
+    it("still runs a queued task even if an earlier queued task throws (the lock is released on failure, not just success)", async () => {
+      const order: string[] = [];
+      const failingTask = async () => {
+        order.push("fail-start");
+        throw new Error("模拟前一个任务失败");
+      };
+      const nextTask = async () => {
+        order.push("next-ran");
+      };
+
+      const withWriteLock = (StorageService as any).withWriteLock.bind(StorageService);
+      const pFail = withWriteLock(failingTask).catch(() => {});
+      const pNext = withWriteLock(nextTask);
+      await Promise.all([pFail, pNext]);
+
+      expect(order).toEqual(["fail-start", "next-ran"]);
+    });
+  });
+
   describe("getBackups", () => {
     it("returns an empty array when no backups exist and the backups dir was never touched by a save", async () => {
       const backups = await StorageService.getBackups();

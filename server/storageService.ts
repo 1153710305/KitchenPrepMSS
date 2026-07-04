@@ -62,6 +62,50 @@ export class StorageService {
   }
 
   /**
+   * @description 串行化所有写操作的互斥锁（Promise 链式实现）：save()/restore() 无论被并发触发多少次，
+   * 都会被严格排队、逐一执行，前一个操作完成（无论成功或失败）后才轮到下一个开始。
+   * 当前所有本地写入都用的是同步 fs 调用，Node 单线程事件循环本身就不会在一次同步执行中途被抢占，
+   * 天然不会发生"两次写入交叉执行"；但这个隐含前提并不明显、也容易在未来改动中被破坏（比如为了不阻塞
+   * 事件循环而改用异步 fs.promises 写入后，交叉执行的风险就会重新出现）。显式加锁把"同一时刻只有一个
+   * 写操作在跑"这件事变成一个不依赖实现细节、任何人都能看懂的硬性保证。
+   */
+  private static writeLock: Promise<void> = Promise.resolve();
+
+  /**
+   * @description 把一个异步任务放入写锁队列：等前面所有排队中的任务完成后再执行当前任务，并在完成后释放锁供下一个任务使用
+   * @param {() => Promise<T> | T} task 需要互斥执行的任务
+   * @returns {Promise<T>} 任务的执行结果
+   */
+  private static async withWriteLock<T>(task: () => Promise<T> | T): Promise<T> {
+    const previous = StorageService.writeLock;
+    let release!: () => void;
+    StorageService.writeLock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * @description 原子写入本地文件：先写入同目录下的一个唯一临时文件，写入成功后再用 rename 替换目标文件。
+   * rename 在同一文件系统内是操作系统保证的原子操作（要么完全生效、要么完全不生效），不会出现"写了一半"
+   * 的中间状态；相比直接 fs.writeFileSync(targetPath, ...)，避免了进程崩溃/断电恰好发生在写入目标文件
+   * 过程中，导致该文件被截断成一份损坏、无法解析的 JSON。
+   * @param {string} targetPath 最终要写入的目标文件路径
+   * @param {string} content 要写入的文件内容
+   * @returns {void}
+   */
+  private static atomicWriteFileSync(targetPath: string, content: string): void {
+    const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    fs.writeFileSync(tempPath, content, "utf8");
+    fs.renameSync(tempPath, targetPath);
+  }
+
+  /**
    * @description 初始化存储引擎，创建必要的本地目录
    * @returns {void}
    */
@@ -158,7 +202,7 @@ export class StorageService {
           fs.mkdirSync(targetDir, { recursive: true });
         }
         const targetPath = path.join(targetDir, `${day}.json`);
-        fs.writeFileSync(targetPath, JSON.stringify(dayRecords, null, 2), "utf8");
+        StorageService.atomicWriteFileSync(targetPath, JSON.stringify(dayRecords, null, 2));
       }
     } catch (e) {
       console.error("[STORAGE] 写入日度分散台账文件失败:", e);
@@ -233,6 +277,16 @@ export class StorageService {
    * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
    */
   public static async save(data: any): Promise<boolean> {
+    // 整个保存流程（含云端双写、本地三步落盘）都在写锁内串行执行，防止并发触发的多次 save() 交叉写入
+    return StorageService.withWriteLock(() => StorageService.saveInternal(data));
+  }
+
+  /**
+   * @description save() 的实际执行体，被写锁包裹调用，禁止在锁外单独调用
+   * @param {any} data 需要保存的全量数据包
+   * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
+   */
+  private static async saveInternal(data: any): Promise<boolean> {
     const dataStr = JSON.stringify(data, null, 2);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
@@ -256,19 +310,23 @@ export class StorageService {
         });
       });
 
-      // 2. 保存快照备份，以便发生意外时恢复 (异步上传，不阻塞主线程)
+      // 2. 保存快照备份，以便发生意外时恢复（写锁已保证同一时刻只有一组 save() 在跑，这里改为等待上传结果，
+      // 避免"不阻塞主线程"的旧写法让备份上传实际上跑到下一次 save() 的写锁区间之外，脱离串行化保护）
       const backupKey = `backups/db_${timestamp}.json`;
-      StorageService.getCosClient().putObject({
-        Bucket,
-        Region,
-        Key: backupKey,
-        Body: Buffer.from(dataStr, "utf8")
-      }, (err) => {
-        if (err) {
-          console.error(`[STORAGE COS] 备份快照 ${backupKey} 上传失败:`, err);
-        } else {
-          console.log(`[STORAGE COS] 成功生成云端备份快照: ${backupKey}`);
-        }
+      await new Promise<void>((resolve) => {
+        StorageService.getCosClient().putObject({
+          Bucket,
+          Region,
+          Key: backupKey,
+          Body: Buffer.from(dataStr, "utf8")
+        }, (err) => {
+          if (err) {
+            console.error(`[STORAGE COS] 备份快照 ${backupKey} 上传失败:`, err);
+          } else {
+            console.log(`[STORAGE COS] 成功生成云端备份快照: ${backupKey}`);
+          }
+          resolve();
+        });
       });
 
       return saveMain;
@@ -277,7 +335,7 @@ export class StorageService {
       try {
         const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
 
-        // 1. 先将庞大的每日出入库流水提取整理，以 YYYY/MM/DD.json 分散文件物理落盘
+        // 1. 先将庞大的每日出入库流水提取整理，以 YYYY/MM/DD.json 分散文件物理落盘（内部已改为原子写入）
         StorageService.writeDailyRecordsLocal(dailyDir, data.ledgerItems);
 
         // 2. 深度克隆并清理内存快照中的 dailyRecords，避免主 db.json 及系统快照包体积无限膨胀
@@ -289,13 +347,13 @@ export class StorageService {
         }
         const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
 
-        // 3. 保存去除了每日流水的主配置骨架文件
-        fs.writeFileSync(StorageService.localDbPath, cleanedDataStr, "utf8");
+        // 3. 保存去除了每日流水的主配置骨架文件（原子写入：先写临时文件再 rename，避免崩溃/断电写出半份损坏文件）
+        StorageService.atomicWriteFileSync(StorageService.localDbPath, cleanedDataStr);
         console.log(`[STORAGE LOCAL] 结构与配置数据已写入主文件: ${StorageService.localDbPath}`);
 
-        // 4. 写入去除了每日流水的时间戳快照备份文件
+        // 4. 写入去除了每日流水的时间戳快照备份文件（同样原子写入）
         const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
-        fs.writeFileSync(snapshotPath, cleanedDataStr, "utf8");
+        StorageService.atomicWriteFileSync(snapshotPath, cleanedDataStr);
         console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
 
         // 5. 限制本地历史备份文件总数（最多保留30个版本）
@@ -359,12 +417,24 @@ export class StorageService {
    */
   public static async restore(backupName: string): Promise<any> {
     // 安全校验：仅允许形如 db_<时间戳>.json 的合法备份文件名，拒绝任何包含路径分隔符/上级目录穿越序列的输入，
-    // 避免恶意构造的 backupName（如 "../../.env"）导致读取或覆盖备份目录之外的任意文件
+    // 避免恶意构造的 backupName（如 "../../.env"）导致读取或覆盖备份目录之外的任意文件。
+    // 校验本身是纯读取判断、不涉及写入，放在写锁之外执行，不占用锁资源
     if (!/^db_[\w-]+\.json$/.test(backupName)) {
       console.error(`[STORAGE] 非法的备份文件名，已拒绝恢复请求: ${backupName}`);
       return null;
     }
 
+    // 恢复会覆盖主数据库文件，与 save() 写的是同一份文件，因此也必须纳入同一把写锁，
+    // 避免"恢复覆盖"与"正常保存"两个不同调用点的写入互相交叉
+    return StorageService.withWriteLock(() => StorageService.restoreInternal(backupName));
+  }
+
+  /**
+   * @description restore() 的实际执行体，被写锁包裹调用，禁止在锁外单独调用
+   * @param {string} backupName 已通过安全校验的合法备份文件名
+   * @returns {Promise<any>} 恢复后的 JSON 数据对象
+   */
+  private static async restoreInternal(backupName: string): Promise<any> {
     if (StorageService.storageType === "cos") {
       const { Bucket, Region } = StorageService.getCosConfig();
       return new Promise((resolve) => {
@@ -396,8 +466,8 @@ export class StorageService {
       try {
         const content = fs.readFileSync(targetPath, "utf8");
         const parsed = JSON.parse(content);
-        // 将恢复的数据写回主库文件
-        fs.writeFileSync(StorageService.localDbPath, content, "utf8");
+        // 将恢复的数据写回主库文件（原子写入）
+        StorageService.atomicWriteFileSync(StorageService.localDbPath, content);
         console.log(`[STORAGE LOCAL] 成功从本地快照 ${backupName} 覆盖恢复主数据库`);
         return parsed;
       } catch (err) {
