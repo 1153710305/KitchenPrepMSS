@@ -12,13 +12,14 @@ import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGro
 import { PrepReportService } from "../../services/store.ts";
 import { FOOD_CATEGORY_LABELS, UI_TEXT } from "../../constants/constants.ts";
 import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
-import { Grid, Search, CalendarDays, Check, Flame, Download } from "lucide-react";
+import { Grid, Search, CalendarDays, Check, Flame, Download, TrendingUp } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { useTableTheme } from "../../hooks/useTableTheme.ts";
 import { TableGridMatrixView } from "./TableGridMatrixView.tsx";
 import { TableGridFocusView } from "./TableGridFocusView.tsx";
+import { MonthlySpendingChart } from "./MonthlySpendingChart.tsx";
 
 /**
  * @description 备餐网格组件的输入参数协议
@@ -66,6 +67,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   // 聚焦日的索引状态，默认聚焦 1 号
   const [focusDay, setFocusDay] = useState<string>("1");
+
+  // 当前受众+当前品类的当月采购花销趋势图显示开关，默认隐藏，由用户手动点击按钮展开
+  const [showSpendingChart, setShowSpendingChart] = useState<boolean>(false);
 
   // 食材搜索关键字
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -159,6 +163,19 @@ export const TableGrid: React.FC<TableGridProps> = ({
     });
     return totals;
   }, [filteredItems, days]);
+
+  // 3. 合计汇总表专用：按 report.items（与"总预算耗资"徽章同一数据源，不受品类/搜索过滤影响）统计每日全品类汇总金额
+  const summaryDailyTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    days.forEach((day) => {
+      let sum = 0;
+      report.items.forEach((item) => {
+        sum += item.dailyData[day]?.amount || 0;
+      });
+      totals[day] = Math.round(sum * 100) / 100;
+    });
+    return totals;
+  }, [report.items, days]);
 
   // 高性能修改跟踪，用于在 input 失去焦点(onBlur)时记录变动日志，避免打字时的实时输入卡顿
   const editTrackerRef = useRef<{
@@ -317,6 +334,18 @@ export const TableGrid: React.FC<TableGridProps> = ({
           </span>
         </div>
 
+        {/* 全月备餐开支日耗曲线：还原此前被整体移除的"日开支走势"功能的图表样式 */}
+        <div className="mb-4">
+          <MonthlySpendingChart
+            days={days}
+            dayTotals={summaryDailyTotals}
+            groupLabel={getGroupLabel(report.targetGroup)}
+            categoryLabel=""
+            activeTheme={activeTheme}
+            titleOverride="全月备餐开支日耗曲线"
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categoryRows.map((row) => {
             const pct = grandTotal > 0 ? ((row.amount / grandTotal) * 100).toFixed(1) : "0.0";
@@ -415,6 +444,20 @@ export const TableGrid: React.FC<TableGridProps> = ({
             <span>导出本月细表 (CSV)</span>
           </button>
 
+          {/* 当前受众+当前品类的当月采购花销趋势图显示开关，默认隐藏 */}
+          <button
+            onClick={() => setShowSpendingChart((v) => !v)}
+            type="button"
+            className={`flex items-center gap-1.5 px-3 py-1.5 border text-[13px] font-bold rounded-xl transition-all cursor-pointer ${showSpendingChart
+              ? `${activeTheme.lightBg} ${activeTheme.primaryText} ${activeTheme.primaryText.replace("text-", "border-").replace("-700", "-200").replace("-900", "-200")}`
+              : "bg-white border-gray-100 text-gray-500 hover:text-gray-800"
+              }`}
+            title="展示/隐藏当前受众与品类的本月每日采购花销趋势图"
+          >
+            <TrendingUp size={13} />
+            <span>{showSpendingChart ? "隐藏花销趋势图" : "本月花销趋势图"}</span>
+          </button>
+
           {/* 细表主题样式选择器 */}
           <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-1.5 text-[13px] select-none">
             <span className="text-[11px] text-gray-400 font-bold shrink-0">表格主题:</span>
@@ -463,6 +506,17 @@ export const TableGrid: React.FC<TableGridProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 当前受众+当前品类的当月采购花销趋势图，默认隐藏，点击上方按钮展开 */}
+      {showSpendingChart && (
+        <MonthlySpendingChart
+          days={days}
+          dayTotals={dayTotals}
+          groupLabel={getGroupLabel(report.targetGroup)}
+          categoryLabel={getCategoryLabel(selectedCategory)}
+          activeTheme={activeTheme}
+        />
+      )}
 
       {filteredItems.length === 0 ? (
         <div className="py-16 text-center bg-white border border-gray-100/50 rounded-2xl text-gray-400 text-[13px] italic">

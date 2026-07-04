@@ -12,6 +12,7 @@ import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry
 import { calculateEntryAmount, LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
 import { LedgerService } from "./ledgerStore.ts";
+import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 /**
  * @description 自动模拟服务层接口呼叫时延 (毫秒)
@@ -437,12 +438,17 @@ export class PrepReportService {
 
         // 采用不可变方式克隆更新，确保 React 感知到 report.items 数组变化
         const report = this.reports[reportIndex];
+        const dailyData: Record<string, DailyEntry> = {};
+        for (let d = 1; d <= 31; d++) {
+          dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
+        }
         const newItem: PreparedItem = {
           id: `item_${targetGroup.toLowerCase()}_${category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           name: name.trim(),
           category,
           targetGroup,
-          unit: unit.trim() || CATEGORY_DEFAULT_UNITS[category] || "斤"
+          unit: unit.trim() || CATEGORY_DEFAULT_UNITS[category] || "斤",
+          dailyData
         };
 
         // 同步确保台账系统也存在该原料项目
@@ -509,8 +515,9 @@ export class PrepReportService {
             const updatedDailyData = { ...item.dailyData };
             const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
 
-            entry.quantity = Math.max(0, quantity);
-            entry.price = Math.max(0, price);
+            // 非负数校验，同时兜底非法数字（如 NaN）不会绕过 Math.max 的负数拦截
+            entry.quantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+            entry.price = Number.isFinite(price) ? Math.max(0, price) : 0;
             entry.amount = calculateEntryAmount(entry.quantity, entry.price);
             updatedDailyData[day] = entry;
 

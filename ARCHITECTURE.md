@@ -126,6 +126,37 @@ KPMSS/
 **明确没有做的事：**
 - **没有改动任何业务逻辑、渲染结果、CSS 样式、导出组件名、prop 名或公共函数签名** —— 所有 Hook/组件/后端模块的抽取都是纯代码搬家，通过 `tsc --noEmit`（报错数量前后一致）与 `vite build`（产物 chunk 结构一致）加浏览器手动回归验证确认无行为变化。
 - **没有改动 `StorageService` 的实际读写/备份/COS 算法逻辑**，只挪动了文件位置。
-- **没有新增自动化测试套件** —— 项目目前仍然只能依赖 `tsc --noEmit` / `vite build` / 手动浏览器验证，这是已知缺口，建议后续单独立项补充。
 - **没有对 COS 云存储模式做实际联调**，仅确认代码搬移后类型检查通过。
 - **未合并到 `main` 分支** —— 本轮所有改动固定在 `dev` 分支上，`main` 分支保留其独立的历史提交，未被触碰。
+
+## 七、自动化测试体系
+
+> 详见 [V5.55.0](readme_zh.md) 变更记录。此前项目长期依赖 `tsc --noEmit` / `vite build` / 手动浏览器验证，2026-07-03 起补齐了完整的 Vitest 自动化测试套件作为常驻回归安全网。
+
+### 7.1 技术选型
+
+- **Vitest**：与 `vite.config.ts` 原生集成（`vitest.config.ts` 通过 `mergeConfig` 复用其插件与路径解析规则）。
+- **@testing-library/react** / **jest-dom** / **user-event**：组件与 Hook 测试。
+- **supertest**：后端 Express 路由 HTTP 层集成测试。
+- **jsdom**：前端测试环境；后端 `server/**` 目录测试通过 `environmentMatchGlobs` 使用 `node` 环境。
+- 未引入 Playwright 等浏览器端到端测试，只做单元/集成测试（用户已确认此范围）。
+
+### 7.2 覆盖范围
+
+- **业务逻辑层 100% 覆盖**：`src/utils.ts`、`src/services/*.ts`（`ledgerStore`/`store`/`rawMaterialDict`/`syncHelper`）、`src/hooks/*.ts`（`useAppAuth`/`useTableTheme`/`useLedgerData`/`useLedgerRecording`/`useAppData`）、`server/storageService.ts`、`server/logService.ts`、`server/routes/{storage,misc}.ts`。
+- **关键交互组件**：`HelperSelect`、`LedgerPrintModal`、`LedgerPrintStyle1`、`LedgerPrintStyle2Consumable`、`LedgerStyle1Table`、`LedgerStyle2Flow`、`TableGrid`、`TableGridMatrixView`、`TableGridFocusView`。纯展示型组件（无 state、无分支逻辑）不在覆盖范围内。
+- 测试文件采用就近同目录 `*.test.ts(x)` 命名，与源文件放在一起。
+
+### 7.3 运行方式
+
+```bash
+npm test            # 全量跑一次（CI / 提交前使用）
+npm run test:watch  # 监听模式，开发时使用
+npm run test:coverage  # 生成覆盖率报告
+```
+
+### 7.4 测试隔离要点
+
+- 前端 `private static` 状态的服务类（`LedgerService`/`PrepReportService`/`RawMaterialsDictService`）复用其已有的 `setXInMemory()` 方法在用例间重置内存状态。
+- 后端 `StorageService`/`LogService` 在模块加载时从 `process.env.*` 读取路径并绑定到 `private static` 字段；测试通过 `vi.resetModules()` + 动态 `import()` + 临时目录（`fs.mkdtempSync`）为每个用例拿到全新绑定的类实例，杜绝相互污染，也**杜绝任何测试清理逻辑触碰真实的 `data/` 目录**。
+- 路由测试不导入 `server.ts` 本身（它有 `app.listen()` 等顶层副作用），而是在测试文件内构造只挂载对应 router 的最小 Express 实例 + `supertest`。

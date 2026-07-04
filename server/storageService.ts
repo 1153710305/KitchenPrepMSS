@@ -358,6 +358,13 @@ export class StorageService {
    * @returns {Promise<any>} 恢复后的 JSON 数据对象
    */
   public static async restore(backupName: string): Promise<any> {
+    // 安全校验：仅允许形如 db_<时间戳>.json 的合法备份文件名，拒绝任何包含路径分隔符/上级目录穿越序列的输入，
+    // 避免恶意构造的 backupName（如 "../../.env"）导致读取或覆盖备份目录之外的任意文件
+    if (!/^db_[\w-]+\.json$/.test(backupName)) {
+      console.error(`[STORAGE] 非法的备份文件名，已拒绝恢复请求: ${backupName}`);
+      return null;
+    }
+
     if (StorageService.storageType === "cos") {
       const { Bucket, Region } = StorageService.getCosConfig();
       return new Promise((resolve) => {

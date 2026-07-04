@@ -25,7 +25,9 @@ export const AdminLedgerHelpersTab: React.FC = () => {
     inspectors: "",
     keepers: "",
     outHandlers: "",
-    outRecipients: ""
+    outRecipients: "",
+    sensoryOptions: "",
+    shelfLifeOptions: ""
   });
 
   const dict = LedgerService.getHelperDict();
@@ -111,6 +113,20 @@ export const AdminLedgerHelpersTab: React.FC = () => {
       emoji: "📥",
       placeholder: "例如: 赵领料",
       colorClass: "border-t-rose-500 bg-rose-50/10 text-rose-800"
+    },
+    {
+      key: "sensoryOptions" as const,
+      title: "感官性状候选项",
+      emoji: "🔬",
+      placeholder: "例如: 新鲜",
+      colorClass: "border-t-lime-500 bg-lime-50/10 text-lime-800"
+    },
+    {
+      key: "shelfLifeOptions" as const,
+      title: "保质期候选项",
+      emoji: "⏳",
+      placeholder: "例如: 3个月",
+      colorClass: "border-t-orange-500 bg-orange-50/10 text-orange-800"
     }
   ];
 
@@ -124,7 +140,8 @@ export const AdminLedgerHelpersTab: React.FC = () => {
             台账常用人员与供货商字典库 (Ledger Helper Dictionary)
           </h3>
           <p className="text-[11px] text-slate-500">
-            在此处录入供货商名称、采购员、检验员等名单后，台账数据录入界面对应的文本输入框将自动升级为下拉菜单，大幅提升填报规范性与效率。
+            在此处录入供货商名称、采购员、检验员等名单后，台账数据录入界面对应的文本输入框将自动升级为下拉菜单，大幅提升填报规范性与效率；
+            "感官性状候选项""保质期候选项"两栏则用于自定义台账录入界面里对应下拉框可选的内容。
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] bg-slate-100 px-3 py-1.5 rounded-lg text-slate-600 shrink-0 select-none">

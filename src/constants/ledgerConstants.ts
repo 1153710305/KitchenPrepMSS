@@ -153,9 +153,14 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   ],
 
   /**
-   * 出库单表格至少要保证的最少行数（不足时以空行填充）
+   * 出库单表格每页固定行数：不足时以空行填充到该行数，超出时按此上限触发分页（对应实际 A4 纸一页最多能放的行数）
    */
   minPrintRows: 25,
+
+  /**
+   * 出库单底部供货商信息每页最多展示的条数，超出部分另起一页续排
+   */
+  maxSuppliersPerPage: 3,
 
   /**
    * @description 出库单打印的字体家族设置（宋体）
@@ -163,17 +168,27 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   outDocFontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 出库单表格内容字号大小
+   * @description 出库单表头字号大小
    */
-  outDocContentFontSize: "12px",
+  outDocHeaderFontSize: "16px",
+
+  /**
+   * @description 出库单数据行字号大小
+   */
+  outDocDataFontSize: "14px",
+
+  /**
+   * @description 出库单数据行行高（在原 26px 基础上放大至 1.5 倍）
+   */
+  outDocDataRowHeight: "34px",
 
   /**
    * @description 出库单标题中“出库单”字号大小
    */
-  outDocTitleFontSize: "18px",
+  outDocTitleFontSize: "24px",
 
   /**
-   * @description 出库单标题中括号部分的字号大小
+   * @description 出库单标题中括号部分（及日期）的字号大小
    */
   outDocSubTitleFontSize: "14px"
 };
@@ -188,19 +203,34 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "12px",
+  headerFontSize: "16px",
+
+  /**
+   * @description 数据行字体大小
+   */
+  dataFontSize: "14px",
+
+  /**
+   * @description 数据行行高（在原 28px 基础上放大至 1.3 倍）
+   */
+  dataRowHeight: "32px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "16px",
+  titleFontSize: "24px",
 
   /**
-   * @description 标题的基础前缀
+   * @description 副标题（受众台账名）的字体大小
    */
-  titlePrefix: "食堂食品原材料购销台账-",
+  subtitleFontSize: "14px",
+
+  /**
+   * @description 标题的基础前缀（不含受众台账名，受众名单独作为副标题展示在标题下方）
+   */
+  titlePrefix: "宾县第二小学食堂食品原材料购销台账",
 
   /**
    * @description 最小打印行数（不足时以空行填充）
@@ -209,7 +239,7 @@ export const LEDGER_PRINT_STYLE1_CONFIG = {
 };
 
 /**
- * @description 记账登记表样式一（总表模式）在仅勾选"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的购销总表样式区分开）
+ * @description 单原料日流水（样式二）所选采购项目属于"低耗品"大类时使用的消耗品出入库台账专用打印配置常量（贴合纸质消耗品台账格式，与其余大类共用的单原料日流水样式区分开）
  */
 export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   /**
@@ -218,19 +248,34 @@ export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "12px",
+  headerFontSize: "16px",
+
+  /**
+   * @description 数据行字体大小
+   */
+  dataFontSize: "14px",
+
+  /**
+   * @description 数据行行高（在原 28px 基础上放大至 1.3 倍）
+   */
+  dataRowHeight: "32px",
 
   /**
    * @description 标题的字体大小
    */
-  titleFontSize: "16px",
+  titleFontSize: "24px",
+
+  /**
+   * @description 标题下方日期行的字体大小
+   */
+  subtitleFontSize: "14px",
 
   /**
    * @description 标题的基础前缀
    */
-  titlePrefix: "宾县第二小学食堂消耗品出入库台账-",
+  titlePrefix: "宾县第二小学食堂消耗品出入库台账",
 
   /**
    * @description 最小打印行数（不足时以空行填充）
@@ -248,13 +293,33 @@ export const LEDGER_PRINT_STYLE2_CONFIG = {
   fontFamily: "SimSun, '宋体', serif",
 
   /**
-   * @description 表格及页面内容字体大小
+   * @description 表头字体大小
    */
-  contentFontSize: "12px",
+  headerFontSize: "16px",
 
   /**
-   * @description 标题文字基础前缀
+   * @description 数据行字体大小
    */
-  titlePrefix: "宾县第二小学食堂食品原材料购销台账-"
+  dataFontSize: "14px",
+
+  /**
+   * @description 标题的字体大小
+   */
+  titleFontSize: "24px",
+
+  /**
+   * @description 标题下方日期行的字体大小
+   */
+  dateFontSize: "14px",
+
+  /**
+   * @description 贴右边缘的受众台账名副标题字体大小
+   */
+  subtitleFontSize: "14px",
+
+  /**
+   * @description 标题文字基础前缀（不含受众台账名，受众名单独展示在标题行最右侧）
+   */
+  titlePrefix: "宾县第二小学食堂食品原材料购销台账"
 };
 
