@@ -49,13 +49,13 @@ describe("GET /api/storage/load", () => {
   it("responds with isFirstBoot:false and the persisted data once a db.json exists", async () => {
     await request(app)
       .post("/api/storage/save")
-      .send({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
+      .send({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
 
     const res = await request(app).get("/api/storage/load");
 
     expect(res.status).toBe(200);
     expect(res.body.isFirstBoot).toBe(false);
-    expect(res.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+    expect(res.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
   });
 });
 
@@ -63,7 +63,7 @@ describe("POST /api/storage/save", () => {
   it("persists the request body and responds with success + a timestamp", async () => {
     const res = await request(app)
       .post("/api/storage/save")
-      .send({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
+      .send({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -71,7 +71,7 @@ describe("POST /api/storage/save", () => {
 
     // 数据现由本地 SQLite 承载（阶段一浅迁移），不再直接落盘为 db.json，改为通过 /load 校验持久化结果
     const loadRes = await request(app).get("/api/storage/load");
-    expect(loadRes.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+    expect(loadRes.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
   });
 
   it("accepts an empty body without crashing", async () => {
@@ -109,20 +109,20 @@ describe("POST /api/storage/restore", () => {
   it("restores a valid backup and returns the restored data", async () => {
     await request(app)
       .post("/api/storage/save")
-      .send({ ledgers: [{ id: "KID", name: "幼儿备餐" }] });
+      .send({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
     const backupsRes = await request(app).get("/api/storage/backups");
     const backupName = backupsRes.body[0];
 
     // 保存一份不同的数据，验证 restore 真的把内容换回了备份快照里的版本
     await request(app)
       .post("/api/storage/save")
-      .send({ ledgers: [{ id: "OTHER", name: "别的台账" }] });
+      .send({ ledgers: [{ id: "OTHER", name: "别的台账", createdAt: "2026-01-01T00:00:00.000Z" }] });
 
     const res = await request(app).post("/api/storage/restore").send({ backupName });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐" }]);
+    expect(res.body.data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
   });
 
   it("responds with 500 when the backup file does not exist", async () => {

@@ -5,7 +5,8 @@
 > 但已经先落地了原子写入 + 写入锁（见 `server/storageService.ts` 的 `atomicWriteFileSync`/`withWriteLock`，
 > commit `e6d2a54`），本清单是"下一步真正迁移到 SQLite"时的完整范围地图。
 >
-> **2026-07-05 更新：阶段一（浅迁移）已经完成实施**，详见文末"阶段一实施记录"一节。以下原始规划内容保留作为历史决策依据。
+> **2026-07-05 更新：阶段一（浅迁移）已经完成实施**，详见文末"阶段一实施记录"一节。
+> **2026-07-05 更新：阶段二（数据库 schema 规范化）已经完成实施**，详见文末"阶段二实施记录"一节；经用户明确确认，阶段二范围仅限 schema 规范化，前端整体防抖同步协议保持不变。以下原始规划内容保留作为历史决策依据。
 
 ## 背景
 
@@ -140,3 +141,44 @@
 - 全量测试 385 个用例通过，`tsc --noEmit` 报错数 18（较改造前的 19 有所下降，见上方第 5 点），`vite build` 与 `esbuild server.ts` 打包均成功。
 - 浏览器实机验证：对真实生产数据完整跑过一次迁移，前端正确渲染迁移后的台账明细（含跨月多日流水），并通过真实 UI 操作触发一次保存，确认写入路径同样工作正常，控制台无报错。
 - 额外验证了打包产物 `dist/server.cjs`（而不仅是开发态 `tsx server.ts`）同样能正确加载 SQLite 并对外提供服务。
+
+---
+
+## 阶段二实施记录（2026-07-05，已完成）——数据库 schema 规范化
+
+用户要求"继续完成任务，直到实现完全迁移"。鉴于规划文档原先把"阶段二·深度重构"混在一起描述了两件风险/工作量差异很大的事情——
+① 真正按实体建立关系型表（取代 kv_store 整块 JSON）；② 把前端"防抖 200ms 后整体 POST 全量应用状态"的同步模式换成按字段
+增量写入——事先与用户确认了范围：**只做 ① schema 规范化，② 前端同步协议保持完全不变**。这把改造风险和工作量都收敛在
+`server/storageService.ts` 一个文件里，不需要触碰四个业务服务、`SyncHelper`、任何前端调用方。
+
+### Schema 设计
+
+新增 9 张真正的关系型表，取代阶段一 `kv_store` 的"7 个字段整块塞 JSON 文本"：
+
+| 表 | 对应字段 | 说明 |
+|---|---|---|
+| `ledgers` | `ledgers` | id/name/created_at |
+| `ledger_items` | `ledgerItems`（骨架，不含每日流水） | 按 `ledger_id` 建索引 |
+| `ledger_item_daily_records` | `ledgerItems[].dailyRecords` | 20 个字段全部展开为具名列（而非整块 JSON），按 `date` 建索引；与阶段一同名表结构不同，改用新表名避免冲突 |
+| `reports` | `reports` | 复合主键 (target_group, year, month) |
+| `prepared_items` | `reports[].items` | 按报表复合外键建索引 |
+| `prepared_item_daily_data` | `PreparedItem.dailyData` | |
+| `active_groups` / `active_categories` | `activeGroups` / `activeCategories` | |
+| `raw_materials_dict` | `rawMaterialsDict` | |
+| `ledger_helper_options` | `ledgerHelperDict` 的 8 个 `string[]` 字段 | 打平为 (category, value, sort_order) 三元组，`sort_order` 保留管理员维护的原始顺序 |
+
+`load()`/`save()`/`getBackups()`/`restore()` 对外的输入输出 JSON 形状与规范化之前完全一致（一处已知、可接受的简化：可选字段统一以 `null` 表示"未设置"，不再刻意还原成"字段整体缺失"，详见测试文件里的 `KNOWN EDGE CASE` 用例）。
+
+### 关键实现要点
+
+1. **正常保存**：`importFullDataIntoSqlite()` 把 9 张表的重建全部包在同一个 SQLite 事务里——`upsertSkeleton()` 覆盖除每日流水外的全部骨架表，随后整体清空重建 `ledger_item_daily_records`。真实测试用一条会触发 `NOT NULL` 约束冲突的畸形 payload（原料项缺少必填的 `ledgerId`）验证了跨越 9 张表的事务同样能整体回滚，不留任何部分写入。
+2. **备份恢复**：沿用阶段一确立的原则——`upsertSkeleton()` 被 `importSkeletonOnlyIntoSqlite()`（恢复专用）与 `importFullDataIntoSqlite()`（正常保存专用）共用，恢复时绝不触碰 `ledger_item_daily_records`，因为备份快照从不包含台账每日流水（这个限制从最早的纯 JSON 版本就存在）。
+3. **双重历史迁移路径**：`migrateToNormalizedSchemaIfNeeded()` 按优先级依次尝试——① 阶段一遗留的 `kv_store`（若存在则说明是从阶段一升级）；② 更早版本的纯 JSON `db.json`（若存在则说明是从更早版本直接升级到阶段二）。两条路径都复用同一个 `importFullDataIntoSqlite()` 落地，阶段一的 `kv_store`/`daily_records` 两张表不会被删除，只是不再读写。
+4. **顺带简化**：`load()`/`save()`/`restore()` 内部不再需要任何 JSON 序列化/反序列化整块字段的逻辑（阶段一时 `kv_store` 的 value 列本身就是 JSON 文本），现在完全是字段级别的 SQL 读写，为将来如果真的需要"按字段增量写入""按实体建索引查询"打下了基础（但本次不做，按用户确认的范围）。
+
+### 验证结果
+
+- `server/storageService.test.ts` 全面重写（31 个用例），新增：reports/preparedItems/dailyData 完整往返、activeGroups/activeCategories/rawMaterialsDict/ledgerHelperDict（含顺序保留）完整往返、跨 9 张表的事务回滚验证、"从阶段一 kv_store 升级"与"从最早纯 JSON 版本升级"两条迁移路径的独立回归测试、以及一处已知边界行为差异的显式记录测试（恢复一份内容完全为空的备份，在规范化表结构下与"从未保存过任何数据"无法区分，返回 `{}` 而非"全字段皆空数组"——这只影响一个几乎不会在真实场景发生的极端情形）。
+- `server/routes/storage.test.ts` 同步修正测试夹具（补全 `Ledger.createdAt`/`LedgerItem.ledgerId`/`unit` 等真实类型要求的必填字段，之前的用例夹具本身就不完整，只是阶段一 blob 存储没有字段级约束、掩盖了这个问题）。
+- 全量测试 389 个用例通过，`tsc --noEmit` 报错数保持 18（与阶段一结束时一致），`vite build` 与 `esbuild server.ts` 打包均成功。
+- 迁移验证：先在一份**真实生产数据的完整拷贝**上验证"从阶段一 kv_store 迁移到规范化表"的正确性（3 个台账、32 项原料、43 条每日流水、5 份报表、353 个备餐细项、10943 条备餐每日数据、77 项原料字典、53 条人员/供货商候选项，逐项核对无误），确认无误后再对**真实生产数据本身**执行同样的迁移并做浏览器端到端验证（含真实 UI 触发的一次保存），生产打包产物 `dist/server.cjs` 同样验证通过。

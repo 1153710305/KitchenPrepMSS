@@ -4,8 +4,9 @@
  */
 
 /**
- * @description 本地 SQLite（阶段一浅迁移，见 SQLite迁移规划.md）与腾讯云对象存储（COS）双模式持久化服务：负责主数据的整体读写、
- * 台账逐日流水的存储与重组、历史快照备份与恢复，以及从旧版纯 JSON 文件存储的一次性自动迁移。
+ * @description 本地 SQLite（阶段二·规范化关系型表结构，见 SQLite迁移规划.md）与腾讯云对象存储（COS）双模式持久化服务：
+ * 负责主数据的整体读写、台账/备餐报表逐日流水的存储与重组、历史快照备份与恢复，以及从更早版本存储格式的一次性自动迁移。
+ * load()/save() 对外的输入输出 JSON 形状与阶段一浅迁移之前完全一致，四个前端业务服务与整体防抖同步机制不受任何影响。
  */
 
 import path from "path";
@@ -13,8 +14,17 @@ import fs from "fs";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
 
-/** 整体状态里除 ledgerItems 之外、直接以 JSON 文本整体存入 kv_store 的顶层字段 */
-const SKELETON_KV_KEYS = ["reports", "activeGroups", "activeCategories", "ledgers", "rawMaterialsDict", "ledgerHelperDict"] as const;
+/** ledgerHelperDict 的 8 个 string[] 字段名，打平存入 ledger_helper_options 表 */
+const HELPER_DICT_CATEGORIES = [
+  "suppliers", "buyers", "inspectors", "keepers",
+  "outHandlers", "outRecipients", "sensoryOptions", "shelfLifeOptions"
+] as const;
+
+/** 判断"当前规范化表结构是否完全为空"时需要检查的表清单 */
+const NORMALIZED_TABLES = [
+  "ledgers", "ledger_items", "reports", "active_groups",
+  "active_categories", "raw_materials_dict", "ledger_helper_options"
+] as const;
 
 /**
  * @description 后端持久化数据同步引擎，支持本地 SQLite 与腾讯云 COS 对象存储双模式切换
@@ -27,7 +37,7 @@ export class StorageService {
 
   /**
    * @description 旧版纯 JSON 存储的主文件路径，默认为项目根目录下 data/db.json。
-   * 阶段一迁移后不再作为常态读写目标，仅在首次启动时用作"是否需要从旧版数据自动迁移"的判断依据与迁移源。
+   * 现仅用于首次启动时"是否需要从更早版本自动迁移"的判断依据与迁移源，不再是常态读写目标。
    */
   private static localDbPath: string = path.resolve(process.env.LOCAL_DB_PATH || "data/db.json");
 
@@ -116,11 +126,12 @@ export class StorageService {
   }
 
   /**
-   * @description 获取（并按需懒创建）本地 SQLite 数据库连接与表结构。
-   * kv_store 以 key-value 形式整体存放 6 个骨架字段（外加 ledgerItems 本身剥离每日流水后的骨架数组）；
-   * daily_records 按 (item_id, date) 存放每一条台账每日出入库流水，取代旧版按年/月/日拆分的 JSON 文件，
-   * 天然支持按 item_id/date 索引查询，也天然修复了旧版"某天最后一条记录被删除后，对应日文件永远不会被清理，
-   * 下次加载时又被错误复活"的历史遗留问题（因为新版每次保存都会整体重建 daily_records，不存在孤儿文件）。
+   * @description 获取（并按需懒创建）本地 SQLite 数据库连接与规范化的关系型表结构。
+   * 相比阶段一"7 个字段整体塞进 kv_store 的 JSON 文本"，这里按业务实体拆成了 9 张真正的关系型表
+   * （ledgers/ledger_items/ledger_item_daily_records/reports/prepared_items/prepared_item_daily_data/
+   * active_groups/active_categories/raw_materials_dict/ledger_helper_options），获得可索引查询、
+   * 字段级类型约束等关系型数据库的实质好处；同时阶段一遗留的 kv_store/daily_records 两张旧表不会被删除，
+   * 仅在首次启动检测到需要迁移时读取一次，此后不再使用。
    * @returns {Database.Database} SQLite 数据库连接
    */
   private static getDb(): Database.Database {
@@ -129,6 +140,7 @@ export class StorageService {
       // WAL 模式：写入不阻塞并发读取，且每次事务提交都由 SQLite 引擎保证落盘的原子性与崩溃恢复能力
       StorageService.db.pragma("journal_mode = WAL");
       StorageService.db.exec(`
+        -- 阶段一遗留表（不再写入，仅在一次性迁移时可能被读取一次，予以保留不删除）
         CREATE TABLE IF NOT EXISTS kv_store (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
@@ -139,57 +151,262 @@ export class StorageService {
           data TEXT NOT NULL,
           PRIMARY KEY (item_id, date)
         );
-        CREATE INDEX IF NOT EXISTS idx_daily_records_date ON daily_records(date);
+
+        -- 阶段二规范化表结构
+        CREATE TABLE IF NOT EXISTS ledgers (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS ledger_items (
+          id TEXT PRIMARY KEY,
+          ledger_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          unit TEXT NOT NULL,
+          spec TEXT,
+          initial_stock REAL NOT NULL DEFAULT 0,
+          current_stock REAL NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_ledger_items_ledger_id ON ledger_items(ledger_id);
+
+        -- 台账每日出入库流水：按 (item_id, date) 存放，字段级展开而非整块 JSON 文本，
+        -- 取代阶段一的 daily_records（同名字段结构不同，故改用新表名，避免与阶段一遗留表冲突）
+        CREATE TABLE IF NOT EXISTS ledger_item_daily_records (
+          item_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          in_quantity REAL NOT NULL DEFAULT 0,
+          in_price REAL NOT NULL DEFAULT 0,
+          in_amount REAL NOT NULL DEFAULT 0,
+          out_quantity REAL NOT NULL DEFAULT 0,
+          out_price REAL,
+          out_amount REAL,
+          note TEXT,
+          certification TEXT,
+          sensory_property TEXT,
+          supplier TEXT,
+          purchase_date TEXT,
+          buyer TEXT,
+          inspector TEXT,
+          keeper TEXT,
+          produce_date TEXT,
+          shelf_life TEXT,
+          out_handler TEXT,
+          out_recipient TEXT,
+          conversion_unit_quantity REAL,
+          out_date TEXT,
+          PRIMARY KEY (item_id, date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ledger_daily_date ON ledger_item_daily_records(date);
+
+        CREATE TABLE IF NOT EXISTS reports (
+          target_group TEXT NOT NULL,
+          year INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          PRIMARY KEY (target_group, year, month)
+        );
+
+        CREATE TABLE IF NOT EXISTS prepared_items (
+          id TEXT PRIMARY KEY,
+          report_target_group TEXT NOT NULL,
+          report_year INTEGER NOT NULL,
+          report_month INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          target_group TEXT NOT NULL,
+          unit TEXT NOT NULL,
+          note TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_prepared_items_report ON prepared_items(report_target_group, report_year, report_month);
+
+        CREATE TABLE IF NOT EXISTS prepared_item_daily_data (
+          item_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          quantity REAL NOT NULL DEFAULT 0,
+          price REAL NOT NULL DEFAULT 0,
+          amount REAL NOT NULL DEFAULT 0,
+          PRIMARY KEY (item_id, date)
+        );
+
+        CREATE TABLE IF NOT EXISTS active_groups (
+          key TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          emoji TEXT,
+          is_default INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS active_categories (
+          key TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          is_default INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS raw_materials_dict (
+          name TEXT PRIMARY KEY,
+          category TEXT NOT NULL,
+          unit TEXT NOT NULL,
+          remark TEXT,
+          conversion_unit TEXT,
+          conversion_ratio REAL,
+          is_default INTEGER NOT NULL DEFAULT 0
+        );
+
+        -- ledgerHelperDict 的 8 个 string[] 字段打平存储；sort_order 保留管理员维护的原始顺序
+        CREATE TABLE IF NOT EXISTS ledger_helper_options (
+          category TEXT NOT NULL,
+          value TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          PRIMARY KEY (category, value)
+        );
       `);
     }
     return StorageService.db;
   }
 
   /**
-   * @description 把"骨架"字段（ledgerItems 剥离每日流水后的数组，以及其余 6 个整体字段）整体覆盖写入 kv_store。
-   * 不涉及 daily_records，供 saveInternal（正常保存）与 restoreInternal（从备份恢复）共用。
+   * @description 统计规范化表结构里一共有多少行数据，用于判断"是否首次启动/是否需要迁移"
+   * @param {Database.Database} db SQLite 数据库连接
+   * @returns {number} 规范化表结构的数据总行数
+   */
+  private static countNormalizedRows(db: Database.Database): number {
+    return NORMALIZED_TABLES.reduce((sum, table) => {
+      const row = db.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number };
+      return sum + row.c;
+    }, 0);
+  }
+
+  /**
+   * @description 覆盖写入"骨架"部分：ledgers / ledger_items（不含每日流水）/ reports+prepared_items+每日备餐数据 /
+   * active_groups / active_categories / raw_materials_dict / ledger_helper_options。
+   * 不涉及 ledger_item_daily_records，供 importFullDataIntoSqlite（正常保存）与 importSkeletonOnlyIntoSqlite（备份恢复）共用。
    * @param {Database.Database} db SQLite 数据库连接
    * @param {any} data 需要写入的全量数据包
    * @returns {void}
    */
-  private static upsertSkeletonKv(db: Database.Database, data: any): void {
-    const upsertKv = db.prepare(
-      "INSERT INTO kv_store (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  private static upsertSkeleton(db: Database.Database, data: any): void {
+    // 1. ledgers
+    db.prepare("DELETE FROM ledgers").run();
+    const insertLedger = db.prepare("INSERT INTO ledgers (id, name, created_at) VALUES (?, ?, ?)");
+    for (const l of data.ledgers ?? []) {
+      insertLedger.run(l.id, l.name, l.createdAt);
+    }
+
+    // 2. ledger_items（骨架，不含每日流水）
+    db.prepare("DELETE FROM ledger_items").run();
+    const insertItem = db.prepare(
+      "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, initial_stock, current_stock) VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    const ledgerItemsSkeleton = Array.isArray(data.ledgerItems)
-      ? data.ledgerItems.map((item: any) => {
-          const { dailyRecords, ...rest } = item || {};
-          return rest;
-        })
-      : [];
-    upsertKv.run("ledgerItems", JSON.stringify(ledgerItemsSkeleton));
-    for (const key of SKELETON_KV_KEYS) {
-      upsertKv.run(key, JSON.stringify(data[key] ?? []));
+    for (const item of data.ledgerItems ?? []) {
+      insertItem.run(item.id, item.ledgerId, item.name, item.unit, item.spec ?? null, item.initialStock ?? 0, item.currentStock ?? 0);
+    }
+
+    // 3. reports + prepared_items + prepared_item_daily_data（这部分历来完整包含在备份快照里，恢复时也要整体覆盖）
+    db.prepare("DELETE FROM reports").run();
+    db.prepare("DELETE FROM prepared_items").run();
+    db.prepare("DELETE FROM prepared_item_daily_data").run();
+    const insertReport = db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)");
+    const insertPreparedItem = db.prepare(
+      "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    const insertDailyData = db.prepare(
+      "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) VALUES (?, ?, ?, ?, ?)"
+    );
+    for (const report of data.reports ?? []) {
+      insertReport.run(report.targetGroup, report.year, report.month);
+      for (const item of report.items ?? []) {
+        insertPreparedItem.run(
+          item.id, report.targetGroup, report.year, report.month,
+          item.name, item.category, item.targetGroup, item.unit, item.note ?? null
+        );
+        for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
+          if (!dateStr || !entry) continue;
+          insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
+        }
+      }
+    }
+
+    // 4. active_groups / active_categories
+    db.prepare("DELETE FROM active_groups").run();
+    const insertGroup = db.prepare("INSERT INTO active_groups (key, label, emoji, is_default) VALUES (?, ?, ?, ?)");
+    for (const g of data.activeGroups ?? []) {
+      insertGroup.run(g.key, g.label, g.emoji ?? null, g.isDefault ? 1 : 0);
+    }
+    db.prepare("DELETE FROM active_categories").run();
+    const insertCategory = db.prepare("INSERT INTO active_categories (key, label, is_default) VALUES (?, ?, ?)");
+    for (const c of data.activeCategories ?? []) {
+      insertCategory.run(c.key, c.label, c.isDefault ? 1 : 0);
+    }
+
+    // 5. raw_materials_dict
+    db.prepare("DELETE FROM raw_materials_dict").run();
+    const insertDictItem = db.prepare(
+      "INSERT INTO raw_materials_dict (name, category, unit, remark, conversion_unit, conversion_ratio, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+    for (const d of data.rawMaterialsDict ?? []) {
+      insertDictItem.run(d.name, d.category, d.unit, d.remark ?? null, d.conversionUnit ?? null, d.conversionRatio ?? null, d.isDefault ? 1 : 0);
+    }
+
+    // 6. ledger_helper_options
+    db.prepare("DELETE FROM ledger_helper_options").run();
+    const insertHelperOption = db.prepare("INSERT INTO ledger_helper_options (category, value, sort_order) VALUES (?, ?, ?)");
+    const helperDict = data.ledgerHelperDict ?? {};
+    for (const category of HELPER_DICT_CATEGORIES) {
+      const values: string[] = helperDict[category] ?? [];
+      values.forEach((value, idx) => insertHelperOption.run(category, value, idx));
     }
   }
 
   /**
-   * @description 正常保存路径：骨架字段整体覆盖 + daily_records 整体重建（先清空再按当前 payload 完整重插入），
-   * 全部包裹在同一个 SQLite 事务里——要么全部生效，要么全部不生效，比"临时文件+rename"更强的原子性保证。
+   * @description 正常保存路径：骨架部分整体覆盖 + ledger_item_daily_records 整体重建（先清空再按当前 payload 完整重插入），
+   * 全部包裹在同一个 SQLite 事务里——要么全部生效，要么全部不生效。
    * @param {any} data 需要保存的全量数据包（ledgerItems[].dailyRecords 为完整的当前每日流水）
    * @returns {void}
    */
   private static importFullDataIntoSqlite(data: any): void {
     const db = StorageService.getDb();
-    const insertDaily = db.prepare("INSERT INTO daily_records (item_id, date, data) VALUES (?, ?, ?)");
-    const deleteAllDaily = db.prepare("DELETE FROM daily_records");
+    const deleteAllDaily = db.prepare("DELETE FROM ledger_item_daily_records");
+    const insertDaily = db.prepare(`
+      INSERT INTO ledger_item_daily_records
+        (item_id, date, in_quantity, in_price, in_amount, out_quantity, out_price, out_amount, note,
+         certification, sensory_property, supplier, purchase_date, buyer, inspector, keeper,
+         produce_date, shelf_life, out_handler, out_recipient, conversion_unit_quantity, out_date)
+      VALUES
+        (@itemId, @date, @inQuantity, @inPrice, @inAmount, @outQuantity, @outPrice, @outAmount, @note,
+         @certification, @sensoryProperty, @supplier, @purchaseDate, @buyer, @inspector, @keeper,
+         @produceDate, @shelfLife, @outHandler, @outRecipient, @conversionUnitQuantity, @outDate)
+    `);
 
     const run = db.transaction((payload: any) => {
-      StorageService.upsertSkeletonKv(db, payload);
+      StorageService.upsertSkeleton(db, payload);
       deleteAllDaily.run();
-      if (Array.isArray(payload.ledgerItems)) {
-        for (const item of payload.ledgerItems) {
-          if (item && item.dailyRecords) {
-            for (const [dateStr, record] of Object.entries(item.dailyRecords)) {
-              if (!dateStr || !record) continue;
-              insertDaily.run(item.id, dateStr, JSON.stringify(record));
-            }
-          }
+      for (const item of payload.ledgerItems ?? []) {
+        if (!item || !item.dailyRecords) continue;
+        for (const [dateStr, record] of Object.entries(item.dailyRecords) as [string, any][]) {
+          if (!dateStr || !record) continue;
+          insertDaily.run({
+            itemId: item.id,
+            date: dateStr,
+            inQuantity: record.inQuantity ?? 0,
+            inPrice: record.inPrice ?? 0,
+            inAmount: record.inAmount ?? 0,
+            outQuantity: record.outQuantity ?? 0,
+            outPrice: record.outPrice ?? null,
+            outAmount: record.outAmount ?? null,
+            note: record.note ?? null,
+            certification: record.certification ?? null,
+            sensoryProperty: record.sensoryProperty ?? null,
+            supplier: record.supplier ?? null,
+            purchaseDate: record.purchaseDate ?? null,
+            buyer: record.buyer ?? null,
+            inspector: record.inspector ?? null,
+            keeper: record.keeper ?? null,
+            produceDate: record.produceDate ?? null,
+            shelfLife: record.shelfLife ?? null,
+            outHandler: record.outHandler ?? null,
+            outRecipient: record.outRecipient ?? null,
+            conversionUnitQuantity: record.conversionUnitQuantity ?? null,
+            outDate: record.outDate ?? null
+          });
         }
       }
     });
@@ -197,65 +414,106 @@ export class StorageService {
   }
 
   /**
-   * @description 从备份恢复专用：只覆盖骨架字段，绝不触碰 daily_records。备份快照本身从不包含每日流水
-   * （与旧版实现的既有限制保持一致：旧版 restore() 只覆盖 db.json 骨架文件，从不touch ledgers/daily/** 目录），
-   * 若在这里也整体重建 daily_records，会把当前生效中的真实每日购销记录清空，属于比旧版更严重的数据丢失回归。
-   * @param {any} data 备份快照解析出的数据（ledgerItems[].dailyRecords 恒为空对象）
+   * @description 从备份恢复专用：只覆盖骨架部分，绝不触碰 ledger_item_daily_records。备份快照本身从不包含
+   * 台账每日出入库流水（与阶段一、以及更早版本的既有限制保持一致：备份快照里 ledgerItems[].dailyRecords 恒为空对象），
+   * 若在这里也整体重建每日流水，会把当前生效中的真实购销记录清空，属于比历史版本更严重的数据丢失回归。
+   * @param {any} data 备份快照解析出的数据
    * @returns {void}
    */
   private static importSkeletonOnlyIntoSqlite(data: any): void {
     const db = StorageService.getDb();
     const run = db.transaction((payload: any) => {
-      StorageService.upsertSkeletonKv(db, payload);
+      StorageService.upsertSkeleton(db, payload);
     });
     run(data);
   }
 
   /**
-   * @description 从 SQLite 读出完整的应用状态对象，形状与旧版 JSON 文件方案的 load() 返回值完全一致
-   * （含把 daily_records 重新拼装回每个 ledgerItem 的 dailyRecords 字典）。kv_store 完全为空时返回 {}，
-   * 与旧版"文件不存在则返回空对象"的首次启动语义保持一致。
+   * @description 从规范化关系型表中读出完整的应用状态对象，形状与迁移之前的 load() 返回值完全一致
+   * （含把 ledger_item_daily_records 重新拼装回每个 ledgerItem 的 dailyRecords 字典、把 prepared_item_daily_data
+   * 重新拼装回每个 PreparedItem 的 dailyData 字典）。规范化表结构完全为空时返回 {}，与首次启动语义保持一致。
    * @returns {any} 完整的应用状态对象
    */
   private static readDataFromSqlite(): any {
     const db = StorageService.getDb();
-    const kvRows = db.prepare("SELECT key, value FROM kv_store").all() as Array<{ key: string; value: string }>;
-    if (kvRows.length === 0) {
+    if (StorageService.countNormalizedRows(db) === 0) {
       return {};
     }
 
-    const data: any = {};
-    for (const row of kvRows) {
-      try {
-        data[row.key] = JSON.parse(row.value);
-      } catch (e) {
-        console.error(`[STORAGE SQLITE] 解析 kv_store 字段 ${row.key} 失败:`, e);
-      }
-    }
+    const ledgers = db.prepare("SELECT id, name, created_at as createdAt FROM ledgers").all();
 
-    const mergedDaily: Record<string, Record<string, any>> = {};
-    const dailyRows = db.prepare("SELECT item_id, date, data FROM daily_records").all() as Array<{ item_id: string; date: string; data: string }>;
+    const ledgerItemsRaw = db.prepare(
+      "SELECT id, ledger_id as ledgerId, name, unit, spec, initial_stock as initialStock, current_stock as currentStock FROM ledger_items"
+    ).all() as any[];
+    const dailyRows = db.prepare(`
+      SELECT item_id as itemId, date, in_quantity as inQuantity, in_price as inPrice, in_amount as inAmount,
+             out_quantity as outQuantity, out_price as outPrice, out_amount as outAmount, note, certification,
+             sensory_property as sensoryProperty, supplier, purchase_date as purchaseDate, buyer, inspector, keeper,
+             produce_date as produceDate, shelf_life as shelfLife, out_handler as outHandler, out_recipient as outRecipient,
+             conversion_unit_quantity as conversionUnitQuantity, out_date as outDate
+      FROM ledger_item_daily_records
+    `).all() as any[];
+    const dailyByItem: Record<string, Record<string, any>> = {};
     for (const row of dailyRows) {
-      try {
-        if (!mergedDaily[row.item_id]) mergedDaily[row.item_id] = {};
-        mergedDaily[row.item_id][row.date] = JSON.parse(row.data);
-      } catch (e) {
-        console.error(`[STORAGE SQLITE] 解析每日流水记录失败 (item=${row.item_id}, date=${row.date}):`, e);
-      }
+      const { itemId, date, ...record } = row;
+      if (!dailyByItem[itemId]) dailyByItem[itemId] = {};
+      dailyByItem[itemId][date] = record;
+    }
+    const ledgerItems = ledgerItemsRaw.map((item) => ({
+      ...item,
+      dailyRecords: dailyByItem[item.id] || {}
+    }));
+
+    const reportsRaw = db.prepare("SELECT target_group as targetGroup, year, month FROM reports").all() as any[];
+    const preparedItemsRaw = db.prepare(`
+      SELECT id, report_target_group as reportTargetGroup, report_year as reportYear, report_month as reportMonth,
+             name, category, target_group as targetGroup, unit, note
+      FROM prepared_items
+    `).all() as any[];
+    const dailyDataRows = db.prepare("SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data").all() as any[];
+    const dailyDataByItem: Record<string, Record<string, any>> = {};
+    for (const row of dailyDataRows) {
+      if (!dailyDataByItem[row.itemId]) dailyDataByItem[row.itemId] = {};
+      dailyDataByItem[row.itemId][row.date] = { quantity: row.quantity, price: row.price, amount: row.amount };
+    }
+    const preparedItemsByReport: Record<string, any[]> = {};
+    for (const item of preparedItemsRaw) {
+      const reportKey = `${item.reportTargetGroup}__${item.reportYear}__${item.reportMonth}`;
+      const { reportTargetGroup, reportYear, reportMonth, ...rest } = item;
+      if (!preparedItemsByReport[reportKey]) preparedItemsByReport[reportKey] = [];
+      preparedItemsByReport[reportKey].push({ ...rest, dailyData: dailyDataByItem[item.id] || {} });
+    }
+    const reports = reportsRaw.map((r) => {
+      const key = `${r.targetGroup}__${r.year}__${r.month}`;
+      return { ...r, items: preparedItemsByReport[key] || [] };
+    });
+
+    const activeGroups = (db.prepare("SELECT key, label, emoji, is_default as isDefault FROM active_groups").all() as any[])
+      .map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, isDefault: !!g.isDefault }));
+    const activeCategories = (db.prepare("SELECT key, label, is_default as isDefault FROM active_categories").all() as any[])
+      .map((c) => ({ key: c.key, label: c.label, isDefault: !!c.isDefault }));
+
+    const rawMaterialsDict = (db.prepare(`
+      SELECT name, category, unit, remark, conversion_unit as conversionUnit, conversion_ratio as conversionRatio, is_default as isDefault
+      FROM raw_materials_dict
+    `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
+
+    const helperRows = db.prepare("SELECT category, value FROM ledger_helper_options ORDER BY category, sort_order").all() as Array<{ category: string; value: string }>;
+    const ledgerHelperDict: Record<string, string[]> = {};
+    for (const category of HELPER_DICT_CATEGORIES) {
+      ledgerHelperDict[category] = [];
+    }
+    for (const row of helperRows) {
+      if (!ledgerHelperDict[row.category]) ledgerHelperDict[row.category] = [];
+      ledgerHelperDict[row.category].push(row.value);
     }
 
-    if (Array.isArray(data.ledgerItems)) {
-      for (const item of data.ledgerItems) {
-        item.dailyRecords = mergedDaily[item.id] || {};
-      }
-    }
-
-    return data;
+    return { reports, activeGroups, activeCategories, ledgers, ledgerItems, rawMaterialsDict, ledgerHelperDict };
   }
 
   /**
-   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的旧版 JSON 流水文件，并合并到内存结构中。
-   * 阶段一迁移后仅供 migrateLegacyJsonIfNeeded() 一次性导入历史数据时调用，不再是常态读取路径。
+   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的最早版本 JSON 流水文件，并合并到内存结构中。
+   * 仅供 migrateLegacyJsonIfNeeded() 一次性导入历史数据时调用，不再是常态读取路径。
    * @param {string} dailyDir 日度数据根目录路径
    * @param {Record<string, Record<string, any>>} mergedDaily 用于在内存中重组的合并流水数据字典 (格式: { itemId: { YYYY-MM-DD: DailyStockRecord } })
    */
@@ -298,44 +556,89 @@ export class StorageService {
   }
 
   /**
-   * @description 一次性历史数据迁移：若 SQLite 里还没有任何数据、但磁盘上存在旧版 JSON 骨架文件（db.json），
-   * 说明这是从旧的纯文件存储升级上来的部署，自动把旧数据（含按年/月/日拆分的每日流水）导入新的 SQLite 存储。
-   * 迁移完成后不会删除原始 JSON/逐日流水文件，保留作为人工回退的最后手段。仅在 SQLite 完全没有数据时才会触发，
-   * 避免每次重启都重复导入、用旧的 JSON 快照覆盖掉已经在 SQLite 里产生的新数据。
+   * @description 读取阶段一遗留的 kv_store + daily_records（JSON 文本块）数据，还原成与 load() 一致的应用状态对象。
+   * 仅供 migrateToNormalizedSchemaIfNeeded() 一次性升级迁移时调用。
+   * @param {Database.Database} db SQLite 数据库连接
+   * @returns {any} 阶段一 kv_store 里还原出的应用状态对象；若阶段一表本身没有数据则返回 null
+   */
+  private static readLegacyKvStoreData(db: Database.Database): any {
+    const kvRows = db.prepare("SELECT key, value FROM kv_store").all() as Array<{ key: string; value: string }>;
+    if (kvRows.length === 0) return null;
+
+    const data: any = {};
+    for (const row of kvRows) {
+      try {
+        data[row.key] = JSON.parse(row.value);
+      } catch (e) {
+        console.error(`[STORAGE SQLITE] 解析阶段一 kv_store 字段 ${row.key} 失败:`, e);
+      }
+    }
+
+    const mergedDaily: Record<string, Record<string, any>> = {};
+    const dailyRows = db.prepare("SELECT item_id, date, data FROM daily_records").all() as Array<{ item_id: string; date: string; data: string }>;
+    for (const row of dailyRows) {
+      try {
+        if (!mergedDaily[row.item_id]) mergedDaily[row.item_id] = {};
+        mergedDaily[row.item_id][row.date] = JSON.parse(row.data);
+      } catch (e) {
+        console.error(`[STORAGE SQLITE] 解析阶段一每日流水记录失败 (item=${row.item_id}, date=${row.date}):`, e);
+      }
+    }
+    if (Array.isArray(data.ledgerItems)) {
+      for (const item of data.ledgerItems) {
+        item.dailyRecords = mergedDaily[item.id] || {};
+      }
+    }
+    return data;
+  }
+
+  /**
+   * @description 一次性历史数据迁移：若当前规范化表结构完全没有数据，说明这是从更早版本升级上来的部署，按优先级
+   * 依次尝试两种历史数据源自动迁移——① 阶段一遗留的 kv_store（浅迁移版本）；② 更早的纯 JSON 文件 db.json（含按年/月/日
+   * 拆分的每日流水）。迁移完成后原始数据（阶段一的 kv_store 表、最早版本的 JSON 文件）均不会被删除，作为人工回退的最后手段。
+   * 仅在规范化表结构完全没有数据时才会触发，避免每次重启都重复导入、用旧数据覆盖掉已经产生的新数据。
    * @returns {void}
    */
-  private static migrateLegacyJsonIfNeeded(): void {
+  private static migrateToNormalizedSchemaIfNeeded(): void {
     const db = StorageService.getDb();
-    const existingCount = (db.prepare("SELECT COUNT(*) as count FROM kv_store").get() as { count: number }).count;
-    if (existingCount > 0) {
-      return;
-    }
-    if (!fs.existsSync(StorageService.localDbPath)) {
+    if (StorageService.countNormalizedRows(db) > 0) {
       return;
     }
 
+    // 优先尝试阶段一遗留的 kv_store 数据
+    const legacyKvData = StorageService.readLegacyKvStoreData(db);
+    if (legacyKvData) {
+      StorageService.importFullDataIntoSqlite(legacyKvData);
+      console.log("[STORAGE SQLITE] 已自动将阶段一（浅迁移）数据迁移至规范化关系型表结构，原表结构予以保留。");
+      return;
+    }
+
+    // 再尝试更早版本的纯 JSON 文件
+    if (!fs.existsSync(StorageService.localDbPath)) {
+      return;
+    }
     try {
       const content = fs.readFileSync(StorageService.localDbPath, "utf8");
-      const legacyData = JSON.parse(content);
+      const legacyJsonData = JSON.parse(content);
 
       const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
       const mergedDaily: Record<string, Record<string, any>> = {};
       StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
-      if (Array.isArray(legacyData.ledgerItems)) {
-        for (const item of legacyData.ledgerItems) {
+      if (Array.isArray(legacyJsonData.ledgerItems)) {
+        for (const item of legacyJsonData.ledgerItems) {
           item.dailyRecords = mergedDaily[item.id] || {};
         }
       }
 
-      StorageService.importFullDataIntoSqlite(legacyData);
-      console.log(`[STORAGE SQLITE] 已自动将历史 JSON 数据（${StorageService.localDbPath}）迁移至 SQLite，原始文件予以保留。`);
+      StorageService.importFullDataIntoSqlite(legacyJsonData);
+      console.log(`[STORAGE SQLITE] 已自动将最早版本的 JSON 数据（${StorageService.localDbPath}）迁移至规范化关系型表结构，原始文件予以保留。`);
     } catch (err) {
-      console.error("[STORAGE SQLITE] 历史 JSON 数据迁移失败，将以空数据集启动：", err);
+      console.error("[STORAGE SQLITE] 历史数据迁移失败，将以空数据集启动：", err);
     }
   }
 
   /**
-   * @description 初始化存储引擎，创建必要的本地目录、打开 SQLite 连接，并按需自动迁移旧版历史数据
+   * @description 初始化存储引擎，创建必要的本地目录、打开 SQLite 连接，并按需自动迁移历史数据
    * @returns {void}
    */
   public static init(): void {
@@ -349,7 +652,7 @@ export class StorageService {
         fs.mkdirSync(StorageService.backupDir, { recursive: true });
         console.log(`[STORAGE] 已成功创建本地备份快照目录: ${StorageService.backupDir}`);
       }
-      StorageService.migrateLegacyJsonIfNeeded();
+      StorageService.migrateToNormalizedSchemaIfNeeded();
     } else {
       console.log("[STORAGE] 启动云端存储模式：已挂载腾讯云 COS 同步总线。");
     }
@@ -462,7 +765,7 @@ export class StorageService {
       // 随后额外生成一份人类可读的 JSON 快照文件用于留档与手动核查（沿用既有的 30 份滚动保留策略与命名格式）
       try {
         StorageService.importFullDataIntoSqlite(data);
-        console.log("[STORAGE SQLITE] 结构与配置数据、逐日流水已通过事务写入本地 SQLite 数据库。");
+        console.log("[STORAGE SQLITE] 结构与配置数据、逐日流水已通过事务写入本地规范化关系型表结构。");
 
         const cleanedData = JSON.parse(JSON.stringify(data));
         if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
@@ -512,7 +815,7 @@ export class StorageService {
         });
       });
     } else {
-      // 本地存储模式（备份快照仍是普通 JSON 文件，与阶段一迁移前完全一致）
+      // 本地存储模式（备份快照仍是普通 JSON 文件，与迁移之前完全一致）
       try {
         if (!fs.existsSync(StorageService.backupDir)) {
           return [];
@@ -577,8 +880,8 @@ export class StorageService {
         });
       });
     } else {
-      // 本地存储模式：备份快照仍是纯 JSON 文件，且从不包含每日流水（与阶段一迁移前的既有限制保持一致）。
-      // 恢复时只把快照里的骨架字段重新导入 SQLite，绝不清空/覆盖当前生效中的 daily_records
+      // 本地存储模式：备份快照仍是纯 JSON 文件，且从不包含台账每日流水（与迁移之前的既有限制保持一致）。
+      // 恢复时只把快照里的骨架部分重新导入，绝不清空/覆盖当前生效中的 ledger_item_daily_records
       const targetPath = path.join(StorageService.backupDir, backupName);
       if (!fs.existsSync(targetPath)) {
         return null;
