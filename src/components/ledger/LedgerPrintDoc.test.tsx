@@ -106,7 +106,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
     expect(screen.queryByText(/土豆、大黑袋/)).not.toBeInTheDocument();
   });
 
-  it("keeps the total row count at minPrintRows (25) regardless of how many real items are present", () => {
+  it("keeps the total row count at minPrintRows regardless of how many real items are present", () => {
     const item = makeOutwardItem("土豆", { supplier: "合作基地直供" });
 
     render(
@@ -123,7 +123,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
 
     const table = screen.getByText("类别").closest("table")!;
     const bodyRows = table.querySelectorAll("tbody tr");
-    expect(bodyRows).toHaveLength(25);
+    expect(bodyRows).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
   });
 
   it("shows the converted quantity and conversion unit when the dictionary defines a conversion ratio", () => {
@@ -176,9 +176,9 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     expect(screen.queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument();
   });
 
-  it("splits onto a second page when a category's items would exceed the 25-row page limit, without splitting the category itself", () => {
-    // 蔬菜品类 20 种 + 肉类品类 10 种 = 30 行，超过单页 25 行上限：
-    // 第1页放得下整组蔬菜(20行)，但肉类(10行)放不进剩余5格，因此肉类整组移到第2页，不允许被拆分
+  it("splits onto a second page when a category's items would exceed the page limit, without splitting the category itself", () => {
+    // 蔬菜品类 20 种 + 肉类品类 10 种 = 30 行，超过单页上限：
+    // 第1页放得下整组蔬菜(20行)，但肉类(10行)放不进剩余可用空格，因此肉类整组移到第2页，不允许被拆分
     const vegNames = Array.from({ length: 20 }, (_, i) => `蔬菜${i + 1}`);
     const meatNames = Array.from({ length: 10 }, (_, i) => `肉类${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
@@ -201,8 +201,8 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
 
     const tables = document.querySelectorAll(".ledger-print-out-table");
     expect(tables).toHaveLength(2);
-    expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(25);
-    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(25);
+    expect(tables[0].querySelectorAll("tbody tr")).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
+    expect(tables[1].querySelectorAll("tbody tr")).toHaveLength(LEDGER_PRINT_OUT_CONFIG.minPrintRows);
 
     // 肉类品类整组只应出现在第2页，第1页不应出现被拆散的肉类行
     expect(tables[0].textContent).not.toContain("肉类1");

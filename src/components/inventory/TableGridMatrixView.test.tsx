@@ -120,7 +120,7 @@ describe("TableGridMatrixView", () => {
     expect(onDeleteItem).toHaveBeenCalledWith("item_1");
   });
 
-  it("[V5.67.0] allows the user to manually widen the table via a horizontal resize handle", () => {
+  it("does not have the resize-x class and contains the scroll wrapper with grab cursors", () => {
     const { container } = render(
       <TableGridMatrixView
         days={days}
@@ -134,8 +134,10 @@ describe("TableGridMatrixView", () => {
     );
 
     const resizableWrapper = container.querySelector(".resize-x");
-    expect(resizableWrapper).toBeInTheDocument();
-    expect(resizableWrapper).toHaveStyle({ minWidth: "100%" });
+    expect(resizableWrapper).not.toBeInTheDocument();
+
+    const scrollWrapper = container.querySelector(".cursor-grab");
+    expect(scrollWrapper).toBeInTheDocument();
   });
 
   it("[V5.67.0] uses a single consistent border color throughout the table (no undefined slate-350 utility class)", () => {

@@ -1127,3 +1127,13 @@ pm2 startup
 - **修复方案**：改用 `ReactDOM.createPortal` 把 `LedgerPrintDoc` 的整个预览层直接挂载到 `document.body` 下，彻底跳出 `#root` 及其内部所有 `overflow-hidden` 祖先容器的裁剪范围（此时它是 `document.body` 的直接子元素，不再是 `#root` 的后代）。再配合两条 `@media print` 规则协同生效：① 把 `#root`（承载应用其余全部界面，包括头部导航栏）整体隐藏，避免其内容穿透进打印输出；② 把这个 Portal 容器自身在打印时从 `position: fixed + overflow: auto` 强制退回普通文档流（`position: static + overflow: visible + height: auto`），使其随多页内容自然撑高。两处修复缺一不可：只做 Portal 而不隐藏 `#root`，屏幕外观不受影响但打印时应用主界面仍会露出来；只隐藏 `#root` 而不做 Portal，`LedgerPrintDoc` 依旧困在原来的 DOM 位置，祖先的 `overflow: hidden` 仍会截断多页内容。
 - **验证**：`npm test` 全量 370 个用例通过（React Testing Library 的 `screen` 查询默认以 `document.body` 为查找根节点，Portal 到 `document.body` 不影响任何既有测试断言，无需改动测试代码）；`tsc --noEmit` 报错数保持 19（基线不变）；`vite build` 成功；浏览器实测——打印入库单/出库单的屏幕预览外观与 Portal 改造前完全一致（仍是铺满全屏的白色预览层，应用头部导航栏在屏幕上依旧被正确遮盖），控制台无报错。真正的多页物理打印效果仍需用户在有足够出库数据时通过 Ctrl+P 实机确认。
 - **后续排查发现**：`LedgerPrintPreviewOverlay.tsx`（图一/图二记账登记表打印所用的另一个全屏预览容器）存在与 `LedgerPrintDoc` 完全相同的 `fixed inset-0 + overflow-auto` 写法，若该登记表某天数据行数过多、超出一个物理页高度，大概率会触发同样的"只打印第一页"问题——只是目前尚未听到该功能的类似反馈。这不在本次用户明确反馈的范围内，暂不顺带修改，但已记录为已知的同类潜在风险点，供后续需要时参考。
+
+### 2026-07-04 - [V5.76.0] 增强每日采购细表观看与交互体验
+- **需求**：增强“餐位分组”页面下每日采购细表的观看体验。去掉每日采购细表的可拖宽功能，增加左右按住鼠标拖动（Drag-to-Scroll）细表以查看不同日期数据的功能；奇数日子和偶数日子交替着色显示，日期两侧的线用更深的黑色粗线（2px）分割，内部用更浅细的灰色线（border-slate-300）分割。
+- **排查结论**：每日采购细表是以横向 31 天为列的大宽表。之前组件使用了 resize-x 允许调节表格宽度，导致排布不够稳固；日期之间所有线条一刀切都是 `border-r-2 border-black`，没有逻辑层面的强弱划分，导致视线横向移动时极其容易看错日期。
+- **重构方案**：
+  1. 移除 [TableGridMatrixView.tsx] 外层 div 的 `resize-x` 属性，将其替换为非拉伸容器。
+  2. 在水平滚动 wrapper 容器上挂载 Ref，并在其上绑定全套鼠标按下、移动、弹起及离开事件实现按住左键左右横向拖动 (Drag-to-Scroll) 滚动日历格功能，鼠标浮动状态设为 `cursor-grab` 手型指示。
+  3. 引入奇偶日期交替背景着色（奇数日使用橙黄色柔和暖色系背景，偶数日使用常规背景），使纵向日期列更加醒目。
+  4. 日期内部细分的三列数据（数量-单价与单价-金额）之间的纵向线降级为更浅细的 `border-r border-slate-300` 分割线，而日期与日期之间的最右侧线（金额右侧）以及左侧保持更粗的 `border-r-2 border-black` 黑色粗线。这在视觉上建立起了以“天”为单元的聚合，数据纵横扫视更加省力。
+- **验证**：修改了 `TableGridMatrixView.test.tsx` 里的测试用例，将旧的 resize-x 断言更新为验证不含有 resize-x 且含有拖拽滚动 grab 样式的断言。因用户之前将 `minPrintRows` 常量由 25 改为 24 导致 `LedgerPrintDoc.test.tsx` 运行失败，同时将该测试文件硬编码的 25 行断言修改为动态读取 `LEDGER_PRINT_OUT_CONFIG.minPrintRows` 的长度断言，完美修复了测试失败。`npm test` 最终全量用例全部运行通过。
