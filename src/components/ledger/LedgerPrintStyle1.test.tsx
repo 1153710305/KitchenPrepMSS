@@ -86,8 +86,12 @@ describe("LedgerPrintStyle1", () => {
   });
 
   it("excludes items that do not belong to any of the selected categories", () => {
-    const potato = makeItem("item_1", "土豆");
-    const meat = makeItem("item_2", "精肉");
+    const potato = makeItem("item_1", "土豆", {
+      "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 }
+    });
+    const meat = makeItem("item_2", "精肉", {
+      "2026-07-03": { inQuantity: 1, inPrice: 20, inAmount: 20, outQuantity: 0 }
+    });
 
     render(
       <LedgerPrintStyle1
@@ -101,6 +105,52 @@ describe("LedgerPrintStyle1", () => {
 
     expect(screen.getByText("土豆")).toBeInTheDocument();
     expect(screen.queryByText("精肉")).not.toBeInTheDocument();
+  });
+
+  it("[V5.81.0] REGRESSION: excludes items with no in/out activity on the selected date, even when the category is selected and the item exists in the ledger's roster", () => {
+    // 台账历史上曾经采购过白菜（比如7月1号），但选定日期(7月2号)当天白菜毫无动静——不应作为空白行出现在总表里
+    const cabbage = makeItem("item_1", "白菜", {
+      "2026-07-01": { inQuantity: 10, inPrice: 1, inAmount: 10, outQuantity: 0 }
+    });
+    // 土豆是选定日期当天唯一真正有采购记录的原料
+    const potato = makeItem("item_2", "土豆", {
+      "2026-07-02": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 }
+    });
+
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-02"
+        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        currentLedgerItems={[cabbage, potato]}
+        dictItems={[
+          { name: "白菜", category: FoodCategory.VEGETABLE, unit: "斤" },
+          { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤" }
+        ]}
+      />
+    );
+
+    expect(screen.getByText("土豆")).toBeInTheDocument();
+    expect(screen.queryByText("白菜")).not.toBeInTheDocument();
+  });
+
+  it("[V5.81.0] REGRESSION: excludes items whose dailyRecord exists for the selected date but has zero in/out quantity", () => {
+    const potato = makeItem("item_1", "土豆", {
+      // 有当天记录条目，但入库出库数量均为 0（比如只是被草稿保存过一次，实际未发生任何采购/出库）
+      "2026-07-02": { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0 }
+    });
+
+    render(
+      <LedgerPrintStyle1
+        activeLedger={ledger}
+        selectedDate="2026-07-02"
+        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        currentLedgerItems={[potato]}
+        dictItems={dictItems}
+      />
+    );
+
+    expect(screen.queryByText("土豆")).not.toBeInTheDocument();
   });
 
   it("shows the ledger name in the title", () => {
