@@ -174,9 +174,13 @@ export class PrepReportService {
               { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
               { key: "FRUIT", label: "水果", isDefault: true }
             ];
-            // 首次启动整批 replaceAll 落盘，与 generateInitialSeeds() 内部对 reports 的整批处理保持同一批量初始化语义
-            SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
-            SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
+            // 首次启动整批 replaceAll 落盘，与 generateInitialSeeds() 内部对 reports 的整批处理保持同一批量初始化语义。
+            // 这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪锁定状态，必须用
+            // runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘（真实发生过的数据丢失事故）
+            SyncHelper.runWhenInitialized(() => {
+              SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
+              SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
+            });
             this.generateInitialSeeds();
             LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
           }
@@ -461,8 +465,12 @@ export class PrepReportService {
     this.reports = initialReports;
     this.saveToStorage();
     // 批量种子数据生成场景，整批 replaceAll 覆盖（含完整 31 天占位矩阵，与首次启动落盘的既有数据形态保持一致），
-    // 而非强行拆成逐条 upsert 枚举
-    SyncHelper.queueChange({ entity: "report", op: "replaceAll", data: initialReports });
+    // 而非强行拆成逐条 upsert 枚举。这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪
+    // 锁定状态，必须用 runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘
+    // （真实发生过的数据丢失事故）
+    SyncHelper.runWhenInitialized(() => {
+      SyncHelper.queueChange({ entity: "report", op: "replaceAll", data: initialReports });
+    });
     LogBroker.publish("INFO", "PrepReportService", `共创建 ${targetGroups.length} 大目标人群、涵盖多品类的日矩阵底层种子数据。`);
   }
 

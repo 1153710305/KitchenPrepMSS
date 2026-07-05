@@ -199,8 +199,11 @@ export function useAppData(): UseAppDataResult {
 
         // 若本次心跳请求发出之后、响应返回之前，发生了真实的本地数据变更（如台账录入保存），
         // 说明这份响应所携带的数据早于该次本地变更，直接覆盖内存会导致刚保存的数据在界面上"消失"。
-        // 丢弃本轮响应即可：本地变更会通过自身的去抖动同步写入服务器，下一次心跳自然能拿到最新状态。
-        if (SyncHelper.getLastLocalMutationAt() > requestStartedAt) {
+        // 另外，即便本地变更发生在心跳请求发出之前，只要它的增量同步还在 200ms 防抖排队或已发出请求尚未
+        // 收到服务器确认（hasPendingSync），这份心跳响应同样有可能早于该次本地变更真正落盘的时刻，
+        // 覆盖内存会导致刚保存的数据被短暂"冲掉"，要等下一轮心跳才重新出现。两种情况都丢弃本轮响应即可：
+        // 本地变更会通过自身的去抖动同步写入服务器，下一次心跳自然能拿到已确认落盘的最新状态。
+        if (SyncHelper.getLastLocalMutationAt() > requestStartedAt || SyncHelper.hasPendingSync()) {
           return;
         }
 

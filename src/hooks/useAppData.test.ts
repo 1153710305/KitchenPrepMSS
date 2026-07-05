@@ -188,6 +188,32 @@ describe("useAppData", () => {
       expect(LedgerService.getLedgers()).not.toEqual(staleLedgers);
     });
 
+    it("REGRESSION [V5.89.0]: discards a heartbeat response while a local mutation's incremental sync is still pending (not yet confirmed by the server)", async () => {
+      // 复现场景：本地保存发生在心跳请求发出之前（lastLocalMutationAt 守卫本身不认为这是竞态），
+      // 但这次保存的增量同步还在 200ms 防抖排队/请求在途，尚未被服务器确认落盘。
+      // 若此时心跳响应恰好携带一份不含这次保存的滞后服务器快照，正确行为同样是整轮丢弃，
+      // 而不是覆盖内存导致刚保存的记录被短暂"冲掉"、要等下一轮心跳才重新出现。
+      vi.useFakeTimers();
+      renderHook(() => useAppData());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+
+      const staleLedgers = [{ id: "STALE", name: "陈旧数据", createdAt: "2026-01-01T00:00:00.000Z" }];
+      vi.spyOn(SyncHelper, "loadFromServer").mockResolvedValue({ ledgers: staleLedgers } as any);
+      vi.spyOn(SyncHelper, "hasPendingSync").mockReturnValue(true);
+      const setLedgersInMemorySpy = vi.spyOn(LedgerService, "setLedgersInMemory");
+      const forceNotifySpy = vi.spyOn(LedgerService, "forceNotify");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      expect(setLedgersInMemorySpy).not.toHaveBeenCalled();
+      expect(forceNotifySpy).not.toHaveBeenCalled();
+      expect(LedgerService.getLedgers()).not.toEqual(staleLedgers);
+    });
+
     it("does not force-notify when the fresh data is identical to what is already in memory (no-op fast path)", async () => {
       vi.useFakeTimers();
       const seedLedgers = [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }];

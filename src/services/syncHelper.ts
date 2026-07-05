@@ -106,10 +106,46 @@ export class SyncHelper {
   private static readonly MAX_RETRY = 3;
 
   /**
+   * @description 是否有一批增量操作正在向后端发起提交请求、尚未收到响应（区别于 pendingOps：
+   * pendingOps 是"还没到 200ms 防抖时间"，isFlushing 是"已经在路上、等服务器确认"）
+   */
+  private static isFlushing = false;
+
+  /**
    * @description 获取最近一次真实本地数据变更的时间戳
    */
   public static getLastLocalMutationAt(): number {
     return this.lastLocalMutationAt;
+  }
+
+  /**
+   * @description 是否存在尚未被服务器确认落盘的本地变更（排队等待防抖、或已发出请求等待响应）。
+   * 供心跳静默同步识别"这次本地变更是否已经真正写入后端"，避免用一份滞后于本地最新变更的服务器快照
+   * 覆盖内存，导致刚保存的数据在界面上短暂"消失"后要等下一轮心跳才重新出现。
+   */
+  public static hasPendingSync(): boolean {
+    return this.pendingOps.size > 0 || this.debounceTimer !== null || this.isFlushing;
+  }
+
+  /**
+   * @description 等待当前所有排队中与正在提交的增量操作全部完成（成功或达到重试上限后放弃），
+   * 供"保存"类交互在正式呈现"已同步"提示或放行页面浏览前调用，确保用户看到的不是"本地已更新、
+   * 服务器尚未确认"的中间态。
+   */
+  public static waitForPendingSync(): Promise<void> {
+    if (!this.hasPendingSync()) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const check = () => {
+        if (!this.hasPendingSync()) {
+          resolve();
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
   }
 
   /**
@@ -168,6 +204,7 @@ export class SyncHelper {
       clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
       void this.flush();
     }, 200);
   }
@@ -187,6 +224,7 @@ export class SyncHelper {
     this.pendingOps.clear();
     const ops = batch.map(([, op]) => op);
 
+    this.isFlushing = true;
     try {
       const response = await fetch("/api/storage/save", {
         method: "POST",
@@ -206,6 +244,8 @@ export class SyncHelper {
     } catch (err) {
       console.error("[SYNC HELPER] 增量同步操作提交至后端失败:", err);
       this.retryFailedBatch(batch);
+    } finally {
+      this.isFlushing = false;
     }
   }
 

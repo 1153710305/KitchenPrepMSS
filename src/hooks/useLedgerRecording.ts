@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
 import { LedgerService } from "../services/ledgerStore.ts";
+import { SyncHelper } from "../services/syncHelper.ts";
 import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
 import { LogBroker } from "../utils.ts";
 
@@ -230,6 +231,13 @@ export function useLedgerRecording({
       }
 
       await Promise.all(promises);
+
+      // 本地内存虽已即时更新，但增量同步还要等 200ms 防抖 + 一次网络往返才能真正落盘到服务器；
+      // 在此之前就放行页面（关闭录入锁屏），万一此时恰好撞上心跳静默同步，就可能被一份尚未包含
+      // 这批新数据的服务器快照短暂覆盖，导致刚保存的记录在细表/台账里"过一会儿才出现"。
+      // 等到同步真正确认完成再放行，让锁屏提示准确反映"数据是否已安全落盘"。
+      (window as any).__setGlobalLoading?.("正在等待服务器确认数据已安全落盘，请稍候...");
+      await SyncHelper.waitForPendingSync();
 
       // 清除本地缓存
       const draftKey = `ledger_draft_${activeLedgerId}_${selectedDate}`;

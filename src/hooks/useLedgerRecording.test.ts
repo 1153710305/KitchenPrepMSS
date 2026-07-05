@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useLedgerRecording } from "./useLedgerRecording.ts";
 import { LedgerService } from "../services/ledgerStore.ts";
+import { SyncHelper } from "../services/syncHelper.ts";
 import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
 import type { LedgerItem } from "../types/ledgerTypes.ts";
 
@@ -252,6 +253,47 @@ describe("useLedgerRecording", () => {
       });
 
       expect(localStorage.getItem("ledger_draft_KID_2026-07-03")).toBeNull();
+    });
+
+    it("REGRESSION [V5.89.0]: does not exit recording mode until the incremental sync is actually confirmed by the server", async () => {
+      // 真实的用户可感知问题：本地保存一结束就立刻放行页面，此时增量同步可能还没真正落盘，
+      // 如果这时恰好撞上心跳静默同步，刚保存的记录就可能被短暂"冲掉"，表现为"细表里显示有延迟"。
+      // 修复后 handleConfirmRecording 必须等 SyncHelper.waitForPendingSync() 真正 resolve 才收尾。
+      let resolveSync: () => void;
+      const syncPromise = new Promise<void>((resolve) => { resolveSync = resolve; });
+      vi.spyOn(SyncHelper, "waitForPendingSync").mockReturnValue(syncPromise);
+
+      const { result } = setup([makeItem("item_1", "土豆")]);
+      act(() => {
+        result.current.handleStartRecording();
+      });
+      act(() => {
+        result.current.handleDraftCellChange("item_1", { inQuantity: 3, inPrice: 2 });
+      });
+
+      let confirmDone = false;
+      act(() => {
+        result.current.handleConfirmRecording().then(() => { confirmDone = true; });
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // waitForPendingSync 尚未 resolve 时，不应提前退出录入模式
+      expect(SyncHelper.waitForPendingSync).toHaveBeenCalled();
+      expect(confirmDone).toBe(false);
+      expect(result.current.isRecordingMode).toBe(true);
+
+      await act(async () => {
+        resolveSync!();
+        await syncPromise;
+        await Promise.resolve();
+      });
+
+      expect(confirmDone).toBe(true);
+      expect(result.current.isRecordingMode).toBe(false);
     });
 
     it("calls onError and keeps recording mode active when persisting fails", async () => {
