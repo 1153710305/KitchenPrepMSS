@@ -116,7 +116,7 @@ export class RawMaterialsDictService {
    * @description 系统预置的默认推荐原料种子清单（不含 isDefault 标记），供生成种子数据与迁移历史数据共用同一份基准数据源，
    * 避免维护两份重复列表导致后续新增/调整种子原料时出现遗漏或不一致
    */
-  private static getDefaultSeedList(): RawMaterialDictItem[] {
+  public static getDefaultSeedList(): RawMaterialDictItem[] {
     return [
       // 蔬菜类 (VEGETABLE)
       { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },

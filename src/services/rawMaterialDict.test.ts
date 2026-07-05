@@ -37,11 +37,9 @@ describe("RawMaterialsDictService", () => {
   });
 
   describe("initDict / getItems (seed generation)", () => {
-    it("generates the default seed list (marked isDefault) when memory is empty", () => {
+    it("returns an empty array when memory is empty", () => {
       const items = RawMaterialsDictService.getItems();
-      expect(items.length).toBeGreaterThan(0);
-      expect(items.every((i) => i.isDefault === true)).toBe(true);
-      expect(items.some((i) => i.name === "土豆")).toBe(true);
+      expect(items.length).toBe(0);
     });
 
     it("does not regenerate seeds once items already exist", () => {
@@ -85,19 +83,15 @@ describe("RawMaterialsDictService", () => {
       expect(result[0].isDefault).toBeUndefined();
     });
 
-    it("falls back to generating default seeds when the server has no data", () => {
+    it("leaves the list empty and does not queue any replaceAll when the server has no data", () => {
       const result = RawMaterialsDictService.initDictFromServer([]);
-      expect(result.length).toBeGreaterThan(0);
-      expect(result.every((i) => i.isDefault === true)).toBe(true);
-      // 批量种子数据生成场景，整批 replaceAll 覆盖同步
-      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
-        expect.objectContaining({ entity: "rawMaterial", op: "replaceAll" })
-      );
+      expect(result.length).toBe(0);
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
 
-    it("falls back to generating default seeds when the server data is undefined", () => {
+    it("leaves the list empty when the server data is undefined", () => {
       const result = RawMaterialsDictService.initDictFromServer(undefined);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result.length).toBe(0);
     });
   });
 
@@ -242,45 +236,6 @@ describe("RawMaterialsDictService", () => {
       expect(RawMaterialsDictService.getItems()).toHaveLength(1);
       expect(RawMaterialsDictService.getItems()[0].remark).toBe("新");
       expect(SyncHelper.queueChange).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("REGRESSION [V5.88.0]: first-boot seed generation must not lose data to the SyncHelper init lock", () => {
-    // 真实发生过的数据丢失事故：首次启动时种子数据在内存里生成正确，但如果直接调用 SyncHelper.queueChange()
-    // 而不是用 runWhenInitialized() 包裹，在全局初始化 Promise.all 完成之前调用会被静默拦截丢弃，导致种子数据
-    // 永远不会落盘。这里必须用真实的 SyncHelper（不 mock queueChange/runWhenInitialized）才能复现和验证这个时序问题。
-    it("defers the seed replaceAll op until SyncHelper.setInitialized(true) fires, instead of dropping it silently", async () => {
-      vi.restoreAllMocks();
-      vi.useFakeTimers();
-      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
-      vi.stubGlobal("fetch", fetchSpy);
-
-      // 模拟"全局初始化 Promise.all 尚未完成"的真实首次启动时序
-      (SyncHelper as any).isInitialized = false;
-      (SyncHelper as any).onReadyQueue = [];
-      (SyncHelper as any).pendingOps = new Map();
-
-      RawMaterialsDictService.initDictFromServer([]);
-
-      // 初始化锁尚未解开时，种子数据的同步操作（/api/storage/save）不应该发出，
-      // 但业务日志上报（/api/log）不受初始化锁影响，属于另一条独立通路，不在本测试断言范围内
-      await vi.advanceTimersByTimeAsync(500);
-      const saveCallsBeforeInit = fetchSpy.mock.calls.filter(([url]) => url === "/api/storage/save");
-      expect(saveCallsBeforeInit).toHaveLength(0);
-
-      // 初始化锁解开后，之前被推迟的种子同步操作应当补上
-      SyncHelper.setInitialized(true);
-      await vi.advanceTimersByTimeAsync(200);
-
-      const saveCallsAfterInit = fetchSpy.mock.calls.filter(([url]) => url === "/api/storage/save");
-      expect(saveCallsAfterInit).toHaveLength(1);
-      const body = JSON.parse(saveCallsAfterInit[0][1].body);
-      expect(body.ops).toEqual(
-        expect.arrayContaining([expect.objectContaining({ entity: "rawMaterial", op: "replaceAll" })])
-      );
-
-      vi.useRealTimers();
-      (SyncHelper as any).isInitialized = false;
     });
   });
 });

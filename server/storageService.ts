@@ -17,8 +17,9 @@ import crypto from "crypto";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
 import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../src/constants/constants.ts";
-import { FoodCategory, TargetGroup, Ledger, LedgerItem, GroupMonthlyReport, PreparedItem, DynamicGroup, DynamicCategory, RawMaterialDictItem, DailyEntry } from "../src/types/types.ts";
-import { RawMaterialsDictService } from "../src/services/rawMaterialDict.ts";
+import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem, DynamicGroup, DynamicCategory, DailyEntry } from "../src/types/types.ts";
+import { Ledger, LedgerItem } from "../src/types/ledgerTypes.ts";
+import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
 
 /** ledgerHelperDict 的 8 个 string[] 字段名，打平存入 ledger_helper_options 表 */
 const HELPER_DICT_CATEGORIES = [
@@ -398,12 +399,16 @@ export class StorageService {
       `);
 
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
-        console.log("[SYSTEM BOOT] 数据库全表空置，准备在后端直接生成并注入默认种子数据...");
-        const defaultData = StorageService.generateDefaultSeeds();
-        // 因为这是一个本地启动初始化时的调用，直接调用 upsertSkeleton 写入数据。
-        // 它会通过 delete + insert 的方式进行注入
-        StorageService.upsertSkeleton(StorageService.db, defaultData);
-        console.log("[SYSTEM BOOT] 已在后端自动生成并注入默认种子数据完成");
+        if (process.env.SKIP_SEEDING === "1") {
+          console.log("[SYSTEM BOOT] 数据库全表空置，当前处于测试模式并设置了 SKIP_SEEDING，跳过自动注入种子数据...");
+        } else {
+          console.log("[SYSTEM BOOT] 数据库全表空置，准备在后端直接生成并注入默认种子数据...");
+          const defaultData = StorageService.generateDefaultSeeds();
+          // 因为这是一个本地启动初始化时的调用，直接调用 upsertSkeleton 写入数据。
+          // 它会通过 delete + insert 的方式进行注入
+          StorageService.upsertSkeleton(StorageService.db, defaultData);
+          console.log("[SYSTEM BOOT] 已在后端自动生成并注入默认种子数据完成");
+        }
       }
     }
     return StorageService.db;

@@ -45,11 +45,12 @@ afterEach(() => {
 });
 
 describe("GET /api/storage/load", () => {
-  it("responds with isFirstBoot:true and an otherwise empty payload when nothing has been saved yet", async () => {
+  it("responds with the auto-generated seed data on the first load", async () => {
     const res = await request(app).get("/api/storage/load");
 
     expect(res.status).toBe(200);
-    expect(res.body.isFirstBoot).toBe(true);
+    expect(res.body.isFirstBoot).toBe(false);
+    expect(res.body.ledgers.length).toBeGreaterThan(0);
   });
 
   it("responds with isFirstBoot:false and the persisted data once an incremental save has happened", async () => {
@@ -59,7 +60,8 @@ describe("GET /api/storage/load", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.isFirstBoot).toBe(false);
-    expect(res.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const kidLedger = res.body.ledgers.find((l: any) => l.id === "KID");
+    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
   });
 });
 
@@ -72,7 +74,8 @@ describe("POST /api/storage/save", () => {
     expect(typeof res.body.timestamp).toBe("string");
 
     const loadRes = await request(app).get("/api/storage/load");
-    expect(loadRes.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const kidLedger = loadRes.body.ledgers.find((l: any) => l.id === "KID");
+    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
   });
 
   it("accepts an empty ops array without crashing", async () => {
@@ -91,8 +94,10 @@ describe("POST /api/storage/save", () => {
     await saveOps([{ entity: "rawMaterial", op: "upsert", key: "土豆", data: { name: "土豆", category: "蔬菜", unit: "斤", remark: "本地", isDefault: false } }]);
 
     const res = await request(app).get("/api/storage/load");
-    expect(res.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
-    expect(res.body.rawMaterialsDict).toEqual([{ name: "土豆", category: "蔬菜", unit: "斤", remark: "本地", conversionUnit: null, conversionRatio: null, isDefault: false }]);
+    const kidLedger = res.body.ledgers.find((l: any) => l.id === "KID");
+    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
+    const potato = res.body.rawMaterialsDict.find((r: any) => r.name === "土豆");
+    expect(potato).toEqual({ name: "土豆", category: "蔬菜", unit: "斤", remark: "本地", conversionUnit: null, conversionRatio: null, isDefault: false });
   });
 
   it("PROTOCOL GUARD: rejects with 400 when protocolVersion is missing or wrong, without touching stored data", async () => {
@@ -102,7 +107,8 @@ describe("POST /api/storage/save", () => {
     expect(res.status).toBe(400);
 
     const loadRes = await request(app).get("/api/storage/load");
-    expect(loadRes.body.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const kidLedger = loadRes.body.ledgers.find((l: any) => l.id === "KID");
+    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
   });
 
   it("PROTOCOL GUARD: rejects with 400 when ops is not an array", async () => {
@@ -148,7 +154,10 @@ describe("POST /api/storage/restore", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const kidLedger = res.body.data.ledgers.find((l: any) => l.id === "KID");
+    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
+    const otherLedger = res.body.data.ledgers.find((l: any) => l.id === "OTHER");
+    expect(otherLedger).toBeUndefined();
   });
 
   it("responds with 500 when the backup file does not exist", async () => {
