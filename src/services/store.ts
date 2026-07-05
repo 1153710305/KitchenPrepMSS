@@ -76,9 +76,14 @@ export class PrepReportService {
    * @description 为一个（通常是刚创建的）备餐细项 queue 骨架 upsert op，并只对有实质内容的天数额外 queue
    * preparedItemDailyData upsert op（跳过全零占位天数）
    */
-  private static queuePreparedItemUpsertOps(item: PreparedItem): void {
+  private static queuePreparedItemUpsertOps(item: PreparedItem, reportTargetGroup: string, reportYear: number, reportMonth: number): void {
     const { dailyData, ...skeleton } = item;
-    SyncHelper.queueChange({ entity: "preparedItem", op: "upsert", key: item.id, data: skeleton });
+    SyncHelper.queueChange({ 
+      entity: "preparedItem", 
+      op: "upsert", 
+      key: item.id, 
+      data: { ...skeleton, reportTargetGroup, reportYear, reportMonth } 
+    });
     Object.entries(dailyData ?? {}).forEach(([day, entry]) => {
       if (!this.hasMeaningfulDailyEntry(entry)) return;
       SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: item.id, date: day }, data: entry });
@@ -257,7 +262,7 @@ export class PrepReportService {
       this.reports.push(report);
       this.saveToStorage();
       this.queueReportUpsertOp(report);
-      report.items.forEach((item) => this.queuePreparedItemUpsertOps(item));
+      report.items.forEach((item) => this.queuePreparedItemUpsertOps(item, report.targetGroup, report.year, report.month));
       LogBroker.publish("INFO", "PrepReportService", `惰性合成了客群「${targetGroup}」在 ${year}年${month}月 的空白初始备餐表。`);
     }
     return report;
@@ -338,7 +343,7 @@ export class PrepReportService {
           items: [...report.items, newItem]
         };
         this.reports[reportIndex] = updatedReport;
-        this.queuePreparedItemUpsertOps(newItem);
+        this.queuePreparedItemUpsertOps(newItem, targetGroup, year, month);
       }
 
       this.notifyListeners();
@@ -540,7 +545,7 @@ export class PrepReportService {
           this.reports = updatedReports;
 
           this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem);
+          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
           LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
           resolve(newItem);
         }).catch((err) => {
@@ -554,7 +559,7 @@ export class PrepReportService {
           this.reports = updatedReports;
 
           this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem);
+          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
           resolve(newItem);
         });
       }, MOCK_API_LATENCY);

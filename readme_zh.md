@@ -1261,3 +1261,7 @@ pm2 startup
 - **根因**：`handleConfirmRecording()` 保存时只等待本地内存更新（`LedgerService.updateDailyRecord()` 等 Promise 是同步 resolve 的），随即就关闭了"正在同步"锁屏、放行页面——但这批变更真正写入服务器还要经过 `SyncHelper` 200ms 防抖 + 一次网络往返。如果这期间恰好撞上每 10 秒一次的心跳静默同步（`useAppData.ts` 的 `setInterval`），心跳会用一份还不包含这批新数据的服务器快照覆盖内存，刚保存的记录被短暂"冲掉"，要等下一轮心跳（约 10 秒）才重新出现——这正是[V5.86.0]增量同步协议引入后出现的新竞态窗口，此前的 `lastLocalMutationAt` 竞态守卫（[V5.45.0]）只覆盖了"本地变更发生在心跳请求发出之后"这一种情况，没有覆盖"本地变更更早发生、但其增量同步仍在路上尚未被服务器确认"这一种。
 - **修复**：`SyncHelper` 新增 `hasPendingSync()`（是否还有操作在 200ms 防抖排队、或已发出请求尚未收到响应）与 `waitForPendingSync()`（等待当前所有排队与在途操作全部完成或放弃重试），顺手修复了 `debounceTimer` 定时器触发后从未被重置为 `null` 的既有小疏漏（否则 `hasPendingSync()` 判断在首次触发防抖后会永远返回 `true`）。`useAppData.ts` 心跳守卫扩展为同时检查 `hasPendingSync()`，覆盖两种竞态而非一种。`useLedgerRecording.ts` 的 `handleConfirmRecording()` 在本地保存完成后追加 `await SyncHelper.waitForPendingSync()`，并把锁屏文案更新为"正在等待服务器确认数据已安全落盘"，真正做到"没有确认同步完成就不放行页面"——沿用既有的全屏锁定遮罩（`__setGlobalLoading`），不新增 UI 组件。
 - **验证**：`syncHelper.test.ts` 新增 5 条用例覆盖 `hasPendingSync`/`waitForPendingSync` 的排队中/在途/完成三种状态；`useAppData.test.ts` 新增 1 条回归测试复现"本地变更早于心跳请求发出、但同步仍在途"这一此前未覆盖的竞态并断言心跳响应被正确丢弃；`useLedgerRecording.test.ts` 新增 1 条回归测试断言录入模式在同步真正确认前不会提前退出。全量 416 个用例通过；`tsc --noEmit` 报错数保持 18。
+
+
+### 变更日志
+- **2026-07-05 Bug 修复**: 修复了台账新增记录触发跨系统联动同步时，由于备餐明细增量 Payload 缺失外键/联合主键信息（`reportTargetGroup` 等）导致服务端 SQLite 事务整体回滚，进而引发 10秒后前端心跳机制拉取滞后快照覆盖内存，造成数据丢失/清零重置的隐蔽竞态 Bug。
