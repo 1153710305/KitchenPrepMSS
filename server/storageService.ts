@@ -13,8 +13,13 @@
 
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
+import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../src/constants/constants.ts";
+import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem, DynamicGroup, DynamicCategory, DailyEntry } from "../src/types/types.ts";
+import { Ledger, LedgerItem } from "../src/types/ledgerTypes.ts";
+import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
 
 /** ledgerHelperDict 的 8 个 string[] 字段名，打平存入 ledger_helper_options 表 */
 const HELPER_DICT_CATEGORIES = [
@@ -175,6 +180,99 @@ export class StorageService {
   }
 
   /**
+   * @description 当检测到 SQLite 为空时，在服务端内部直接生成所有的默认种子数据，
+   * 包含台账、备餐报表、三大受众、各类配置项与基础词典。避免再由前端发现后反向推送。
+   * @returns {any} 全量的后端存储快照格式数据
+   */
+  private static generateDefaultSeeds(): any {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    // 1. active_groups
+    const activeGroups: DynamicGroup[] = [
+      { key: "KID", label: "幼儿", emoji: "👶", isDefault: true },
+      { key: "STUDENT", label: "在校生", emoji: "🎓", isDefault: true },
+      { key: "TEACHER", label: "教师", emoji: "👨‍🏫", isDefault: true }
+    ];
+
+    // 2. active_categories
+    const activeCategories: DynamicCategory[] = [
+      { key: "VEGETABLE", label: "蔬菜", isDefault: true },
+      { key: "GRAIN_OIL", label: "粮油", isDefault: true },
+      { key: "SEASONING", label: "调料", isDefault: true },
+      { key: "MEAT", label: "肉类", isDefault: true },
+      { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
+      { key: "FRUIT", label: "水果", isDefault: true }
+    ];
+
+    // 3. raw_materials_dict
+    const rawMaterialsDict: RawMaterialDictItem[] = RawMaterialsDictService.getDefaultSeedList().map((item) => ({
+      ...item,
+      isDefault: true
+    }));
+
+    // 4. ledgers (与 activeGroups 一一对齐)
+    const ledgers: Ledger[] = activeGroups.map((group) => ({
+      id: group.key,
+      name: group.label,
+      createdAt: new Date().toISOString()
+    }));
+    const ledgerItems: LedgerItem[] = []; // 台账内容保持为空，等用户自行录入
+
+    // 5. reports 
+    // 生成一个空的 31 天矩阵，确保数据结构连贯
+    const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+    const dailyData: Record<string, DailyEntry> = {};
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = day.toString().padStart(2, "0");
+      dailyData[`${currentYear}-${currentMonth.toString().padStart(2, "0")}-${dayStr}`] = { quantity: 0, price: 0, amount: 0 };
+    }
+
+    const reports: GroupMonthlyReport[] = activeGroups.map((group) => {
+      const items: PreparedItem[] = [];
+      Object.entries(PRESET_ITEMS_BY_CATEGORY).forEach(([categoryStr, defaultNames]) => {
+        const cat = categoryStr as FoodCategory;
+        const defaultUnit = CATEGORY_DEFAULT_UNITS[cat] || "个";
+        defaultNames.forEach((name) => {
+          items.push({
+            id: crypto.randomUUID(),
+            name,
+            category: cat,
+            targetGroup: group.key as TargetGroup,
+            unit: defaultUnit,
+            dailyData: { ...dailyData }
+          });
+        });
+      });
+
+      return {
+        targetGroup: group.key as TargetGroup,
+        year: currentYear,
+        month: currentMonth,
+        items
+      };
+    });
+
+    // 6. ledgerHelperDict (空)
+    const ledgerHelperDict: Record<string, string[]> = {};
+    for (const category of HELPER_DICT_CATEGORIES) {
+      ledgerHelperDict[category] = [];
+    }
+
+    return {
+      ledgers,
+      ledgerItems,
+      reports,
+      activeGroups,
+      activeCategories,
+      rawMaterialsDict,
+      ledgerHelperDict,
+      isFirstBoot: true // 告诉前端清除旧的本地缓存
+    };
+  }
+
+  /**
    * @description 获取（并按需懒创建）本地 SQLite 数据库连接与规范化的关系型表结构。
    * 按业务实体拆成了 9 张真正的关系型表（ledgers/ledger_items/ledger_item_daily_records/reports/
    * prepared_items/prepared_item_daily_data/active_groups/active_categories/raw_materials_dict/
@@ -299,6 +397,19 @@ export class StorageService {
           PRIMARY KEY (category, value)
         );
       `);
+
+      if (StorageService.countNormalizedRows(StorageService.db) === 0) {
+        if (process.env.SKIP_SEEDING === "1") {
+          console.log("[SYSTEM BOOT] 数据库全表空置，当前处于测试模式并设置了 SKIP_SEEDING，跳过自动注入种子数据...");
+        } else {
+          console.log("[SYSTEM BOOT] 数据库全表空置，准备在后端直接生成并注入默认种子数据...");
+          const defaultData = StorageService.generateDefaultSeeds();
+          // 因为这是一个本地启动初始化时的调用，直接调用 upsertSkeleton 写入数据。
+          // 它会通过 delete + insert 的方式进行注入
+          StorageService.upsertSkeleton(StorageService.db, defaultData);
+          console.log("[SYSTEM BOOT] 已在后端自动生成并注入默认种子数据完成");
+        }
+      }
     }
     return StorageService.db;
   }

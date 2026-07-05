@@ -64,12 +64,12 @@ export const PRESET_ITEMS_BY_CATEGORY: Record<FoodCategory, string[]> = {
 /**
  * @description 管理配置后台的默认进入密码，支持从环境变量安全调入
  */
-export const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "admin";
+export const ADMIN_PASSWORD = (typeof process !== "undefined" ? process.env.VITE_ADMIN_PASSWORD : (import.meta as any).env?.VITE_ADMIN_PASSWORD) || "admin";
 
 /**
  * @description 系统首页登录的验证密码，支持从环境变量安全调入
  */
-export const LOGIN_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD || "guest";
+export const LOGIN_PASSWORD = (typeof process !== "undefined" ? process.env.VITE_LOGIN_PASSWORD : (import.meta as any).env?.VITE_LOGIN_PASSWORD) || "guest";
 
 
 /**

@@ -75,6 +75,7 @@ beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kpmss-storage-test-"));
   process.env.STORAGE_TYPE = "local";
   process.env.LOCAL_DATA_DIR = path.join(tmpDir, "data");
+  process.env.SKIP_SEEDING = "1";
 
   vi.resetModules();
   const mod = await import("./storageService.ts");
@@ -85,6 +86,7 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   delete process.env.STORAGE_TYPE;
   delete process.env.LOCAL_DATA_DIR;
+  delete process.env.SKIP_SEEDING;
   vi.restoreAllMocks();
 });
 
@@ -103,9 +105,20 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
   });
 
   describe("load", () => {
-    it("returns an empty object when no data exists yet (first boot)", async () => {
+    it("returns an empty object when no data exists yet (first boot) and SKIP_SEEDING is 1", async () => {
       const data = await StorageService.load();
       expect(data).toEqual({});
+    });
+
+    it("returns the auto-generated seed data when no data exists yet and SKIP_SEEDING is not set", async () => {
+      delete process.env.SKIP_SEEDING;
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      StorageService = mod.StorageService;
+
+      const data = await StorageService.load();
+      expect(data.ledgers.length).toBeGreaterThan(0);
+      expect(data.rawMaterialsDict.length).toBeGreaterThan(0);
     });
 
     it("returns the full state after a save, including daily records reattached onto the matching ledgerItem", async () => {

@@ -76,9 +76,14 @@ export class PrepReportService {
    * @description 为一个（通常是刚创建的）备餐细项 queue 骨架 upsert op，并只对有实质内容的天数额外 queue
    * preparedItemDailyData upsert op（跳过全零占位天数）
    */
-  private static queuePreparedItemUpsertOps(item: PreparedItem): void {
+  private static queuePreparedItemUpsertOps(item: PreparedItem, reportTargetGroup: string, reportYear: number, reportMonth: number): void {
     const { dailyData, ...skeleton } = item;
-    SyncHelper.queueChange({ entity: "preparedItem", op: "upsert", key: item.id, data: skeleton });
+    SyncHelper.queueChange({ 
+      entity: "preparedItem", 
+      op: "upsert", 
+      key: item.id, 
+      data: { ...skeleton, reportTargetGroup, reportYear, reportMonth } 
+    });
     Object.entries(dailyData ?? {}).forEach(([day, entry]) => {
       if (!this.hasMeaningfulDailyEntry(entry)) return;
       SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: item.id, date: day }, data: entry });
@@ -131,58 +136,17 @@ export class PrepReportService {
       setTimeout(() => {
         try {
           if (serverData && serverData.activeGroups && serverData.activeCategories && serverData.reports) {
-            // 服务器上有完整数据，直接同步到内存；同时迁移升级前生成、缺少 isDefault 标记的历史默认人群/大类数据，
-            // 按 key 匹配预置默认清单补齐标记，确保老数据升级后依然享有"默认数据不可删除"的保护
-            let migrationChanged = false;
-            this.activeGroups = (serverData.activeGroups as DynamicGroup[]).map((g) => {
-              if (g.isDefault === undefined && DEFAULT_GROUP_KEYS.has(g.key)) {
-                migrationChanged = true;
-                return { ...g, isDefault: true };
-              }
-              return g;
-            });
-            this.activeCategories = (serverData.activeCategories as DynamicCategory[]).map((c) => {
-              if (c.isDefault === undefined && DEFAULT_CATEGORY_KEYS.has(c.key)) {
-                migrationChanged = true;
-                return { ...c, isDefault: true };
-              }
-              return c;
-            });
+            this.activeGroups = serverData.activeGroups as DynamicGroup[];
+            this.activeCategories = serverData.activeCategories as DynamicCategory[];
             this.reports = serverData.reports;
             LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
-            if (migrationChanged) {
-              // 迁移可能涉及任意多个人群/大类条目补齐 isDefault 标记，无法精确描述"改了哪一条"，
-              // 整批 replaceAll 覆盖回写，属于批量迁移场景而非用户增量编辑
-              SyncHelper.runWhenInitialized(() => {
-                this.saveConfigAndNotify();
-                SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
-                SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
-              });
-            }
           } else {
-            // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化（统一标记 isDefault:true，仅允许编辑不允许删除）
-            this.activeGroups = [
-              { key: "KID", label: "幼儿", emoji: "👶", isDefault: true },
-              { key: "STUDENT", label: "在校生", emoji: "🎒", isDefault: true },
-              { key: "TEACHER", label: "教师", emoji: "👩‍🏫", isDefault: true }
-            ];
-            this.activeCategories = [
-              { key: "VEGETABLE", label: "蔬菜", isDefault: true },
-              { key: "GRAIN_OIL", label: "粮油", isDefault: true },
-              { key: "SEASONING", label: "调料", isDefault: true },
-              { key: "MEAT", label: "肉蛋", isDefault: true },
-              { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
-              { key: "FRUIT", label: "水果", isDefault: true }
-            ];
-            // 首次启动整批 replaceAll 落盘，与 generateInitialSeeds() 内部对 reports 的整批处理保持同一批量初始化语义。
-            // 这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪锁定状态，必须用
-            // runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘（真实发生过的数据丢失事故）
-            SyncHelper.runWhenInitialized(() => {
-              SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
-              SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
-            });
-            this.generateInitialSeeds();
-            LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
+            // 服务端现在负责注入初始数据。若到达此处，说明网络失败或未收到有效负载。
+            // 降级为空状态，不再主动在前端进行种子数据生成或覆盖推送
+            this.activeGroups = [];
+            this.activeCategories = [];
+            this.reports = [];
+            LogBroker.publish("WARN", "PrepReportService", "未收到有效的服务端报表数据，可能处于断网状态或服务异常。");
           }
           resolve(this.reports);
         } catch (error) {
@@ -257,7 +221,7 @@ export class PrepReportService {
       this.reports.push(report);
       this.saveToStorage();
       this.queueReportUpsertOp(report);
-      report.items.forEach((item) => this.queuePreparedItemUpsertOps(item));
+      report.items.forEach((item) => this.queuePreparedItemUpsertOps(item, report.targetGroup, report.year, report.month));
       LogBroker.publish("INFO", "PrepReportService", `惰性合成了客群「${targetGroup}」在 ${year}年${month}月 的空白初始备餐表。`);
     }
     return report;
@@ -338,7 +302,7 @@ export class PrepReportService {
           items: [...report.items, newItem]
         };
         this.reports[reportIndex] = updatedReport;
-        this.queuePreparedItemUpsertOps(newItem);
+        this.queuePreparedItemUpsertOps(newItem, targetGroup, year, month);
       }
 
       this.notifyListeners();
@@ -412,67 +376,6 @@ export class PrepReportService {
     });
   }
 
-  /**
-   * @description 用预设值初始化种子数据
-   */
-  private static generateInitialSeeds(): void {
-    LogBroker.publish("INFO", "PrepReportService", "初始缓存缺失，正在合成第一款初始种子报表...");
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1; // 1-12
-    const targetGroups = this.activeGroups.map((g) => g.key);
-    const foodCategories = this.activeCategories.map((c) => c.key);
-
-    const initialReports: GroupMonthlyReport[] = targetGroups.map((group) => {
-      const items: PreparedItem[] = [];
-
-      foodCategories.forEach((cat) => {
-        const defaultNames = (PRESET_ITEMS_BY_CATEGORY as Record<string, string[]>)[cat] || ["预设原料"];
-        const defaultUnit = (CATEGORY_DEFAULT_UNITS as Record<string, string>)[cat] || "斤";
-
-        defaultNames.forEach((name, itemIndex) => {
-          const dailyData: Record<string, DailyEntry> = {};
-
-          for (let d = 1; d <= 31; d++) {
-            const initialQty = 0;
-            const initialPrice = 0;
-
-            dailyData[String(d)] = {
-              quantity: initialQty,
-              price: initialPrice,
-              amount: calculateEntryAmount(initialQty, initialPrice)
-            };
-          }
-
-          items.push({
-            id: `item_${group.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            name,
-            category: cat as FoodCategory,
-            targetGroup: group as TargetGroup,
-            unit: defaultUnit,
-            dailyData
-          });
-        });
-      });
-
-      return {
-        targetGroup: group as TargetGroup,
-        year: currentYear,
-        month: currentMonth,
-        items
-      };
-    });
-
-    this.reports = initialReports;
-    this.saveToStorage();
-    // 批量种子数据生成场景，整批 replaceAll 覆盖（含完整 31 天占位矩阵，与首次启动落盘的既有数据形态保持一致），
-    // 而非强行拆成逐条 upsert 枚举。这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪
-    // 锁定状态，必须用 runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘
-    // （真实发生过的数据丢失事故）
-    SyncHelper.runWhenInitialized(() => {
-      SyncHelper.queueChange({ entity: "report", op: "replaceAll", data: initialReports });
-    });
-    LogBroker.publish("INFO", "PrepReportService", `共创建 ${targetGroups.length} 大目标人群、涵盖多品类的日矩阵底层种子数据。`);
-  }
 
 
   /**
@@ -540,7 +443,7 @@ export class PrepReportService {
           this.reports = updatedReports;
 
           this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem);
+          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
           LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
           resolve(newItem);
         }).catch((err) => {
@@ -554,7 +457,7 @@ export class PrepReportService {
           this.reports = updatedReports;
 
           this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem);
+          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
           resolve(newItem);
         });
       }, MOCK_API_LATENCY);

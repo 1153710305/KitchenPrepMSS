@@ -45,10 +45,6 @@ export class RawMaterialsDictService {
    * @returns 初始化的原料列表
    */
   public static initDict(): RawMaterialDictItem[] {
-    if (this.items.length > 0) {
-      return this.items;
-    }
-    this.generateDefaultSeeds();
     return this.items;
   }
 
@@ -59,21 +55,18 @@ export class RawMaterialsDictService {
   public static initDictFromServer(serverDictItems?: RawMaterialDictItem[]): RawMaterialDictItem[] {
     if (serverDictItems && serverDictItems.length > 0) {
       const deduped = this.dedupeByName(serverDictItems);
-      // 迁移升级前生成、缺少 isDefault 标记的历史默认原料数据，确保老数据也享有"默认数据不可删除"的保护
-      const { migratedItems, changed } = this.migrateDefaultFlags(deduped);
-      this.items = migratedItems;
+      this.items = deduped;
       LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从服务器同步载入原料字典数据");
-      // 若服务器数据存在历史同名重复脏数据或需要补齐默认标记迁移，待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）。
-      // 去重/迁移可能涉及任意多个条目，无法精确描述"改了哪一条"，因此整批 replaceAll 覆盖回写，属于批量初始化场景而非用户增量编辑
-      if (deduped.length !== serverDictItems.length || changed) {
+      // 若服务器数据存在历史同名重复脏数据，待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）。
+      // 去重可能涉及任意多个条目，无法精确描述"改了哪一条"，因此整批 replaceAll 覆盖回写，属于批量初始化场景而非用户增量编辑
+      if (deduped.length !== serverDictItems.length) {
         SyncHelper.runWhenInitialized(() => {
           SyncHelper.queueChange({ entity: "rawMaterial", op: "replaceAll", data: this.items });
         });
       }
     } else {
-      // generateDefaultSeeds() 内部已经会把整批种子数据以 replaceAll 的方式同步到后端，此处无需重复触发
-      this.generateDefaultSeeds();
-      LogBroker.publish("INFO", "RawMaterialsDictService", "服务器上无原料字典，系统已装载默认推荐原料种子大底库");
+      this.items = [];
+      LogBroker.publish("WARN", "RawMaterialsDictService", "未收到有效的服务端字典数据，可能处于断网状态或服务异常。");
     }
     return this.items;
   }
@@ -98,30 +91,12 @@ export class RawMaterialsDictService {
     return Array.from(map.values());
   }
 
-  /**
-   * @description 迁移升级前生成、缺少 isDefault 标记的历史默认原料数据：按名称匹配预置种子清单，补齐 isDefault:true 标记，
-   * 确保早于本功能上线时就已落盘的默认原料，在升级后依然享有"仅允许编辑不允许删除"的保护
-   * @param items 待迁移检查的原料数组
-   * @returns migratedItems 迁移后的数组；changed 是否发生了实际变更（用于决定是否需要回写服务器）
-   */
-  private static migrateDefaultFlags(items: RawMaterialDictItem[]): { migratedItems: RawMaterialDictItem[]; changed: boolean } {
-    const defaultNames = new Set(this.getDefaultSeedList().map((seed) => seed.name));
-    let changed = false;
-    const migratedItems = items.map((item) => {
-      if (item.isDefault === undefined && defaultNames.has(item.name)) {
-        changed = true;
-        return { ...item, isDefault: true };
-      }
-      return item;
-    });
-    return { migratedItems, changed };
-  }
 
   /**
    * @description 系统预置的默认推荐原料种子清单（不含 isDefault 标记），供生成种子数据与迁移历史数据共用同一份基准数据源，
    * 避免维护两份重复列表导致后续新增/调整种子原料时出现遗漏或不一致
    */
-  private static getDefaultSeedList(): RawMaterialDictItem[] {
+  public static getDefaultSeedList(): RawMaterialDictItem[] {
     return [
       // 蔬菜类 (VEGETABLE)
       { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "散装" },
@@ -211,22 +186,6 @@ export class RawMaterialsDictService {
       { name: "沙白瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "" }
     ];
-  }
-
-  /**
-   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量食堂底库重装），并统一标记为系统默认数据（isDefault:true），
-   * 默认数据仅允许后台编辑，不允许删除
-   */
-  private static generateDefaultSeeds(): void {
-    this.items = this.getDefaultSeedList().map((item) => ({ ...item, isDefault: true }));
-    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举。
-    // 首次启动时这段代码运行在全局初始化 Promise.all 完成之前，此时 SyncHelper 尚处于未就绪锁定状态，
-    // 直接 queueChange 会被静默拦截丢弃（不会报错，但这批种子数据永远不会被持久化）；
-    // 必须用 runWhenInitialized 延后到初始化解锁之后再入队，否则首次启动生成的种子数据会永久丢失
-    // ——这不是假设性风险，是真实发生过的数据丢失事故。
-    SyncHelper.runWhenInitialized(() => {
-      SyncHelper.queueChange({ entity: "rawMaterial", op: "replaceAll", data: this.items });
-    });
   }
 
   /**

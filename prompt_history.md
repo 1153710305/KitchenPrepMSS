@@ -625,3 +625,26 @@
 ### 🚀 2026-07-05 - [V5.89.0] 修复台账保存后"细表/台账里刚加入的记录显示有延迟"
 - **提示词变更状态**：**无变动 (No Changes)**。
 - **说明**：本次为用户实际使用中反馈的真实体验问题修复（保存后锁屏提示放行过早，与心跳静默同步竞态导致刚保存的记录短暂被覆盖），未涉及任何 AI 提示词。详见 [readme_zh.md] 的 [V5.89.0] 版本记录。
+
+
+## 修复增量同步备餐明细导致数据回滚清零的 Bug
+
+**时间:** 2026-07-05
+**问题描述:** 部署后导入土豆记录，一段时间后系统数据被清零或回滚到初始状态。
+**原因分析:**
+1. 用户在台账中导入"土豆"时，触发了向备餐系统的联动同步（`PrepReportService.syncFromLedger`），生成了新的 `PreparedItem`。
+2. 系统随后将该新增操作推入增量同步队列，向服务端发送 `preparedItem` 的 `upsert` 请求。
+3. 服务端在执行 SQLite 插入时，由于 `prepared_items` 表强制要求 `report_target_group`、`report_year`、`report_month` 字段非空（`NOT NULL`），但前端在拼装该条目的增量 payload 时，遗漏了从父级报表中继承这三个属性（只发送了 `skeleton`），导致 SQLite 抛出 `NOT NULL constraint failed` 异常。
+4. 由于服务端的增量写入运行在原子的 `db.transaction` 事务中，该异常导致本次包含"土豆"入库、备餐明细新增等所有同步操作被整体回滚，服务端数据未发生任何实质变更（停留在初次启动生成的空模板种子状态）。
+5. 约 10 秒后，前端心跳（Heartbeat）拉取服务端全量快照进行对比，发现服务端数据（仅有种子数据）与当前内存（包含用户刚才录入的土豆及可能的人群配置等）的哈希指纹不一致，于是触发静默强覆盖，将前端内存数据覆写回了服务端的滞后状态，造成了用户视角下"录入一会后数据被自动清零重置"的现象。
+
+**解决措施:**
+修改了 `src/services/store.ts` 中的 `queuePreparedItemUpsertOps` 方法，强制要求传入所依赖的 `reportTargetGroup`、`reportYear`、`reportMonth`，并在组装 `SyncHelper.queueChange` payload 时予以补充，确保服务端 SQLite 能够获取到完整的外键/联合主键依赖信息顺利入库，从而斩断由于事务回滚引发的心跳降级覆盖链条。
+
+## [2026/07/05] 服务端自动注入默认种子数据
+- **需求**: 服务器端全新部署，底层 SQLite 库中无数据时，要在后端直接生成默认种子数据，不要等前端发现再生成。
+- **改动**:
+  1. 修改了 `server/storageService.ts`，新增 `generateDefaultSeeds` 方法，通过 `countNormalizedRows(db) === 0` 判断实现 SQLite 全表空置时，在后端自动生成 3 大人群、6 大食材大类、完整的预设原料字典与报表矩阵。
+  2. 移除了前端 `src/services/store.ts`、`src/services/ledgerStore.ts` 和 `src/services/rawMaterialDict.ts` 中的 `generateInitialSeeds` / `generateSeeds` / `generateDefaultSeeds`，避免了前端发现数据为空再发往后端的滞后回写逻辑。
+  3. 修复了 Node.js 运行时对 `import.meta.env` 的兼容性问题（通过 `typeof process !== 'undefined'` 区分环境变量来源）。
+- **效果**: 首航启动时不再依赖前端同步，后端可立即为所有后续请求提供完整的默认空底座。
