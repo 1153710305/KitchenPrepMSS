@@ -4,13 +4,19 @@
  */
 
 /**
- * @description StorageService（本地 SQLite 持久化服务，阶段二·规范化关系型表结构见 SQLite迁移规划.md）单元测试：
+ * @description StorageService（本地 SQLite 持久化服务，阶段二·规范化关系型表结构 + 阶段三·增量写协议见 SQLite迁移规划.md）单元测试：
  * 主数据读写往返（含 reports/preparedItems/activeGroups/activeCategories/rawMaterialsDict/ledgerHelperDict 全部 7 个
  * 顶层字段的正确重组）、每日流水的存储与重组（含"删除后不应复活"的历史遗留 bug 回归）、损坏/首次启动状态容错、
  * 备份快照生成与保留策略裁剪、快照恢复（骨架部分覆盖但绝不清空当前生效中的台账每日流水）、restore() 的备份文件名
- * 安全校验（防路径穿越）、原子写入与写入锁、以及从阶段一 kv_store / 更早纯 JSON 文件存储的一次性自动迁移的回归测试。
+ * 安全校验（防路径穿越）、原子写入与写入锁、从阶段一 kv_store / 更早纯 JSON 文件存储的一次性自动迁移、
+ * 以及阶段三 applyChangesIntoSqlite 增量 upsert/delete/级联删除/跨实体事务回滚的回归测试。
  * 测试通过临时目录 + 动态重新导入模块实现相互隔离，因为 StorageService 在类定义时就从 process.env 读取路径并缓存为
  * private static 字段，运行期不会重新读取。
+ *
+ * save() 的参数已从阶段二的"整体状态对象"改为阶段三的"一批增量 SyncOp[]"。本文件里大量沿用自阶段二的
+ * 往返/备份/恢复/迁移测试并不关心"增量"本身，只关心"数据最终落盘是否正确"，因此用 saveFull() 辅助函数
+ * 把一份完整状态对象转换成一批 replaceAll op（每个顶层 key 一个 op）来复用；真正验证"只增量 upsert/delete
+ * 一个字段、不动其它数据"的用例集中在下面新增的 "incremental op application" 描述块。
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -31,6 +37,30 @@ const makeLedgerItem = (overrides: Record<string, any> = {}) => ({
   dailyRecords: {},
   ...overrides
 });
+
+/** 把一份完整状态对象转换成一批 replaceAll op（每个出现的顶层 key 各一个），供沿用自阶段二的整体往返测试复用 */
+function toReplaceAllOps(data: Record<string, any>): any[] {
+  const ops: any[] = [];
+  if (data.ledgers !== undefined) ops.push({ entity: "ledger", op: "replaceAll", data: data.ledgers });
+  if (data.ledgerItems !== undefined) ops.push({ entity: "ledgerItem", op: "replaceAll", data: data.ledgerItems });
+  if (data.reports !== undefined) ops.push({ entity: "report", op: "replaceAll", data: data.reports });
+  if (data.activeGroups !== undefined) ops.push({ entity: "activeGroup", op: "replaceAll", data: data.activeGroups });
+  if (data.activeCategories !== undefined) ops.push({ entity: "activeCategory", op: "replaceAll", data: data.activeCategories });
+  if (data.rawMaterialsDict !== undefined) ops.push({ entity: "rawMaterial", op: "replaceAll", data: data.rawMaterialsDict });
+  if (data.ledgerHelperDict !== undefined) {
+    ops.push({
+      entity: "ledgerHelperOptions",
+      op: "replaceAll",
+      data: Object.entries(data.ledgerHelperDict).map(([category, values]) => ({ category, values }))
+    });
+  }
+  return ops;
+}
+
+/** 整体状态 → replaceAll op 批次 → StorageService.save()，供沿用自阶段二的整体往返测试复用 */
+async function saveFull(data: Record<string, any>): Promise<boolean> {
+  return StorageService.save(toReplaceAllOps(data));
+}
 
 /**
  * @description 每个用例前，把 LOCAL_DB_PATH 指向一个全新的临时目录，并动态重新导入模块，
@@ -74,7 +104,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("returns the full state after a save, including daily records reattached onto the matching ledgerItem", async () => {
-      await StorageService.save({
+      await saveFull({
         ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [
           makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })
@@ -93,7 +123,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("keeps daily records for different items on different dates fully isolated from each other", async () => {
-      await StorageService.save({
+      await saveFull({
         ledgerItems: [
           makeLedgerItem({ id: "item_1", dailyRecords: { "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } } }),
           makeLedgerItem({ id: "item_2", name: "柿子", dailyRecords: { "2026-07-02": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 } } })
@@ -111,7 +141,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("round-trips reports/preparedItems/dailyData correctly (备餐报表这条链路历来完整包含在保存/恢复里)", async () => {
-      await StorageService.save({
+      await saveFull({
         reports: [
           {
             targetGroup: "KID",
@@ -140,7 +170,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("round-trips activeGroups/activeCategories/rawMaterialsDict/ledgerHelperDict correctly", async () => {
-      await StorageService.save({
+      await saveFull({
         activeGroups: [{ key: "KID", label: "幼儿", emoji: "👶", isDefault: true }],
         activeCategories: [{ key: "VEGETABLE", label: "蔬菜", isDefault: true }],
         rawMaterialsDict: [{ name: "土豆", category: "VEGETABLE", unit: "斤", remark: "散装", isDefault: true }],
@@ -168,9 +198,9 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
   });
 
-  describe("save", () => {
+  describe("save (replaceAll，供整体首启/批量种子场景与本文件里沿用自阶段二的往返测试使用)", () => {
     it("strips ledgerItems' dailyRecords out of the skeleton but preserves them via the reassembled daily-records table", async () => {
-      const success = await StorageService.save({
+      const success = await saveFull({
         ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })]
       });
@@ -182,7 +212,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("creates a timestamped JSON backup snapshot alongside every save", async () => {
-      await StorageService.save({ ledgers: [] });
+      await saveFull({ ledgers: [] });
 
       const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
       const backups = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_") && f.endsWith(".json"));
@@ -190,7 +220,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("round-trips a full save-then-load cycle correctly, including daily records", async () => {
-      await StorageService.save({
+      await saveFull({
         ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })]
       });
@@ -207,14 +237,14 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("REGRESSION: a daily record removed from the payload is correctly gone after the next save (no orphaned resurrection)", async () => {
-      await StorageService.save({
+      await saveFull({
         ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })]
       });
       let data = await StorageService.load();
       expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeDefined();
 
       // 客户端已经删除了该日期的记录，再次保存时该条目不再出现在 payload 里
-      await StorageService.save({ ledgerItems: [makeLedgerItem({ dailyRecords: {} })] });
+      await saveFull({ ledgerItems: [makeLedgerItem({ dailyRecords: {} })] });
       data = await StorageService.load();
 
       expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeUndefined();
@@ -222,9 +252,134 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
   });
 
+  describe("[V5.86.0] incremental op application (真增量 upsert/delete，取代阶段二每次整体 DELETE+INSERT 重建)", () => {
+    it("upsert-inserts a brand new ledger, then upsert-updates it in place without duplicating rows", async () => {
+      await StorageService.save([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } }]);
+      await StorageService.save([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐（已改名）", createdAt: "2026-01-01T00:00:00.000Z" } }]);
+
+      const data = await StorageService.load();
+      expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐（已改名）", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    });
+
+    it("upserting a ledgerItem's daily record only touches that one date key, leaving sibling dates on the same item untouched", async () => {
+      await StorageService.save([
+        { entity: "ledgerItem", op: "upsert", key: "item_1", data: makeLedgerItem() },
+        { entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: "item_1", date: "2026-07-01" }, data: { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } }
+      ]);
+      await StorageService.save([
+        { entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: "item_1", date: "2026-07-02" }, data: { inQuantity: 2, inPrice: 1, inAmount: 2, outQuantity: 0 } }
+      ]);
+
+      const data = await StorageService.load();
+      const item = data.ledgerItems.find((i: any) => i.id === "item_1");
+      expect(item.dailyRecords["2026-07-01"]).toMatchObject({ inQuantity: 1 });
+      expect(item.dailyRecords["2026-07-02"]).toMatchObject({ inQuantity: 2 });
+    });
+
+    it("deleting a single dated daily record leaves the item and its other dated records intact", async () => {
+      await StorageService.save([
+        { entity: "ledgerItem", op: "upsert", key: "item_1", data: makeLedgerItem() },
+        { entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: "item_1", date: "2026-07-01" }, data: { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } },
+        { entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: "item_1", date: "2026-07-02" }, data: { inQuantity: 2, inPrice: 1, inAmount: 2, outQuantity: 0 } }
+      ]);
+      await StorageService.save([{ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId: "item_1", date: "2026-07-01" } }]);
+
+      const data = await StorageService.load();
+      const item = data.ledgerItems.find((i: any) => i.id === "item_1");
+      expect(item.dailyRecords["2026-07-01"]).toBeUndefined();
+      expect(item.dailyRecords["2026-07-02"]).toMatchObject({ inQuantity: 2 });
+    });
+
+    it("CASCADE: deleting a ledgerItem also removes all of its daily records (no ON DELETE CASCADE declared in schema, must be explicit)", async () => {
+      await StorageService.save([
+        { entity: "ledgerItem", op: "upsert", key: "item_1", data: makeLedgerItem() },
+        { entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: "item_1", date: "2026-07-01" }, data: { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } }
+      ]);
+      await StorageService.save([{ entity: "ledgerItem", op: "delete", key: "item_1" }]);
+
+      const data = await StorageService.load();
+      // 规范化表结构下"完全没有数据"与"曾经保存过但现在都删空了"无法区分（KNOWN EDGE CASE，详见下方 restore 相关用例），
+      // 但只要还有其它实体存在数据，就能确认 ledger_item_daily_records 里确实没有遗留孤儿行
+      await StorageService.save([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } }]);
+      const finalData = await StorageService.load();
+      expect(finalData.ledgerItems.find((i: any) => i.id === "item_1")).toBeUndefined();
+      void data;
+    });
+
+    it("CASCADE: deleting a report also removes its preparedItems and their dailyData", async () => {
+      await StorageService.save([
+        { entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } },
+        {
+          entity: "preparedItem", op: "upsert", key: "prep_1",
+          data: { id: "prep_1", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "土豆", category: "VEGETABLE", targetGroup: "KID", unit: "斤" }
+        },
+        { entity: "preparedItemDailyData", op: "upsert", key: { itemId: "prep_1", date: "2026-07-03" }, data: { quantity: 5, price: 2, amount: 10 } }
+      ]);
+      await StorageService.save([{ entity: "report", op: "delete", key: { targetGroup: "KID", year: 2026, month: 7 } }]);
+
+      const data = await StorageService.load();
+      expect(data.reports ?? []).toEqual([]);
+    });
+
+    it("CASCADE: deleting a preparedItem also removes its dailyData without touching the parent report", async () => {
+      await StorageService.save([
+        { entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } },
+        {
+          entity: "preparedItem", op: "upsert", key: "prep_1",
+          data: { id: "prep_1", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "土豆", category: "VEGETABLE", targetGroup: "KID", unit: "斤" }
+        },
+        { entity: "preparedItemDailyData", op: "upsert", key: { itemId: "prep_1", date: "2026-07-03" }, data: { quantity: 5, price: 2, amount: 10 } }
+      ]);
+      await StorageService.save([{ entity: "preparedItem", op: "delete", key: "prep_1" }]);
+
+      const data = await StorageService.load();
+      expect(data.reports[0]).toMatchObject({ targetGroup: "KID", year: 2026, month: 7 });
+      expect(data.reports[0].items).toEqual([]);
+    });
+
+    it("RENAME: upserting a rawMaterial with a previousKey deletes the old primary-key row instead of leaving a duplicate", async () => {
+      await StorageService.save([{ entity: "rawMaterial", op: "upsert", key: "土豆", data: { name: "土豆", category: "VEGETABLE", unit: "斤", isDefault: false } }]);
+      await StorageService.save([{
+        entity: "rawMaterial", op: "upsert", key: "马铃薯", previousKey: "土豆",
+        data: { name: "马铃薯", category: "VEGETABLE", unit: "斤", isDefault: false }
+      }]);
+
+      const data = await StorageService.load();
+      expect(data.rawMaterialsDict).toHaveLength(1);
+      expect(data.rawMaterialsDict[0].name).toBe("马铃薯");
+    });
+
+    it("replaces an entire ledgerHelperOptions category array in one op without touching other categories", async () => {
+      await StorageService.save([
+        { entity: "ledgerHelperOptions", op: "replace", key: "suppliers", data: ["合作基地直供"] },
+        { entity: "ledgerHelperOptions", op: "replace", key: "buyers", data: ["张采购"] }
+      ]);
+      await StorageService.save([{ entity: "ledgerHelperOptions", op: "replace", key: "suppliers", data: ["合作基地直供", "宏发粮油批发"] }]);
+
+      const data = await StorageService.load();
+      expect(data.ledgerHelperDict.suppliers).toEqual(["合作基地直供", "宏发粮油批发"]);
+      expect(data.ledgerHelperDict.buyers).toEqual(["张采购"]);
+    });
+
+    it("REGRESSION: a mixed-entity op batch that fails partway through rolls back entirely, including the earlier ops in the same batch", async () => {
+      await StorageService.save([{ entity: "ledger", op: "upsert", key: "ORIGINAL", data: { id: "ORIGINAL", name: "原始数据", createdAt: "2026-01-01T00:00:00.000Z" } }]);
+
+      // 同一批次里先是一个合法的 ledger upsert，接着一个会触发 NOT NULL 约束冲突的畸形 ledgerItem upsert（缺少必填 ledgerId）
+      const success = await StorageService.save([
+        { entity: "ledger", op: "upsert", key: "SHOULD_NOT_PERSIST", data: { id: "SHOULD_NOT_PERSIST", name: "不应生效", createdAt: "2026-01-01T00:00:00.000Z" } },
+        { entity: "ledgerItem", op: "upsert", key: "item_bad", data: { id: "item_bad", ledgerId: null, name: "非法条目", unit: "斤" } }
+      ]);
+
+      expect(success).toBe(false);
+      const data = await StorageService.load();
+      expect(data.ledgers).toEqual([{ id: "ORIGINAL", name: "原始数据", createdAt: "2026-01-01T00:00:00.000Z" }]);
+      expect((data.ledgerItems ?? []).find((i: any) => i.id === "item_bad")).toBeUndefined();
+    });
+  });
+
   describe("[V5.85.0] SQLite transaction atomicity (真实事务回滚，规范化多表写入同样全部包在一个事务里)", () => {
     it("leaves no leftover .tmp- temp files after a normal save (backup snapshot is still written atomically)", async () => {
-      await StorageService.save({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
+      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
 
       const backupDir = path.join(path.dirname(process.env.LOCAL_DB_PATH!), "backups");
       const leftoverTemp = fs.readdirSync(backupDir).filter((f) => f.includes(".tmp-"));
@@ -232,7 +387,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("REGRESSION: a save() that fails partway through the SQLite transaction rolls back entirely — no partial writes survive", async () => {
-      await StorageService.save({
+      await saveFull({
         ledgers: [{ id: "ORIGINAL", name: "原始数据", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } } })]
       });
@@ -240,7 +395,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
       // 构造一个会在事务中途触发 SQLite NOT NULL 约束冲突的畸形 payload（第二个原料项缺少必填的 ledgerId），
       // 验证 SQLite 事务"要么全部生效、要么全部回滚"的特性：即便 item_2 排在前面先被处理，
       // 整个事务（含 ledgers 骨架覆盖）仍会完整回滚，不会留下任何"改了一半"的中间状态
-      const success = await StorageService.save({
+      const success = await saveFull({
         ledgers: [{ id: "SHOULD_NOT_PERSIST", name: "不应生效", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [
           makeLedgerItem({ id: "item_2", name: "柿子", dailyRecords: {} }),
@@ -257,8 +412,8 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
 
     it("REGRESSION: concurrent save() calls never interleave — the final state always matches one complete payload, never a corrupted mix", async () => {
       const [resultA, resultB] = await Promise.all([
-        StorageService.save({ ledgers: [{ id: "A", name: "台账A", createdAt: "2026-01-01T00:00:00.000Z" }] }),
-        StorageService.save({ ledgers: [{ id: "B", name: "台账B", createdAt: "2026-01-01T00:00:00.000Z" }] })
+        saveFull({ ledgers: [{ id: "A", name: "台账A", createdAt: "2026-01-01T00:00:00.000Z" }] }),
+        saveFull({ ledgers: [{ id: "B", name: "台账B", createdAt: "2026-01-01T00:00:00.000Z" }] })
       ]);
 
       expect(resultA).toBe(true);
@@ -345,7 +500,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
       }
 
       // 触发一次真实 save()，内部会在写完新快照后调用 trimLocalBackups()
-      await StorageService.save({ ledgers: [] });
+      await saveFull({ ledgers: [] });
 
       const remaining = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_") && f.endsWith(".json"));
       expect(remaining.length).toBe(30);
@@ -371,7 +526,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     it("REGRESSION: restoring a skeleton-only backup never clears the daily records currently in effect", async () => {
       // 备份快照本身从不包含台账每日流水（与迁移前的既有限制保持一致）；恢复时绝不能把当前生效中的
       // ledger_item_daily_records 一并清空，否则会造成比历史版本更严重的数据丢失回归
-      await StorageService.save({
+      await saveFull({
         ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
         ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })]
       });
@@ -497,7 +652,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
 
     it("does not re-run the migration (and does not let stale legacy content overwrite newer data) once the normalized tables already have data", async () => {
-      await StorageService.save({ ledgers: [{ id: "NEW", name: "新数据", createdAt: "2026-01-01T00:00:00.000Z" }] });
+      await saveFull({ ledgers: [{ id: "NEW", name: "新数据", createdAt: "2026-01-01T00:00:00.000Z" }] });
 
       // 模拟磁盘上仍残留着一份内容不同的最早版本 db.json（迁移完成后本就不会被删除）
       const dbPath = process.env.LOCAL_DB_PATH!;

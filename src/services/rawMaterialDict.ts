@@ -63,15 +63,17 @@ export class RawMaterialsDictService {
       const { migratedItems, changed } = this.migrateDefaultFlags(deduped);
       this.items = migratedItems;
       LogBroker.publish("INFO", "RawMaterialsDictService", "已成功从服务器同步载入原料字典数据");
-      // 若服务器数据存在历史同名重复脏数据或需要补齐默认标记迁移，待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）
+      // 若服务器数据存在历史同名重复脏数据或需要补齐默认标记迁移，待全局初始化解锁时回写服务器，避免下次加载再次触发（此刻系统尚处于初始化加载中，直接同步会被安全锁拦截丢弃）。
+      // 去重/迁移可能涉及任意多个条目，无法精确描述"改了哪一条"，因此整批 replaceAll 覆盖回写，属于批量初始化场景而非用户增量编辑
       if (deduped.length !== serverDictItems.length || changed) {
-        SyncHelper.runWhenInitialized(() => this.saveToStorage());
+        SyncHelper.runWhenInitialized(() => {
+          SyncHelper.queueChange({ entity: "rawMaterial", op: "replaceAll", data: this.items });
+        });
       }
     } else {
+      // generateDefaultSeeds() 内部已经会把整批种子数据以 replaceAll 的方式同步到后端，此处无需重复触发
       this.generateDefaultSeeds();
       LogBroker.publish("INFO", "RawMaterialsDictService", "服务器上无原料字典，系统已装载默认推荐原料种子大底库");
-      // 首次初始化同步到后端
-      SyncHelper.triggerSyncToServer();
     }
     return this.items;
   }
@@ -217,15 +219,8 @@ export class RawMaterialsDictService {
    */
   private static generateDefaultSeeds(): void {
     this.items = this.getDefaultSeedList().map((item) => ({ ...item, isDefault: true }));
-    this.saveToStorage();
-  }
-
-  /**
-   * @description 将数据通过 SyncHelper 触发防抖同步至服务器后端
-   */
-  private static saveToStorage(): void {
-    // 异步同步至后端存储
-    SyncHelper.triggerSyncToServer();
+    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举
+    SyncHelper.queueChange({ entity: "rawMaterial", op: "replaceAll", data: this.items });
   }
 
   /**
@@ -293,15 +288,16 @@ export class RawMaterialsDictService {
         reject(new Error(`名为 "${trimmedName}" 的原料在字典中已存在`));
         return;
       }
-      this.items.push({
+      const newItem: RawMaterialDictItem = {
         name: trimmedName,
         category,
         unit: unit.trim() || "斤",
         remark: remark?.trim() || "",
         conversionUnit: conversionUnit?.trim() || undefined,
         conversionRatio: conversionRatio || undefined
-      });
-      this.saveToStorage();
+      };
+      this.items.push(newItem);
+      SyncHelper.queueChange({ entity: "rawMaterial", op: "upsert", key: trimmedName, data: newItem });
       LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
       resolve();
     });
@@ -343,7 +339,7 @@ export class RawMaterialsDictService {
         return;
       }
       const finalRemark = remark?.trim() || "";
-      this.items[index] = {
+      const updatedItem: RawMaterialDictItem = {
         name: trimmedName,
         category,
         unit: unit.trim() || "斤",
@@ -353,15 +349,17 @@ export class RawMaterialsDictService {
         // 保留原有的默认数据标记，确保系统默认原料被编辑（含改名）后依然不可删除
         isDefault: this.items[index].isDefault
       };
-      this.saveToStorage();
+      this.items[index] = updatedItem;
+      // name 本身是后端表的主键，改名时需要把旧主键一并带上，供后端删除旧行、避免留下重复条目
+      SyncHelper.queueChange({
+        entity: "rawMaterial", op: "upsert", key: trimmedName, data: updatedItem,
+        previousKey: trimmedName !== oldName ? oldName : undefined
+      });
       LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
 
-      // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入
+      // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入（各自会通过 queueChange 描述自己的增量变更）
       LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤", finalRemark);
       PrepReportService.cascadeUpdateMaterial(oldName, trimmedName, category, unit.trim() || "斤");
-
-      // 同步推送到服务端存盘
-      SyncHelper.triggerSyncToServer();
       resolve();
     });
   }
@@ -378,15 +376,12 @@ export class RawMaterialsDictService {
         return;
       }
       this.items = this.items.filter((item) => item.name !== name);
-      this.saveToStorage();
+      SyncHelper.queueChange({ entity: "rawMaterial", op: "delete", key: name });
       LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
 
-      // 级联物理删除关联采购原料项与备餐明细
+      // 级联物理删除关联采购原料项与备餐明细（各自会通过 queueChange 描述自己的增量变更）
       LedgerService.cascadeDeleteMaterial(name);
       PrepReportService.cascadeDeleteMaterial(name);
-
-      // 同步推送到服务端存盘
-      SyncHelper.triggerSyncToServer();
       resolve();
     });
   }

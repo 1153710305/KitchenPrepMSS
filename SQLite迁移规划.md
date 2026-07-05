@@ -6,7 +6,8 @@
 > commit `e6d2a54`），本清单是"下一步真正迁移到 SQLite"时的完整范围地图。
 >
 > **2026-07-05 更新：阶段一（浅迁移）已经完成实施**，详见文末"阶段一实施记录"一节。
-> **2026-07-05 更新：阶段二（数据库 schema 规范化）已经完成实施**，详见文末"阶段二实施记录"一节；经用户明确确认，阶段二范围仅限 schema 规范化，前端整体防抖同步协议保持不变。以下原始规划内容保留作为历史决策依据。
+> **2026-07-05 更新：阶段二（数据库 schema 规范化）已经完成实施**，详见文末"阶段二实施记录"一节；经用户明确确认，阶段二范围仅限 schema 规范化，前端整体防抖同步协议保持不变。
+> **2026-07-05 更新：阶段三（同步协议按字段增量写入）已经完成实施**，详见文末"阶段三实施记录"一节——本清单里原本标注"独立立项、不要并入本次迁移"的部分（第 30-32 行）也已按用户明确要求推进完成，至此 SQLite 迁移全部三个阶段均已落地。以下原始规划内容保留作为历史决策依据。
 
 ## 背景
 
@@ -182,3 +183,39 @@
 - `server/routes/storage.test.ts` 同步修正测试夹具（补全 `Ledger.createdAt`/`LedgerItem.ledgerId`/`unit` 等真实类型要求的必填字段，之前的用例夹具本身就不完整，只是阶段一 blob 存储没有字段级约束、掩盖了这个问题）。
 - 全量测试 389 个用例通过，`tsc --noEmit` 报错数保持 18（与阶段一结束时一致），`vite build` 与 `esbuild server.ts` 打包均成功。
 - 迁移验证：先在一份**真实生产数据的完整拷贝**上验证"从阶段一 kv_store 迁移到规范化表"的正确性（3 个台账、32 项原料、43 条每日流水、5 份报表、353 个备餐细项、10943 条备餐每日数据、77 项原料字典、53 条人员/供货商候选项，逐项核对无误），确认无误后再对**真实生产数据本身**执行同样的迁移并做浏览器端到端验证（含真实 UI 触发的一次保存），生产打包产物 `dist/server.cjs` 同样验证通过。
+
+## 阶段三实施记录（2026-07-05，已完成）——同步协议从整体防抖 POST 重写为按字段增量写入
+
+用户再次要求"继续迁移，直至完全迁移"，这次指的正是本文档"0. 第一个决策"里明确标注为"独立立项、不要并入本次迁移"的部分（第 30-32 行）：把前端"防抖 200ms → 整体 POST 全量应用状态"的同步模式，换成按实体分表、建索引、按变更增量写入。用户被明确告知这项改造对当前数据量（全部数据仅几十 KB）而言性价比偏低——真正的耐久性/原子性收益已经由阶段一二的 SQLite 事务+WAL 实现，增量写主要带来的是更小的写入体积与更精确的变更描述，而非新的安全性——仍选择推进完整实施。
+
+### 关键地基发现
+
+尽管前端约 40 个独立 mutation 调用点分散在 `ledgerStore.ts`（约 12 处）、`store.ts`（约 17 处）、`rawMaterialDict.ts`（约 5 处），它们全部收敛经过 4 个"汇流点"函数（`LedgerService.notifyListeners()`、`LedgerService.saveToStorage()`、`RawMaterialsDictService.saveToStorage()`、`PrepReportService.saveToStorage()`/`saveConfigAndNotify()`）才调用 `SyncHelper.triggerSyncToServer()`。但要做到真正的字段级增量，仍需要在这 40 个调用点各自描述"什么变了"，无法靠自动 diff（没有廉价的方式对任意嵌套状态做自动差分）。
+
+### 线协议设计
+
+`POST /api/storage/save` 请求体从整体状态 JSON 改为：
+```ts
+interface SyncBatchRequest { protocolVersion: 2; ops: SyncOp[]; }
+interface SyncOp {
+  entity: "ledger" | "ledgerItem" | "ledgerItemDailyRecord" | "report" | "preparedItem"
+        | "preparedItemDailyData" | "activeGroup" | "activeCategory" | "rawMaterial" | "ledgerHelperOptions";
+  op: "upsert" | "delete" | "replace" | "replaceAll";
+  key?: any; data?: any; previousKey?: any; // previousKey 仅供 rawMaterial 改名时携带旧主键
+}
+```
+`protocolVersion` 非 2 一律 400 拒绝——纯粹是开发期快速失败断言，不是新旧协议并存的兼容层。本项目前后端一起打包、离线单机部署，没有独立升级前后端的场景，维护双协议反而是在复现"低价值高风险"的复杂度。`GET /api/storage/load` 与心跳轮询逻辑完全不变，仍返回整体状态。
+
+### 关键实现要点
+
+1. **`SyncHelper.queueChange(op)`** 取代 `triggerSyncToServer(customData?)`：内部 `pendingOps: Map<string, SyncOp>` 以 `` `${entity}:${JSON.stringify(key)}` `` 去重，同一 debounce 窗口内对同一 key 的重复写入自然合并为最后一次；不同 key 的操作天然合批为一次 HTTP 请求 + 一次 SQL 事务。新增 flush 失败重试（有限次数上限）——这是增量协议相比整体覆盖引入的新失败模式：旧协议一次 POST 失败，下一次任意 mutation 的全量快照能顺带把丢失的写入捎带回来；新协议每个 op 出队后如果不重试就真的丢了。
+2. **约 40 个调用点逐一改造**：每个 mutation 方法完成内存状态变更后自行 `queueChange()`。`updateDailyRecord()`/`updateCell()` 各 queue 一个精确到 `{itemId,date}`/`{itemId,day}` 的逐日流水 op（口径与既有 hasData 判断一致——全零占位不持久化，前端各处消费 dailyData/dailyRecords 早已统一做 `?? {quantity:0,...}` 兜底，缺失的占位天数不影响任何渲染），并各自额外 queue 一个骨架 upsert（`currentStock` 重新计算过）。
+3. **跨服务级联不引入"批次事务"概念**：级联步骤各自独立 queue 自己的 op，天然共享同一个 debounce 窗口——这实际上比阶段二**更原子**（阶段二是两次独立 HTTP 往返恰好在防抖窗口内同步执行才"意外地"合并成一次整体快照；阶段三是真正合并成一次事务）。
+4. **刻意的范围收缩**：`ledgerHelperDict` 的 8 个候选项类别按整数组 `replace` 处理，不做逐值增量（低频管理员配置，无逐值增量必要）；首启种子数据场景保留 `replaceAll` 操作类型，整批替换而非强行拆成逐条 upsert 枚举。
+5. **后端 `applyChangesIntoSqlite(ops)`**：prepared statement 缓存 + 单事务对 op 批次做目标 upsert/delete。当前 schema 未声明任何 `ON DELETE CASCADE`（全量重建靠"删光重插"隐式达到级联效果），因此对有子表的实体删除操作显式做级联清理（`ledgerItem`→逐日流水、`report`→`preparedItems`/`dailyData`、`preparedItem`→`dailyData`），避免留下孤儿行。`importFullDataIntoSqlite`/`upsertSkeleton`（全量重建路径）予以保留，仅供一次性历史迁移与备份恢复使用，不再是正常保存路径调用的方法。COS 云存储模式没有行级别写入 API，增量写在该模式下退化为"读出当前完整对象→内存中应用 op 批次→整体覆盖写回"，收益仅局限于本地 SQLite 模式。
+
+### 验证结果
+
+- `syncHelper.test.ts`/`ledgerStore.test.ts`/`store.test.ts`/`rawMaterialDict.test.ts`/`server/storageService.test.ts`/`server/routes/storage.test.ts` 全面更新：新增去重合批测试、flush 失败重试（含超过重试上限后放弃）测试、按实体 upsert/update/delete 测试、显式级联删除测试、跨实体事务回滚测试、协议版本校验测试、"只增量生效目标字段、其余数据不受影响"的局部生效测试。
+- 全量测试 407 个用例通过（较阶段二结束时净增 6 个），`tsc --noEmit` 报错数保持 18，`vite build` 与 `esbuild server.ts` 打包均成功。
+- 迁移验证：先在一份**真实生产数据的完整拷贝**上用 curl 逐条验证新协议——旧整体 JSON 格式正确被 400 拒绝、增量 upsert 只影响目标字段（其余数据原样保留）、`ledgerItem` 删除正确级联清空其逐日流水且不影响其它 31 项原料。确认无误后再对**真实生产数据本身**做浏览器端到端验证：真实 UI 编辑「幼儿备餐」台账 2026-07-05 土豆的采购数量（12）与单价（3.5），保存后确认 `data/kpmss.sqlite` 正确落盘（`inAmount` 正确核算为 42），再原样通过同一 UI 流程清理掉这条验证用测试数据（回填为 0 触发 hasData 守卫的 delete op），确认数据库精确恢复至验证前状态（`ledger_item_daily_records` 43 条、`ledger_items` 32 条），全程控制台无报错。
