@@ -4,7 +4,9 @@
  */
 
 /**
- * @description SyncHelper（客户端与后端持久化层同步协调器）单元测试：初始化安全锁与回调队列、防抖批量提交、以及心跳静默同步竞态守卫（lastLocalMutationAt）的回归测试。
+ * @description SyncHelper（客户端与后端持久化层同步协调器）单元测试：初始化安全锁与回调队列、阶段三增量写协议的
+ * 去抖动批量提交（同 key 去重合并为最后一次、不同 key 自然合批为一次请求）、flush 失败重试、
+ * 以及心跳静默同步竞态守卫（lastLocalMutationAt）的回归测试。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -13,12 +15,13 @@ import { SyncHelper } from "./syncHelper.ts";
 function resetSyncHelper() {
   (SyncHelper as any).isInitialized = false;
   (SyncHelper as any).onReadyQueue = [];
-  (SyncHelper as any).memoryFetcher = null;
+  (SyncHelper as any).pendingOps = new Map();
   if ((SyncHelper as any).debounceTimer) {
     clearTimeout((SyncHelper as any).debounceTimer);
   }
   (SyncHelper as any).debounceTimer = null;
   (SyncHelper as any).lastLocalMutationAt = 0;
+  (SyncHelper as any).retryCount = 0;
 }
 
 describe("SyncHelper", () => {
@@ -67,29 +70,29 @@ describe("SyncHelper", () => {
     });
   });
 
-  describe("triggerSyncToServer (initialization guard + debounce)", () => {
+  describe("queueChange (initialization guard + debounce batching)", () => {
     it("is blocked and makes no network request before initialization completes", () => {
       vi.useFakeTimers();
       const fetchSpy = vi.fn();
       vi.stubGlobal("fetch", fetchSpy);
 
-      SyncHelper.triggerSyncToServer({ reports: [] });
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
       vi.advanceTimersByTime(500);
 
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it("debounces rapid successive calls into a single POST request", async () => {
+    it("dedupes rapid successive writes to the same entity+key into a single last-write-wins op", async () => {
       vi.useFakeTimers();
       const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
       SyncHelper.setInitialized(true);
 
-      SyncHelper.triggerSyncToServer({ reports: [{ a: 1 }] });
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "A" } });
       vi.advanceTimersByTime(100);
-      SyncHelper.triggerSyncToServer({ reports: [{ a: 2 }] });
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "B" } });
       vi.advanceTimersByTime(100);
-      SyncHelper.triggerSyncToServer({ reports: [{ a: 3 }] });
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "C" } });
 
       // 前两次调用都被防抖取消，尚未真正发出请求
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -98,21 +101,27 @@ describe("SyncHelper", () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, options] = fetchSpy.mock.calls[0];
-      expect(JSON.parse(options.body)).toEqual({ reports: [{ a: 3 }] });
+      const body = JSON.parse(options.body);
+      expect(body.protocolVersion).toBe(2);
+      expect(body.ops).toEqual([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "C" } }]);
     });
 
-    it("falls back to the registered memoryFetcher when no explicit data is passed", async () => {
+    it("batches ops with different entity+key into the same request within one debounce window", async () => {
       vi.useFakeTimers();
       const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
       SyncHelper.setInitialized(true);
-      SyncHelper.registerMemoryFetcher(() => ({ reports: [{ fromFetcher: true }] }));
 
-      SyncHelper.triggerSyncToServer();
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
+      SyncHelper.queueChange({ entity: "rawMaterial", op: "upsert", key: "土豆", data: { name: "土豆" } });
+
       await vi.advanceTimersByTimeAsync(200);
 
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, options] = fetchSpy.mock.calls[0];
-      expect(JSON.parse(options.body)).toEqual({ reports: [{ fromFetcher: true }] });
+      const body = JSON.parse(options.body);
+      expect(body.ops).toHaveLength(2);
+      expect(body.ops.map((op: any) => op.entity).sort()).toEqual(["ledger", "rawMaterial"]);
     });
 
     it("does not throw when the save request fails", async () => {
@@ -120,8 +129,43 @@ describe("SyncHelper", () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
       SyncHelper.setInitialized(true);
 
-      SyncHelper.triggerSyncToServer({});
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
       await expect(vi.advanceTimersByTimeAsync(200)).resolves.not.toThrow();
+    });
+
+    it("REGRESSION: retries a failed flush (bounded), so a transient network blip does not silently lose the op", async () => {
+      vi.useFakeTimers();
+      const fetchSpy = vi.fn()
+        .mockRejectedValueOnce(new Error("transient failure"))
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+      vi.stubGlobal("fetch", fetchSpy);
+      SyncHelper.setInitialized(true);
+
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "A" } });
+      await vi.advanceTimersByTimeAsync(200); // 首次 flush 失败
+      await vi.advanceTimersByTimeAsync(200); // 重试 flush 成功
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const [, secondOptions] = fetchSpy.mock.calls[1];
+      expect(JSON.parse(secondOptions.body).ops).toEqual([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "A" } }]);
+    });
+
+    it("REGRESSION: gives up after MAX_RETRY consecutive failures instead of retrying forever", async () => {
+      vi.useFakeTimers();
+      const fetchSpy = vi.fn().mockRejectedValue(new Error("network down"));
+      vi.stubGlobal("fetch", fetchSpy);
+      SyncHelper.setInitialized(true);
+
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
+      // 首次 flush + 最多 MAX_RETRY(3) 次重试 = 最多 4 次调用后应停止
+      for (let i = 0; i < 6; i++) {
+        await vi.advanceTimersByTimeAsync(200);
+      }
+
+      expect(fetchSpy.mock.calls.length).toBeLessThanOrEqual(4);
+      const callsAfterGivingUp = fetchSpy.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchSpy.mock.calls.length).toBe(callsAfterGivingUp);
     });
   });
 
@@ -131,7 +175,7 @@ describe("SyncHelper", () => {
     });
 
     it("does not update the timestamp when blocked by the initialization guard", () => {
-      SyncHelper.triggerSyncToServer({});
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
       expect(SyncHelper.getLastLocalMutationAt()).toBe(0);
     });
 
@@ -141,7 +185,7 @@ describe("SyncHelper", () => {
       SyncHelper.setInitialized(true);
       const before = Date.now();
 
-      SyncHelper.triggerSyncToServer({});
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
 
       // 时间戳应在触发的一瞬间同步写入，不需要等待 200ms 的防抖计时器触发
       expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThanOrEqual(before);
@@ -160,7 +204,7 @@ describe("SyncHelper", () => {
 
       // 心跳请求发出之后，用户触发了一次真实的本地保存
       vi.advanceTimersByTime(50);
-      SyncHelper.triggerSyncToServer({ reports: [{ justSaved: true }] });
+      SyncHelper.queueChange({ entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } });
 
       expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThan(heartbeatRequestStartedAt);
     });

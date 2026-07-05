@@ -33,7 +33,7 @@ const makeLedger = (id: string, name: string): Ledger => ({
 describe("LedgerService", () => {
   beforeEach(() => {
     resetLedgerService();
-    vi.spyOn(SyncHelper, "triggerSyncToServer").mockImplementation(() => {});
+    vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "syncFromLedger").mockResolvedValue(undefined);
     vi.spyOn(PrepReportService, "syncGroupFromLedger").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "syncDeleteGroupFromLedger").mockImplementation(() => {});
@@ -177,9 +177,9 @@ describe("LedgerService", () => {
 
     it("is a no-op when the name is unchanged", () => {
       LedgerService.setLedgersInMemory([makeLedger("TEACHER", "教师备餐")]);
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       LedgerService.syncLedgerFromGroup("TEACHER", "教师备餐");
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
 
     it("deletes a ledger case-insensitively by id and cascades its items", async () => {
@@ -304,6 +304,33 @@ describe("LedgerService", () => {
       expect(record.inQuantity).toBe(3);
       expect(record.inPrice).toBe(2);
       expect(record.inAmount).toBe(6);
+    });
+
+    it("queues a precise ledgerItemDailyRecord upsert op for just this one date, plus a ledgerItem skeleton op for the recalculated currentStock", async () => {
+      await LedgerService.updateDailyRecord(itemId, "2026-07-03", { inQuantity: 3, inPrice: 2 });
+
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity: "ledgerItemDailyRecord",
+          op: "upsert",
+          key: { itemId, date: "2026-07-03" },
+          data: expect.objectContaining({ inQuantity: 3, inPrice: 2, inAmount: 6 })
+        })
+      );
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "ledgerItem", op: "upsert", key: itemId, data: expect.objectContaining({ id: itemId, currentStock: 103 }) })
+      );
+    });
+
+    it("queues a ledgerItemDailyRecord delete op once the day's fields are all emptied out (hasData guard)", async () => {
+      await LedgerService.updateDailyRecord(itemId, "2026-07-03", { inQuantity: 3, inPrice: 2 });
+      (SyncHelper.queueChange as any).mockClear();
+
+      await LedgerService.updateDailyRecord(itemId, "2026-07-03", { inQuantity: 0, inPrice: 0 });
+
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId, date: "2026-07-03" } })
+      );
     });
 
     it("shallow-merges onto an existing record without clobbering untouched fields", async () => {
@@ -433,6 +460,9 @@ describe("LedgerService", () => {
       LedgerService.cascadeUpdateMaterial("土豆", "马铃薯", "公斤", "精品装");
       const item = LedgerService.getLedgerItems().find((i) => i.name === "马铃薯");
       expect(item?.spec).toBe("精品装");
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "ledgerItem", op: "upsert", key: item!.id, data: expect.objectContaining({ name: "马铃薯", unit: "公斤", spec: "精品装" }) })
+      );
     });
 
     it("leaves spec untouched when newSpec is omitted", () => {
@@ -442,20 +472,24 @@ describe("LedgerService", () => {
     });
 
     it("is a no-op (does not notify) when no item matches the old name", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       LedgerService.cascadeUpdateMaterial("不存在", "新名字", "斤");
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
 
     it("removes every ledger item matching the deleted material name", () => {
+      const item = LedgerService.getLedgerItems().find((i) => i.name === "土豆")!;
       LedgerService.cascadeDeleteMaterial("土豆");
       expect(LedgerService.getLedgerItems()).toHaveLength(0);
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "ledgerItem", op: "delete", key: item.id })
+      );
     });
 
     it("is a no-op (does not notify) when no item matches the deleted name", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       LedgerService.cascadeDeleteMaterial("不存在");
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
   });
 
@@ -479,15 +513,15 @@ describe("LedgerService", () => {
 
   describe("setLedgersInMemory / setLedgerItemsInMemory / forceNotify (heartbeat silent update)", () => {
     it("overwrites memory without triggering a server sync", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       LedgerService.setLedgersInMemory([makeLedger("A", "台账A")]);
       LedgerService.setLedgerItemsInMemory([]);
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
       expect(LedgerService.getLedgers()).toEqual([makeLedger("A", "台账A")]);
     });
 
     it("forceNotify broadcasts to subscribers without touching the server", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       const received: any[] = [];
       LedgerService.subscribe(() => received.push(1));
       const countAfterSubscribe = received.length;
@@ -495,7 +529,7 @@ describe("LedgerService", () => {
       LedgerService.forceNotify();
 
       expect(received.length).toBe(countAfterSubscribe + 1);
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
   });
 });

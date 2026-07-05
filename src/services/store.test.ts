@@ -40,7 +40,7 @@ const makeReport = (overrides: Partial<GroupMonthlyReport> = {}): GroupMonthlyRe
 describe("PrepReportService", () => {
   beforeEach(() => {
     resetPrepReportService();
-    vi.spyOn(SyncHelper, "triggerSyncToServer").mockImplementation(() => {});
+    vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
     vi.spyOn(SyncHelper, "runWhenInitialized").mockImplementation((fn) => fn());
     vi.spyOn(LedgerService, "addLedgerItem").mockResolvedValue({} as any);
     vi.spyOn(LedgerService, "updateDailyRecordByKey").mockResolvedValue(undefined);
@@ -120,6 +120,31 @@ describe("PrepReportService", () => {
       expect(entry.quantity).toBe(0);
       expect(entry.price).toBe(0);
       expect(entry.amount).toBe(0);
+    });
+
+    it("queues a precise preparedItemDailyData upsert op for just this one day (not the whole item/report)", async () => {
+      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1" })] })]);
+
+      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
+
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity: "preparedItemDailyData",
+          op: "upsert",
+          key: { itemId: "item_1", date: "1" },
+          data: expect.objectContaining({ quantity: 3, price: 2.5, amount: 7.5 })
+        })
+      );
+    });
+
+    it("queues a preparedItemDailyData delete op once quantity/price/amount are all clamped back to zero", async () => {
+      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1", dailyData: { "1": { quantity: 3, price: 2, amount: 6 } } })] })]);
+
+      await PrepReportService.updateCell("item_1", "1", -3, -2);
+
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "preparedItemDailyData", op: "delete", key: { itemId: "item_1", date: "1" } })
+      );
     });
 
     it("rejects when no item matches the given id", async () => {
@@ -411,11 +436,11 @@ describe("PrepReportService", () => {
 
     it("is a no-op notify when no item matches the old name", () => {
       PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
 
       PrepReportService.cascadeUpdateMaterial("不存在", "新名字", FoodCategory.VEGETABLE, "斤");
 
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
 
     it("removes matching items across every report on cascade delete", () => {
@@ -428,11 +453,11 @@ describe("PrepReportService", () => {
 
     it("is a no-op notify when no item matches the deleted name", () => {
       PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
 
       PrepReportService.cascadeDeleteMaterial("不存在");
 
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
   });
 
@@ -464,24 +489,24 @@ describe("PrepReportService", () => {
 
   describe("setReportsInMemory / setActiveGroupsInMemory / setActiveCategoriesInMemory / forceNotify (heartbeat silent update)", () => {
     it("overwrites memory without triggering a server sync", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       PrepReportService.setReportsInMemory([makeReport()]);
       PrepReportService.setActiveGroupsInMemory([{ key: "KID", label: "幼儿" } as any]);
       PrepReportService.setActiveCategoriesInMemory([{ key: "VEGETABLE", label: "蔬菜" } as any]);
 
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
       expect(PrepReportService.getReports()).toHaveLength(1);
     });
 
     it("forceNotify broadcasts to subscribers without touching the server", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       const received: any[] = [];
       const unsubscribe = PrepReportService.subscribe((reports) => received.push(reports));
 
       PrepReportService.forceNotify();
 
       expect(received.length).toBeGreaterThan(0);
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
       unsubscribe();
     });
   });

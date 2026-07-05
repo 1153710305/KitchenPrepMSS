@@ -10,9 +10,16 @@ echo "========================================"
 
 if ! command -v node &> /dev/null; then
   echo "[错误] 未检测到 Node.js 运行环境。"
-  echo "请先安装 Node.js（建议 18 或更高版本），可从 https://nodejs.org 下载离线安装包。"
+  echo "请先安装 Node.js 22.x LTS 版本（必须与准备部署包时使用的大版本完全一致，见部署指南.md），可从 https://nodejs.org 下载离线安装包。"
   read -r -p "按回车键退出..."
   exit 1
+fi
+
+NODE_VER=$(node --version)
+if [[ "$NODE_VER" != v22.* ]]; then
+  echo "[警告] 检测到当前 Node.js 版本为 $NODE_VER，本系统要求 22.x LTS 版本。"
+  echo "本地存储所用的 better-sqlite3 是原生二进制模块，版本不匹配会导致启动报错 ERR_DLOPEN_FAILED，详见部署指南.md。"
+  read -r -p "按回车键继续（不建议）或 Ctrl+C 退出..."
 fi
 
 if [ ! -f "dist/server.cjs" ]; then

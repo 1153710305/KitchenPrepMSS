@@ -87,20 +87,6 @@ export function useAppData(): UseAppDataResult {
   useEffect(() => {
     let active = true;
 
-    // 注册全局内存状态一键提取器，用于各模块修改数据时自动防抖同步给后端，规避多浏览器 LocalStorage 覆写冲突
-    SyncHelper.registerMemoryFetcher(() => {
-      return {
-        reports: PrepReportService.getReports(),
-        activeGroups: PrepReportService.getActiveGroups(),
-        activeCategories: PrepReportService.getActiveCategories(),
-        ledgers: LedgerService.getLedgers(),
-        ledgerItems: LedgerService.getLedgerItems(),
-        rawMaterialsDict: RawMaterialsDictService.getItems(),
-        /** 同步台账常用人员与供货商字典 */
-        ledgerHelperDict: LedgerService.getHelperDict()
-      };
-    });
-
     // 跟踪首屏并行加载进度
     let progress = 10;
     const reportProgress = (amt: number, txt: string) => {

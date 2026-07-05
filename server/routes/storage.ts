@@ -8,8 +8,7 @@
  */
 
 import express from "express";
-import fs from "fs";
-import { StorageService } from "../storageService.ts";
+import { StorageService, type SyncOp } from "../storageService.ts";
 
 /**
  * @description 数据持久化路由 Router 实例
@@ -22,9 +21,10 @@ export const storageRouter = express.Router();
  */
 storageRouter.get("/load", async (req, res) => {
   try {
-    const localPath = (StorageService as any).localDbPath;
-    const isFirstBoot = StorageService.storageType === "local" ? !fs.existsSync(localPath) : false;
     const data = await StorageService.load();
+    // 首次启动判定：直接看加载结果是否为空对象即可，无需探测某个具体存储引擎的内部文件/连接细节。
+    // 这样无论本地 SQLite 阶段一迁移前后、还是云端 COS 模式，判定逻辑都是同一套，也不再需要越权访问私有字段
+    const isFirstBoot = Object.keys(data).length === 0;
     res.json({
       ...data,
       isFirstBoot
@@ -36,12 +36,19 @@ storageRouter.get("/load", async (req, res) => {
 });
 
 /**
- * @description 保存全量数据到云端或本地存储并生成快照
+ * @description 保存一批增量同步操作到云端或本地存储并生成快照。
+ * 阶段三·增量写协议：请求体固定为 { protocolVersion: 2, ops: SyncOp[] }，不再是此前的"整体状态"JSON。
+ * protocolVersion 校验仅作为开发期快速失败断言（本项目前后端一起打包离线部署，没有独立升级场景，
+ * 不为旧协议维护兼容解析层，避免旧缓存/未刷新页面静默写坏数据）。
  * @route POST /api/storage/save
  */
 storageRouter.post("/save", async (req, res) => {
   try {
-    const success = await StorageService.save(req.body);
+    const { protocolVersion, ops } = req.body ?? {};
+    if (protocolVersion !== 2 || !Array.isArray(ops)) {
+      return res.status(400).json({ error: "不支持的同步协议版本或请求体格式，期望 { protocolVersion: 2, ops: SyncOp[] }" });
+    }
+    const success = await StorageService.save(ops as SyncOp[]);
     if (success) {
       res.json({ success: true, timestamp: new Date().toISOString() });
     } else {

@@ -67,10 +67,10 @@ export class LedgerService {
   }
 
   /**
-   * @description 触发并分发变更通知到所有的订阅者，并自动将数据同步存入 LocalStorage
+   * @description 触发并分发变更通知到所有的订阅者（阶段三起不再兼任同步职责——每个具体的 mutation 方法
+   * 完成内存状态变更后自行调用 SyncHelper.queueChange() 显式描述这次变了什么，此处只做本地监听者分发）
    */
   private static notifyListeners(): void {
-    this.saveToStorage();
     this.changeListeners.forEach((listener) => {
       try {
         listener([...this.ledgers], [...this.ledgerItems]);
@@ -78,19 +78,7 @@ export class LedgerService {
         LogBroker.publish("ERROR", "LedgerService", "分发台账数据变动通知失败:", String(err));
       }
     });
-    // 异步将变动同步至后端物理存储
-    SyncHelper.triggerSyncToServer();
   }
-
-  /**
-   * @description 将数据通过 SyncHelper 触发防抖同步至服务器后端
-   */
-  private static saveToStorage(): void {
-    // 异步同步至后端存储
-    SyncHelper.triggerSyncToServer();
-  }
-
-
 
   /**
    * @description 获取当前台账录入人员与供货商字典配置列表
@@ -105,6 +93,10 @@ export class LedgerService {
   public static updateHelperDict(dict: typeof LedgerService.helperDict) {
     this.helperDict = dict;
     this.notifyListeners();
+    // 8 个候选项类别均为管理员低频维护的整数组配置，逐个以整组替换的方式同步，不做逐值增量
+    (Object.keys(dict) as Array<keyof typeof dict>).forEach((category) => {
+      SyncHelper.queueChange({ entity: "ledgerHelperOptions", op: "replace", key: category, data: dict[category] });
+    });
   }
 
   /**
@@ -166,7 +158,9 @@ export class LedgerService {
 
     this.ledgers = initialLedgers;
     this.ledgerItems = initialItems;
-    this.saveToStorage();
+    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举
+    SyncHelper.queueChange({ entity: "ledger", op: "replaceAll", data: initialLedgers });
+    SyncHelper.queueChange({ entity: "ledgerItem", op: "replaceAll", data: initialItems });
     LogBroker.publish("INFO", "LedgerService", "成功合成三大初始空模板台账（幼儿、在校生、教师），等待管理员于后台添加并录入原料数据。");
   }
 
@@ -220,6 +214,7 @@ export class LedgerService {
 
         this.ledgers = updatedLedgers;
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: id, data: updatedLedgers[ledgerIndex] });
         LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${normalizedName}」`);
 
         // 双向同步：通知备餐系统修改人群
@@ -244,10 +239,17 @@ export class LedgerService {
         }
 
         // 不可变方式过滤清理
+        const removedItems = this.ledgerItems.filter((item) => item.ledgerId === id);
         this.ledgers = this.ledgers.filter((l) => l.id !== id);
         this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId !== id);
 
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledger", op: "delete", key: id });
+        // 后端 ledgerItem 删除的级联只清理该原料项自己的逐日流水，不会自动推断"属于同一台账的其它原料项也要删"，
+        // 因此这里需要为每个被级联删除的原料项各自 queue 一个 delete op
+        removedItems.forEach((item) => {
+          SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: item.id });
+        });
         LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger.name}」以及其下的所有原料出入库及库存账单`);
 
         // 双向同步：通知备餐系统移出人群
@@ -267,6 +269,7 @@ export class LedgerService {
       if (existing.name !== name) {
         existing.name = name;
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: id, data: existing });
       }
     } else {
       const newLedger: Ledger = {
@@ -281,6 +284,7 @@ export class LedgerService {
       this.ledgers = [...this.ledgers, newLedger];
       this.ledgerItems = [...this.ledgerItems, ...newItems];
       this.notifyListeners();
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: id, data: newLedger });
     }
   }
 
@@ -291,9 +295,14 @@ export class LedgerService {
     const upperId = id.toUpperCase();
     const ledger = this.ledgers.find((l) => l.id.toUpperCase() === upperId);
     if (ledger) {
+      const removedItems = this.ledgerItems.filter((item) => item.ledgerId.toUpperCase() === upperId);
       this.ledgers = this.ledgers.filter((l) => l.id.toUpperCase() !== upperId);
       this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId.toUpperCase() !== upperId);
       this.notifyListeners();
+      SyncHelper.queueChange({ entity: "ledger", op: "delete", key: ledger.id });
+      removedItems.forEach((item) => {
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: item.id });
+      });
       LogBroker.publish("WARN", "LedgerService", `从备餐分组同步物理移除了台账: ${id}`);
     }
   }
@@ -344,6 +353,7 @@ export class LedgerService {
 
         this.ledgerItems = [...this.ledgerItems, newItem];
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: newItem.id, data: newItem });
         LogBroker.publish("INFO", "LedgerService", `【新增原料】在台账中成功添加采购项原料「${newItem.name}」（规格：${newItem.spec}，初始库存：${newItem.initialStock}）`);
         resolve(newItem);
       }, LEDGER_API_LATENCY);
@@ -407,6 +417,7 @@ export class LedgerService {
         this.ledgerItems = updatedItems;
 
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
         LogBroker.publish("INFO", "LedgerService", `【修改原料】成功修改采购原料「${oldItem.name}」的配置参数，并重新同步折算库存。`);
         resolve();
       }, LEDGER_API_LATENCY);
@@ -428,6 +439,7 @@ export class LedgerService {
 
         this.ledgerItems = this.ledgerItems.filter((i) => i.id !== id);
         this.notifyListeners();
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: id });
         LogBroker.publish("WARN", "LedgerService", `【删除原料】物理清除了采购项原料「${item.name}」的所有库存出入库明细记录`);
         resolve();
       }, LEDGER_API_LATENCY);
@@ -556,6 +568,13 @@ export class LedgerService {
         this.ledgerItems = updatedItems;
 
         this.notifyListeners();
+        // 只增量同步这一天的流水记录本身，而不是整个 dailyRecords 对象；currentStock 属于骨架字段，另发一个 ledgerItem op
+        if (!hasData) {
+          SyncHelper.queueChange({ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId, date: dateStr } });
+        } else {
+          SyncHelper.queueChange({ entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId, date: dateStr }, data: mergedRecord });
+        }
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
 
         // 当用户手动录入入库数据或入库单价时，单向自动同步至备餐月度报表
         if (fields.inQuantity !== undefined || fields.inPrice !== undefined) {
@@ -598,20 +617,26 @@ export class LedgerService {
    */
   public static cascadeUpdateMaterial(oldName: string, newName: string, newUnit: string, newSpec?: string): void {
     let changed = false;
+    const changedItems: LedgerItem[] = [];
     this.ledgerItems = this.ledgerItems.map((item) => {
       if (item.name === oldName) {
         changed = true;
-        return {
+        const updated = {
           ...item,
           name: newName,
           unit: newUnit,
           spec: newSpec !== undefined ? newSpec : item.spec
         };
+        changedItems.push(updated);
+        return updated;
       }
       return item;
     });
     if (changed) {
       this.notifyListeners();
+      changedItems.forEach((item) => {
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: item.id, data: item });
+      });
     }
   }
 
@@ -619,10 +644,13 @@ export class LedgerService {
    * @description 当从后台原料大底库删除了原料时，级联同步删除所有关联的已存台账采购项
    */
   public static cascadeDeleteMaterial(name: string): void {
-    const exists = this.ledgerItems.some((item) => item.name === name);
-    if (exists) {
+    const removedItems = this.ledgerItems.filter((item) => item.name === name);
+    if (removedItems.length > 0) {
       this.ledgerItems = this.ledgerItems.filter((item) => item.name !== name);
       this.notifyListeners();
+      removedItems.forEach((item) => {
+        SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: item.id });
+      });
     }
   }
 

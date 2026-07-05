@@ -21,7 +21,7 @@ function resetDict() {
 describe("RawMaterialsDictService", () => {
   beforeEach(() => {
     resetDict();
-    vi.spyOn(SyncHelper, "triggerSyncToServer").mockImplementation(() => {});
+    vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
     vi.spyOn(SyncHelper, "runWhenInitialized").mockImplementation((fn) => fn());
     vi.spyOn(LedgerService, "cascadeUpdateMaterial").mockImplementation(() => {});
     vi.spyOn(LedgerService, "cascadeDeleteMaterial").mockImplementation(() => {});
@@ -89,7 +89,10 @@ describe("RawMaterialsDictService", () => {
       const result = RawMaterialsDictService.initDictFromServer([]);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((i) => i.isDefault === true)).toBe(true);
-      expect(SyncHelper.triggerSyncToServer).toHaveBeenCalled();
+      // 批量种子数据生成场景，整批 replaceAll 覆盖同步
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "rawMaterial", op: "replaceAll" })
+      );
     });
 
     it("falls back to generating default seeds when the server data is undefined", () => {
@@ -129,6 +132,9 @@ describe("RawMaterialsDictService", () => {
       expect(item.unit).toBe("斤");
       expect(item.remark).toBe("");
       expect(item.isDefault).toBeUndefined();
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "rawMaterial", op: "upsert", key: "新原料" })
+      );
     });
 
     it("stores optional conversion unit/ratio when provided", async () => {
@@ -166,6 +172,10 @@ describe("RawMaterialsDictService", () => {
 
       expect(LedgerService.cascadeUpdateMaterial).toHaveBeenCalledWith("土豆", "马铃薯", "公斤", "精品装");
       expect(PrepReportService.cascadeUpdateMaterial).toHaveBeenCalledWith("土豆", "马铃薯", FoodCategory.VEGETABLE, "公斤");
+      // name 是后端表主键，改名时需要携带 previousKey 供后端清理旧行
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "rawMaterial", op: "upsert", key: "马铃薯", previousKey: "土豆" })
+      );
     });
 
     it("preserves the isDefault flag across an edit", async () => {
@@ -215,12 +225,15 @@ describe("RawMaterialsDictService", () => {
       expect(RawMaterialsDictService.getItems().map((i) => i.name)).toEqual(["土豆"]);
       expect(LedgerService.cascadeDeleteMaterial).toHaveBeenCalledWith("自定义原料");
       expect(PrepReportService.cascadeDeleteMaterial).toHaveBeenCalledWith("自定义原料");
+      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entity: "rawMaterial", op: "delete", key: "自定义原料" })
+      );
     });
   });
 
   describe("setRawMaterialsDictInMemory (heartbeat silent update)", () => {
     it("dedupes on silent overwrite without touching the server", () => {
-      vi.spyOn(SyncHelper, "triggerSyncToServer").mockClear();
+      vi.spyOn(SyncHelper, "queueChange").mockClear();
       RawMaterialsDictService.setRawMaterialsDictInMemory([
         { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "旧" },
         { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "新" }
@@ -228,7 +241,7 @@ describe("RawMaterialsDictService", () => {
 
       expect(RawMaterialsDictService.getItems()).toHaveLength(1);
       expect(RawMaterialsDictService.getItems()[0].remark).toBe("新");
-      expect(SyncHelper.triggerSyncToServer).not.toHaveBeenCalled();
+      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
     });
   });
 });
