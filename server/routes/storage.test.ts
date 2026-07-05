@@ -27,7 +27,7 @@ function saveOps(ops: any[]) {
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kpmss-storage-route-test-"));
   process.env.STORAGE_TYPE = "local";
-  process.env.LOCAL_DB_PATH = path.join(tmpDir, "data", "db.json");
+  process.env.LOCAL_DATA_DIR = path.join(tmpDir, "data");
 
   vi.resetModules();
   const { storageRouter } = await import("./storage.ts");
@@ -40,7 +40,7 @@ beforeEach(async () => {
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   delete process.env.STORAGE_TYPE;
-  delete process.env.LOCAL_DB_PATH;
+  delete process.env.LOCAL_DATA_DIR;
   vi.restoreAllMocks();
 });
 

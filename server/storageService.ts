@@ -5,10 +5,10 @@
 
 /**
  * @description 本地 SQLite（阶段二·规范化关系型表结构 + 阶段三·增量写协议，见 SQLite迁移规划.md）与腾讯云对象存储（COS）
- * 双模式持久化服务：save() 现在接收一批增量 SyncOp[]，通过 applyChangesIntoSqlite() 对规范化表做目标 upsert/delete
- * （而非阶段二的整体 DELETE+INSERT 重建）；load() 仍返回完整状态供 GET /load 与心跳轮询使用。另负责历史快照备份与恢复、
- * 以及从更早版本存储格式（阶段一 kv_store / 最早的纯 JSON 文件）的一次性自动迁移——迁移路径复用的 importFullDataIntoSqlite()
- * 仍是"全量重建"语义，专供一次性迁移与 upsertSkeleton 内部共享，不再是正常保存路径。
+ * 双模式持久化服务：save() 接收一批增量 SyncOp[]，通过 applyChangesIntoSqlite() 对规范化表做目标 upsert/delete；
+ * load() 返回完整状态供 GET /load 与心跳轮询使用。另负责历史快照备份与恢复（备份快照生成有最小间隔节流，
+ * 详见 SNAPSHOT_MIN_INTERVAL_MS，避免每次保存都做一次全量重建序列化，随历史数据总量增长而拖慢保存耗时）。
+ * 早期 JSON 文件存储与阶段一 kv_store 浅迁移格式均已彻底移除，不再保留任何迁移兼容代码。
  */
 
 import path from "path";
@@ -57,20 +57,19 @@ export class StorageService {
   private static storageType: string = process.env.STORAGE_TYPE || "local";
 
   /**
-   * @description 旧版纯 JSON 存储的主文件路径，默认为项目根目录下 data/db.json。
-   * 现仅用于首次启动时"是否需要从更早版本自动迁移"的判断依据与迁移源，不再是常态读写目标。
+   * @description 本地数据存储目录，默认为项目根目录下 data/。SQLite 数据库文件与备份快照目录均位于其下。
    */
-  private static localDbPath: string = path.resolve(process.env.LOCAL_DB_PATH || "data/db.json");
+  private static localDataDir: string = path.resolve(process.env.LOCAL_DATA_DIR || "data");
 
   /**
-   * @description 本地 SQLite 数据库文件路径，与旧版 db.json 同目录
+   * @description 本地 SQLite 数据库文件路径
    */
-  private static sqliteDbPath: string = path.join(path.dirname(StorageService.localDbPath), "kpmss.sqlite");
+  private static sqliteDbPath: string = path.join(StorageService.localDataDir, "kpmss.sqlite");
 
   /**
    * @description 本地历史备份存储目录（备份快照仍然是人类可读的 JSON 文件，命名与保留策略均不变）
    */
-  private static backupDir: string = path.resolve(path.dirname(StorageService.localDbPath), "backups");
+  private static backupDir: string = path.resolve(StorageService.localDataDir, "backups");
 
   /**
    * @description 本地 SQLite 数据库连接（懒加载，全生命周期内复用同一个连接）
@@ -115,6 +114,35 @@ export class StorageService {
   private static writeLock: Promise<void> = Promise.resolve();
 
   /**
+   * @description 备份快照生成的最小时间间隔（毫秒）。真正的持久化/原子性已经由 SQLite 事务+WAL 保证，
+   * 这份 JSON 快照只是给人工核查/灾难恢复用的辅助产物，不需要每次保存都重新生成——重新生成一次的开销是
+   * 全量读出 9 张表、拼装、JSON.stringify，这个开销只随"历史数据总量"增长，与"这次到底改了什么"无关，
+   * 如果每次保存（哪怕只改一个字段）都做一遍，会导致保存耗时随数据量/运行年限不断增长。
+   * 节流后：距离上次生成的快照不足此间隔，跳过快照生成（增量 SQL 写入本身不受影响，仍然每次都执行）。
+   */
+  private static readonly SNAPSHOT_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
+  /**
+   * @description 最近一次实际生成备份快照的时间戳（初始为 0，保证进程启动后第一次保存必然生成一次快照）
+   */
+  private static lastSnapshotAt = 0;
+
+  /**
+   * @description 判断这次保存是否应该生成一份新的备份快照：距离上次生成是否已超过 SNAPSHOT_MIN_INTERVAL_MS。
+   * 若判断为"是"，同时把 lastSnapshotAt 更新为当前时间（判断与更新在同一次调用内完成，不需要额外加锁——
+   * 本方法只会在已持有 writeLock 的 saveInternal() 内部调用，天然串行，不存在并发竞态）。
+   * @returns {boolean} true 表示这次应当生成快照
+   */
+  private static shouldGenerateSnapshotNow(): boolean {
+    const now = Date.now();
+    if (now - StorageService.lastSnapshotAt < StorageService.SNAPSHOT_MIN_INTERVAL_MS) {
+      return false;
+    }
+    StorageService.lastSnapshotAt = now;
+    return true;
+  }
+
+  /**
    * @description 把一个异步任务放入写锁队列：等前面所有排队中的任务完成后再执行当前任务，并在完成后释放锁供下一个任务使用
    * @param {() => Promise<T> | T} task 需要互斥执行的任务
    * @returns {Promise<T>} 任务的执行结果
@@ -148,11 +176,11 @@ export class StorageService {
 
   /**
    * @description 获取（并按需懒创建）本地 SQLite 数据库连接与规范化的关系型表结构。
-   * 相比阶段一"7 个字段整体塞进 kv_store 的 JSON 文本"，这里按业务实体拆成了 9 张真正的关系型表
-   * （ledgers/ledger_items/ledger_item_daily_records/reports/prepared_items/prepared_item_daily_data/
-   * active_groups/active_categories/raw_materials_dict/ledger_helper_options），获得可索引查询、
-   * 字段级类型约束等关系型数据库的实质好处；同时阶段一遗留的 kv_store/daily_records 两张旧表不会被删除，
-   * 仅在首次启动检测到需要迁移时读取一次，此后不再使用。
+   * 按业务实体拆成了 9 张真正的关系型表（ledgers/ledger_items/ledger_item_daily_records/reports/
+   * prepared_items/prepared_item_daily_data/active_groups/active_categories/raw_materials_dict/
+   * ledger_helper_options），获得可索引查询、字段级类型约束等关系型数据库的实质好处。
+   * 早期版本遗留的 kv_store/daily_records 两张表予以主动清空（DROP TABLE IF EXISTS），
+   * 系统尚未正式上线、无需保留任何历史迁移兼容路径。
    * @returns {Database.Database} SQLite 数据库连接
    */
   private static getDb(): Database.Database {
@@ -161,19 +189,11 @@ export class StorageService {
       // WAL 模式：写入不阻塞并发读取，且每次事务提交都由 SQLite 引擎保证落盘的原子性与崩溃恢复能力
       StorageService.db.pragma("journal_mode = WAL");
       StorageService.db.exec(`
-        -- 阶段一遗留表（不再写入，仅在一次性迁移时可能被读取一次，予以保留不删除）
-        CREATE TABLE IF NOT EXISTS kv_store (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS daily_records (
-          item_id TEXT NOT NULL,
-          date TEXT NOT NULL,
-          data TEXT NOT NULL,
-          PRIMARY KEY (item_id, date)
-        );
+        -- 早期版本遗留表，主动清空（幂等，已清空的库上是无操作）
+        DROP TABLE IF EXISTS kv_store;
+        DROP TABLE IF EXISTS daily_records;
 
-        -- 阶段二规范化表结构
+        -- 规范化关系型表结构
         CREATE TABLE IF NOT EXISTS ledgers (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
@@ -191,8 +211,7 @@ export class StorageService {
         );
         CREATE INDEX IF NOT EXISTS idx_ledger_items_ledger_id ON ledger_items(ledger_id);
 
-        -- 台账每日出入库流水：按 (item_id, date) 存放，字段级展开而非整块 JSON 文本，
-        -- 取代阶段一的 daily_records（同名字段结构不同，故改用新表名，避免与阶段一遗留表冲突）
+        -- 台账每日出入库流水：按 (item_id, date) 存放，字段级展开而非整块 JSON 文本
         CREATE TABLE IF NOT EXISTS ledger_item_daily_records (
           item_id TEXT NOT NULL,
           date TEXT NOT NULL,
@@ -299,7 +318,8 @@ export class StorageService {
   /**
    * @description 覆盖写入"骨架"部分：ledgers / ledger_items（不含每日流水）/ reports+prepared_items+每日备餐数据 /
    * active_groups / active_categories / raw_materials_dict / ledger_helper_options。
-   * 不涉及 ledger_item_daily_records，供 importFullDataIntoSqlite（正常保存）与 importSkeletonOnlyIntoSqlite（备份恢复）共用。
+   * 不涉及 ledger_item_daily_records，供 importSkeletonOnlyIntoSqlite（备份恢复专用）调用；
+   * 正常保存路径走的是 applyChangesIntoSqlite() 的增量 upsert/delete，不使用整体覆盖。
    * @param {Database.Database} db SQLite 数据库连接
    * @param {any} data 需要写入的全量数据包
    * @returns {void}
@@ -378,65 +398,6 @@ export class StorageService {
   }
 
   /**
-   * @description 全量重建：骨架部分整体覆盖 + ledger_item_daily_records 整体重建（先清空再按当前 payload 完整重插入），
-   * 全部包裹在同一个 SQLite 事务里——要么全部生效，要么全部不生效。阶段三起不再是正常保存路径调用的方法
-   * （正常保存改为 applyChangesIntoSqlite() 的增量 upsert/delete），仅供 migrateToNormalizedSchemaIfNeeded()
-   * 处理历史版本一次性迁移时调用。
-   * @param {any} data 需要迁移导入的全量数据包（ledgerItems[].dailyRecords 为完整的当前每日流水）
-   * @returns {void}
-   */
-  private static importFullDataIntoSqlite(data: any): void {
-    const db = StorageService.getDb();
-    const deleteAllDaily = db.prepare("DELETE FROM ledger_item_daily_records");
-    const insertDaily = db.prepare(`
-      INSERT INTO ledger_item_daily_records
-        (item_id, date, in_quantity, in_price, in_amount, out_quantity, out_price, out_amount, note,
-         certification, sensory_property, supplier, purchase_date, buyer, inspector, keeper,
-         produce_date, shelf_life, out_handler, out_recipient, conversion_unit_quantity, out_date)
-      VALUES
-        (@itemId, @date, @inQuantity, @inPrice, @inAmount, @outQuantity, @outPrice, @outAmount, @note,
-         @certification, @sensoryProperty, @supplier, @purchaseDate, @buyer, @inspector, @keeper,
-         @produceDate, @shelfLife, @outHandler, @outRecipient, @conversionUnitQuantity, @outDate)
-    `);
-
-    const run = db.transaction((payload: any) => {
-      StorageService.upsertSkeleton(db, payload);
-      deleteAllDaily.run();
-      for (const item of payload.ledgerItems ?? []) {
-        if (!item || !item.dailyRecords) continue;
-        for (const [dateStr, record] of Object.entries(item.dailyRecords) as [string, any][]) {
-          if (!dateStr || !record) continue;
-          insertDaily.run({
-            itemId: item.id,
-            date: dateStr,
-            inQuantity: record.inQuantity ?? 0,
-            inPrice: record.inPrice ?? 0,
-            inAmount: record.inAmount ?? 0,
-            outQuantity: record.outQuantity ?? 0,
-            outPrice: record.outPrice ?? null,
-            outAmount: record.outAmount ?? null,
-            note: record.note ?? null,
-            certification: record.certification ?? null,
-            sensoryProperty: record.sensoryProperty ?? null,
-            supplier: record.supplier ?? null,
-            purchaseDate: record.purchaseDate ?? null,
-            buyer: record.buyer ?? null,
-            inspector: record.inspector ?? null,
-            keeper: record.keeper ?? null,
-            produceDate: record.produceDate ?? null,
-            shelfLife: record.shelfLife ?? null,
-            outHandler: record.outHandler ?? null,
-            outRecipient: record.outRecipient ?? null,
-            conversionUnitQuantity: record.conversionUnitQuantity ?? null,
-            outDate: record.outDate ?? null
-          });
-        }
-      }
-    });
-    run(data);
-  }
-
-  /**
    * @description 从备份恢复专用：只覆盖骨架部分，绝不触碰 ledger_item_daily_records。备份快照本身从不包含
    * 台账每日出入库流水（与阶段一、以及更早版本的既有限制保持一致：备份快照里 ledgerItems[].dailyRecords 恒为空对象），
    * 若在这里也整体重建每日流水，会把当前生效中的真实购销记录清空，属于比历史版本更严重的数据丢失回归。
@@ -453,8 +414,8 @@ export class StorageService {
 
   /**
    * @description 增量写入专用的 prepared statement 缓存（按名称缓存，避免每次防抖 flush 都重新 db.prepare()）。
-   * 与 upsertSkeleton/importFullDataIntoSqlite（全量重建路径，专供一次性历史迁移与备份恢复使用）完全独立、
-   * 互不复用，避免为了减少一点重复 SQL 文本而让这两套本质不同的写入路径产生耦合。
+   * 与 upsertSkeleton（全量重建路径，专供备份恢复使用）完全独立、互不复用，避免为了减少一点重复 SQL 文本
+   * 而让这两套本质不同的写入路径产生耦合。
    */
   private static incrementalStmts: Map<string, Database.Statement> | null = null;
 
@@ -565,7 +526,7 @@ export class StorageService {
 
   /**
    * @description 增量应用一批同步操作到规范化关系型表，包裹在同一个 SQLite 事务里（整批要么全部生效、要么全部回滚）。
-   * 与 importFullDataIntoSqlite 的"全量 DELETE+INSERT 重建"不同，这里只对 op 里明确指出的实体/主键做目标 upsert/delete。
+   * 与 upsertSkeleton 的"全量 DELETE+INSERT 重建"不同，这里只对 op 里明确指出的实体/主键做目标 upsert/delete。
    * 由于当前 schema 未声明任何 ON DELETE CASCADE（全量重建靠"删光重插"隐式达到级联效果），
    * 这里对有子表的实体删除操作必须显式做级联清理，否则会留下孤儿行。
    * @param {SyncOp[]} ops 一批增量同步操作
@@ -870,138 +831,12 @@ export class StorageService {
   }
 
   /**
-   * @description 递归扫描并读取本地 ledgers/daily 目录下按年、月、天分散保存的最早版本 JSON 流水文件，并合并到内存结构中。
-   * 仅供 migrateLegacyJsonIfNeeded() 一次性导入历史数据时调用，不再是常态读取路径。
-   * @param {string} dailyDir 日度数据根目录路径
-   * @param {Record<string, Record<string, any>>} mergedDaily 用于在内存中重组的合并流水数据字典 (格式: { itemId: { YYYY-MM-DD: DailyStockRecord } })
-   */
-  private static readAllDailyRecordsLocal(dailyDir: string, mergedDaily: Record<string, Record<string, any>>): void {
-    if (!fs.existsSync(dailyDir)) return;
-    try {
-      const years = fs.readdirSync(dailyDir);
-      for (const year of years) {
-        const yearPath = path.join(dailyDir, year);
-        if (!fs.statSync(yearPath).isDirectory()) continue;
-        const months = fs.readdirSync(yearPath);
-        for (const month of months) {
-          const monthPath = path.join(yearPath, month);
-          if (!fs.statSync(monthPath).isDirectory()) continue;
-          const days = fs.readdirSync(monthPath);
-          for (const day of days) {
-            const dayPath = path.join(monthPath, day);
-            if (!fs.statSync(dayPath).isFile() || !day.endsWith(".json")) continue;
-            try {
-              const dateStr = `${year}-${month}-${day.replace(".json", "")}`;
-              const fileContent = fs.readFileSync(dayPath, "utf8");
-              const dayRecords = JSON.parse(fileContent);
-
-              // dayRecords 格式为 { itemId: DailyStockRecord }
-              for (const [itemId, record] of Object.entries(dayRecords)) {
-                if (!mergedDaily[itemId]) {
-                  mergedDaily[itemId] = {};
-                }
-                mergedDaily[itemId][dateStr] = record as any;
-              }
-            } catch (e) {
-              console.error(`[STORAGE] 解析日度账单文件失败 ${dayPath}:`, e);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("[STORAGE] 读取日度分散台账目录失败:", e);
-    }
-  }
-
-  /**
-   * @description 读取阶段一遗留的 kv_store + daily_records（JSON 文本块）数据，还原成与 load() 一致的应用状态对象。
-   * 仅供 migrateToNormalizedSchemaIfNeeded() 一次性升级迁移时调用。
-   * @param {Database.Database} db SQLite 数据库连接
-   * @returns {any} 阶段一 kv_store 里还原出的应用状态对象；若阶段一表本身没有数据则返回 null
-   */
-  private static readLegacyKvStoreData(db: Database.Database): any {
-    const kvRows = db.prepare("SELECT key, value FROM kv_store").all() as Array<{ key: string; value: string }>;
-    if (kvRows.length === 0) return null;
-
-    const data: any = {};
-    for (const row of kvRows) {
-      try {
-        data[row.key] = JSON.parse(row.value);
-      } catch (e) {
-        console.error(`[STORAGE SQLITE] 解析阶段一 kv_store 字段 ${row.key} 失败:`, e);
-      }
-    }
-
-    const mergedDaily: Record<string, Record<string, any>> = {};
-    const dailyRows = db.prepare("SELECT item_id, date, data FROM daily_records").all() as Array<{ item_id: string; date: string; data: string }>;
-    for (const row of dailyRows) {
-      try {
-        if (!mergedDaily[row.item_id]) mergedDaily[row.item_id] = {};
-        mergedDaily[row.item_id][row.date] = JSON.parse(row.data);
-      } catch (e) {
-        console.error(`[STORAGE SQLITE] 解析阶段一每日流水记录失败 (item=${row.item_id}, date=${row.date}):`, e);
-      }
-    }
-    if (Array.isArray(data.ledgerItems)) {
-      for (const item of data.ledgerItems) {
-        item.dailyRecords = mergedDaily[item.id] || {};
-      }
-    }
-    return data;
-  }
-
-  /**
-   * @description 一次性历史数据迁移：若当前规范化表结构完全没有数据，说明这是从更早版本升级上来的部署，按优先级
-   * 依次尝试两种历史数据源自动迁移——① 阶段一遗留的 kv_store（浅迁移版本）；② 更早的纯 JSON 文件 db.json（含按年/月/日
-   * 拆分的每日流水）。迁移完成后原始数据（阶段一的 kv_store 表、最早版本的 JSON 文件）均不会被删除，作为人工回退的最后手段。
-   * 仅在规范化表结构完全没有数据时才会触发，避免每次重启都重复导入、用旧数据覆盖掉已经产生的新数据。
-   * @returns {void}
-   */
-  private static migrateToNormalizedSchemaIfNeeded(): void {
-    const db = StorageService.getDb();
-    if (StorageService.countNormalizedRows(db) > 0) {
-      return;
-    }
-
-    // 优先尝试阶段一遗留的 kv_store 数据
-    const legacyKvData = StorageService.readLegacyKvStoreData(db);
-    if (legacyKvData) {
-      StorageService.importFullDataIntoSqlite(legacyKvData);
-      console.log("[STORAGE SQLITE] 已自动将阶段一（浅迁移）数据迁移至规范化关系型表结构，原表结构予以保留。");
-      return;
-    }
-
-    // 再尝试更早版本的纯 JSON 文件
-    if (!fs.existsSync(StorageService.localDbPath)) {
-      return;
-    }
-    try {
-      const content = fs.readFileSync(StorageService.localDbPath, "utf8");
-      const legacyJsonData = JSON.parse(content);
-
-      const dailyDir = path.join(path.dirname(StorageService.localDbPath), "ledgers", "daily");
-      const mergedDaily: Record<string, Record<string, any>> = {};
-      StorageService.readAllDailyRecordsLocal(dailyDir, mergedDaily);
-      if (Array.isArray(legacyJsonData.ledgerItems)) {
-        for (const item of legacyJsonData.ledgerItems) {
-          item.dailyRecords = mergedDaily[item.id] || {};
-        }
-      }
-
-      StorageService.importFullDataIntoSqlite(legacyJsonData);
-      console.log(`[STORAGE SQLITE] 已自动将最早版本的 JSON 数据（${StorageService.localDbPath}）迁移至规范化关系型表结构，原始文件予以保留。`);
-    } catch (err) {
-      console.error("[STORAGE SQLITE] 历史数据迁移失败，将以空数据集启动：", err);
-    }
-  }
-
-  /**
-   * @description 初始化存储引擎，创建必要的本地目录、打开 SQLite 连接，并按需自动迁移历史数据
+   * @description 初始化存储引擎，创建必要的本地目录、打开 SQLite 连接
    * @returns {void}
    */
   public static init(): void {
     if (StorageService.storageType === "local") {
-      const dir = path.dirname(StorageService.localDbPath);
+      const dir = StorageService.localDataDir;
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
         console.log(`[STORAGE] 已成功创建本地数据存储目录: ${dir}`);
@@ -1010,7 +845,8 @@ export class StorageService {
         fs.mkdirSync(StorageService.backupDir, { recursive: true });
         console.log(`[STORAGE] 已成功创建本地备份快照目录: ${StorageService.backupDir}`);
       }
-      StorageService.migrateToNormalizedSchemaIfNeeded();
+      // 立即建立数据库连接并执行 schema 初始化（含早期遗留表的 DROP TABLE IF EXISTS 清理），不等到首次 load()/save() 才懒加载
+      StorageService.getDb();
     } else {
       console.log("[STORAGE] 启动云端存储模式：已挂载腾讯云 COS 同步总线。");
     }
@@ -1236,45 +1072,51 @@ export class StorageService {
       });
 
       // 2. 保存快照备份，以便发生意外时恢复（写锁已保证同一时刻只有一组 save() 在跑，这里改为等待上传结果，
-      // 避免"不阻塞主线程"的旧写法让备份上传实际上跑到下一次 save() 的写锁区间之外，脱离串行化保护）
-      const backupKey = `backups/db_${timestamp}.json`;
-      await new Promise<void>((resolve) => {
-        StorageService.getCosClient().putObject({
-          Bucket,
-          Region,
-          Key: backupKey,
-          Body: Buffer.from(dataStr, "utf8")
-        }, (err) => {
-          if (err) {
-            console.error(`[STORAGE COS] 备份快照 ${backupKey} 上传失败:`, err);
-          } else {
-            console.log(`[STORAGE COS] 成功生成云端备份快照: ${backupKey}`);
-          }
-          resolve();
+      // 避免"不阻塞主线程"的旧写法让备份上传实际上跑到下一次 save() 的写锁区间之外，脱离串行化保护）。
+      // 节流：距离上次生成快照不足 SNAPSHOT_MIN_INTERVAL_MS 则跳过，主对象的 PUT 不受影响、仍然每次执行。
+      if (StorageService.shouldGenerateSnapshotNow()) {
+        const backupKey = `backups/db_${timestamp}.json`;
+        await new Promise<void>((resolve) => {
+          StorageService.getCosClient().putObject({
+            Bucket,
+            Region,
+            Key: backupKey,
+            Body: Buffer.from(dataStr, "utf8")
+          }, (err) => {
+            if (err) {
+              console.error(`[STORAGE COS] 备份快照 ${backupKey} 上传失败:`, err);
+            } else {
+              console.log(`[STORAGE COS] 成功生成云端备份快照: ${backupKey}`);
+            }
+            resolve();
+          });
         });
-      });
+      }
 
       return saveMain;
     } else {
-      // 本地存储模式：这批增量操作经由 SQLite 事务原子应用（要么全部生效、要么全部不生效），
-      // 随后读出应用后的完整状态，生成一份人类可读的 JSON 快照文件用于留档与手动核查（沿用既有的 30 份滚动保留策略与命名格式）
+      // 本地存储模式：这批增量操作经由 SQLite 事务原子应用（要么全部生效、要么全部不生效）——这一步每次保存都执行，
+      // 是真正的持久化。生成 JSON 备份快照只是辅助的人工核查/灾难恢复产物，节流到最多每 SNAPSHOT_MIN_INTERVAL_MS
+      // 生成一次，避免"全量读出 9 张表 + 拼装 + JSON.stringify"这个随历史数据总量增长的开销拖慢每一次保存。
       try {
         StorageService.applyChangesIntoSqlite(ops);
         console.log(`[STORAGE SQLITE] 已通过事务增量应用 ${ops.length} 个同步操作至本地规范化关系型表结构。`);
 
-        const cleanedData = StorageService.readDataFromSqlite();
-        if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
-          for (const item of cleanedData.ledgerItems) {
-            item.dailyRecords = {};
+        if (StorageService.shouldGenerateSnapshotNow()) {
+          const cleanedData = StorageService.readDataFromSqlite();
+          if (cleanedData.ledgerItems && Array.isArray(cleanedData.ledgerItems)) {
+            for (const item of cleanedData.ledgerItems) {
+              item.dailyRecords = {};
+            }
           }
+          const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
+
+          const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
+          StorageService.atomicWriteFileSync(snapshotPath, cleanedDataStr);
+          console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
+
+          StorageService.trimLocalBackups();
         }
-        const cleanedDataStr = JSON.stringify(cleanedData, null, 2);
-
-        const snapshotPath = path.join(StorageService.backupDir, `db_${timestamp}.json`);
-        StorageService.atomicWriteFileSync(snapshotPath, cleanedDataStr);
-        console.log(`[STORAGE LOCAL] 成功生成本地配置备份快照: ${snapshotPath}`);
-
-        StorageService.trimLocalBackups();
         return true;
       } catch (err) {
         console.error("[STORAGE SQLITE] 写入本地数据失败:", err);
