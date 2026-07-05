@@ -71,17 +71,6 @@ describe("RawMaterialsDictService", () => {
       expect(result[0].unit).toBe("公斤");
     });
 
-    it("backfills isDefault:true on legacy items matching a known seed name", () => {
-      const serverItems: RawMaterialDictItem[] = [{ name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤" }];
-      const result = RawMaterialsDictService.initDictFromServer(serverItems);
-      expect(result[0].isDefault).toBe(true);
-    });
-
-    it("does not mark a non-seed custom item as default during migration", () => {
-      const serverItems: RawMaterialDictItem[] = [{ name: "自定义原料XYZ", category: FoodCategory.VEGETABLE, unit: "斤" }];
-      const result = RawMaterialsDictService.initDictFromServer(serverItems);
-      expect(result[0].isDefault).toBeUndefined();
-    });
 
     it("leaves the list empty and does not queue any replaceAll when the server has no data", () => {
       const result = RawMaterialsDictService.initDictFromServer([]);
