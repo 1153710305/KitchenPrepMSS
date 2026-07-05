@@ -136,34 +136,10 @@ export class PrepReportService {
       setTimeout(() => {
         try {
           if (serverData && serverData.activeGroups && serverData.activeCategories && serverData.reports) {
-            // 服务器上有完整数据，直接同步到内存；同时迁移升级前生成、缺少 isDefault 标记的历史默认人群/大类数据，
-            // 按 key 匹配预置默认清单补齐标记，确保老数据升级后依然享有"默认数据不可删除"的保护
-            let migrationChanged = false;
-            this.activeGroups = (serverData.activeGroups as DynamicGroup[]).map((g) => {
-              if (g.isDefault === undefined && DEFAULT_GROUP_KEYS.has(g.key)) {
-                migrationChanged = true;
-                return { ...g, isDefault: true };
-              }
-              return g;
-            });
-            this.activeCategories = (serverData.activeCategories as DynamicCategory[]).map((c) => {
-              if (c.isDefault === undefined && DEFAULT_CATEGORY_KEYS.has(c.key)) {
-                migrationChanged = true;
-                return { ...c, isDefault: true };
-              }
-              return c;
-            });
+            this.activeGroups = serverData.activeGroups as DynamicGroup[];
+            this.activeCategories = serverData.activeCategories as DynamicCategory[];
             this.reports = serverData.reports;
             LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
-            if (migrationChanged) {
-              // 迁移可能涉及任意多个人群/大类条目补齐 isDefault 标记，无法精确描述"改了哪一条"，
-              // 整批 replaceAll 覆盖回写，属于批量迁移场景而非用户增量编辑
-              SyncHelper.runWhenInitialized(() => {
-                this.saveConfigAndNotify();
-                SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
-                SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
-              });
-            }
           } else {
             // 服务端现在负责注入初始数据。若到达此处，说明网络失败或未收到有效负载。
             // 降级为空状态，不再主动在前端进行种子数据生成或覆盖推送
