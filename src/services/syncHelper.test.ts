@@ -22,6 +22,7 @@ function resetSyncHelper() {
   (SyncHelper as any).debounceTimer = null;
   (SyncHelper as any).lastLocalMutationAt = 0;
   (SyncHelper as any).retryCount = 0;
+  (SyncHelper as any).isFlushing = false;
 }
 
 describe("SyncHelper", () => {
@@ -207,6 +208,64 @@ describe("SyncHelper", () => {
       SyncHelper.queueChange({ entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } });
 
       expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThan(heartbeatRequestStartedAt);
+    });
+  });
+
+  describe("hasPendingSync / waitForPendingSync [V5.89.0]", () => {
+    // 真实的用户可感知问题：本地保存后 UI 认为"已保存"，但增量同步还在 200ms 防抖排队或已发出请求尚未
+    // 收到服务器确认，此时若心跳静默同步恰好用一份滞后的服务器快照覆盖内存，刚保存的记录会被短暂"冲掉"，
+    // 要等下一轮心跳（约 10 秒）才重新出现——表现为"细表/台账里刚加入的记录显示有延迟"。
+    it("reports no pending sync before any mutation has been queued", () => {
+      expect(SyncHelper.hasPendingSync()).toBe(false);
+    });
+
+    it("reports pending sync while an op is queued waiting for the 200ms debounce to fire", () => {
+      vi.useFakeTimers();
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      SyncHelper.setInitialized(true);
+
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
+      expect(SyncHelper.hasPendingSync()).toBe(true);
+    });
+
+    it("reports pending sync while the flush request is in flight, and clears once it resolves", async () => {
+      vi.useFakeTimers();
+      let resolveFetch: (value: any) => void;
+      const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
+      vi.stubGlobal("fetch", vi.fn().mockReturnValue(fetchPromise));
+      SyncHelper.setInitialized(true);
+
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
+      await vi.advanceTimersByTimeAsync(200); // 触发防抖 flush，发出请求但尚未收到响应
+      expect(SyncHelper.hasPendingSync()).toBe(true);
+
+      resolveFetch!({ ok: true, json: async () => ({}) });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(SyncHelper.hasPendingSync()).toBe(false);
+    });
+
+    it("waitForPendingSync resolves immediately when there is nothing pending", async () => {
+      let resolved = false;
+      SyncHelper.waitForPendingSync().then(() => { resolved = true; });
+      await Promise.resolve();
+      expect(resolved).toBe(true);
+    });
+
+    it("waitForPendingSync only resolves after the queued op has actually been flushed and confirmed", async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      SyncHelper.setInitialized(true);
+
+      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
+
+      let resolved = false;
+      SyncHelper.waitForPendingSync().then(() => { resolved = true; });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(resolved).toBe(false); // 还在 200ms 防抖排队中，不应提前放行
+
+      await vi.advanceTimersByTimeAsync(250); // 跨过防抖 + flush 网络请求
+      expect(resolved).toBe(true);
     });
   });
 });

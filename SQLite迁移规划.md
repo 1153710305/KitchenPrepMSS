@@ -220,3 +220,7 @@ interface SyncOp {
 - `syncHelper.test.ts`/`ledgerStore.test.ts`/`store.test.ts`/`rawMaterialDict.test.ts`/`server/storageService.test.ts`/`server/routes/storage.test.ts` 全面更新：新增去重合批测试、flush 失败重试（含超过重试上限后放弃）测试、按实体 upsert/update/delete 测试、显式级联删除测试、跨实体事务回滚测试、协议版本校验测试、"只增量生效目标字段、其余数据不受影响"的局部生效测试。
 - 全量测试 407 个用例通过（较阶段二结束时净增 6 个），`tsc --noEmit` 报错数保持 18，`vite build` 与 `esbuild server.ts` 打包均成功。
 - 迁移验证：先在一份**真实生产数据的完整拷贝**上用 curl 逐条验证新协议——旧整体 JSON 格式正确被 400 拒绝、增量 upsert 只影响目标字段（其余数据原样保留）、`ledgerItem` 删除正确级联清空其逐日流水且不影响其它 31 项原料。确认无误后再对**真实生产数据本身**做浏览器端到端验证：真实 UI 编辑「幼儿备餐」台账 2026-07-05 土豆的采购数量（12）与单价（3.5），保存后确认 `data/kpmss.sqlite` 正确落盘（`inAmount` 正确核算为 42），再原样通过同一 UI 流程清理掉这条验证用测试数据（回填为 0 触发 hasData 守卫的 delete op），确认数据库精确恢复至验证前状态（`ledger_item_daily_records` 43 条、`ledger_items` 32 条），全程控制台无报错。
+
+### 阶段三遗留 bug 补丁（2026-07-05，[V5.88.0]，已修复）
+
+用户实际部署测试后反馈首次启动录入数据后"过了一会又全部消失"。根因正是本节"关键实现要点 4"提到的"首启种子数据场景保留 `replaceAll` 操作类型"——`rawMaterialDict.ts`/`ledgerStore.ts`/`store.ts` 共 4 处首次启动降级生成种子数据的调用点，直接调用 `SyncHelper.queueChange()` 而未用 `runWhenInitialized()` 包裹初始化安全锁，恰好都运行在 `useAppData.ts` 全局 `Promise.all` 完成、`setInitialized(true)` 解锁之前，导致种子数据被安全锁静默拦截丢弃、永久不落盘。这正是上文"关键实现要点 1"分析过的结构性新失败模式在首启场景的具体体现：旧版整体防抖协议靠"任意后续同步都会整体重新拉取上传当前内存状态"天然自愈，增量协议下单个被丢弃的 op 无从补救。修复：4 处调用点统一补上 `runWhenInitialized()` 包裹；新增 3 条使用真实（不 mock）`SyncHelper` 时序行为的回归测试，防止同类"遗漏包裹"问题在其它调用点复发。全量 409 用例通过，`tsc --noEmit` 报错数保持 18。详见 [readme_zh.md] 的 [V5.88.0] 条目。

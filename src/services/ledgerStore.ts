@@ -158,9 +158,14 @@ export class LedgerService {
 
     this.ledgers = initialLedgers;
     this.ledgerItems = initialItems;
-    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举
-    SyncHelper.queueChange({ entity: "ledger", op: "replaceAll", data: initialLedgers });
-    SyncHelper.queueChange({ entity: "ledgerItem", op: "replaceAll", data: initialItems });
+    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举。
+    // 首次启动时这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪锁定状态，
+    // 必须用 runWhenInitialized 延后到解锁之后再入队，否则这批种子数据会被静默丢弃、永久不落盘
+    // ——这不是假设性风险，是真实发生过的数据丢失事故。
+    SyncHelper.runWhenInitialized(() => {
+      SyncHelper.queueChange({ entity: "ledger", op: "replaceAll", data: initialLedgers });
+      SyncHelper.queueChange({ entity: "ledgerItem", op: "replaceAll", data: initialItems });
+    });
     LogBroker.publish("INFO", "LedgerService", "成功合成三大初始空模板台账（幼儿、在校生、教师），等待管理员于后台添加并录入原料数据。");
   }
 
