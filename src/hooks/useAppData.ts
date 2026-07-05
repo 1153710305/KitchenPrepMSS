@@ -203,42 +203,16 @@ export function useAppData(): UseAppDataResult {
         // 收到服务器确认（hasPendingSync），这份心跳响应同样有可能早于该次本地变更真正落盘的时刻，
         // 覆盖内存会导致刚保存的数据被短暂"冲掉"，要等下一轮心跳才重新出现。两种情况都丢弃本轮响应即可：
         // 本地变更会通过自身的去抖动同步写入服务器，下一次心跳自然能拿到已确认落盘的最新状态。
+        // 守卫必须在 loadFromServer() 之后、应用之前检查（而不是在发起请求前检查），才能捕捉到"请求飞行期间
+        // 发生的竞态写入"——这也是心跳没有直接用共用的 SyncHelper.refreshNow() 的原因：refreshNow() 拿到数据后
+        // 立即应用、不做守卫，这里需要在"拉取"和"应用"之间插入这段守卫判断。
         if (SyncHelper.getLastLocalMutationAt() > requestStartedAt || SyncHelper.hasPendingSync()) {
           return;
         }
 
         if (freshData && active) {
-          let memoryChanged = false;
-
-          if (freshData.reports && JSON.stringify(freshData.reports) !== JSON.stringify(PrepReportService.getReports())) {
-            PrepReportService.setReportsInMemory(freshData.reports);
-            memoryChanged = true;
-          }
-          if (freshData.activeGroups && JSON.stringify(freshData.activeGroups) !== JSON.stringify(PrepReportService.getActiveGroups())) {
-            PrepReportService.setActiveGroupsInMemory(freshData.activeGroups);
-            memoryChanged = true;
-          }
-          if (freshData.activeCategories && JSON.stringify(freshData.activeCategories) !== JSON.stringify(PrepReportService.getActiveCategories())) {
-            PrepReportService.setActiveCategoriesInMemory(freshData.activeCategories);
-            memoryChanged = true;
-          }
-          if (freshData.ledgers && JSON.stringify(freshData.ledgers) !== JSON.stringify(LedgerService.getLedgers())) {
-            LedgerService.setLedgersInMemory(freshData.ledgers);
-            memoryChanged = true;
-          }
-          if (freshData.ledgerItems && JSON.stringify(freshData.ledgerItems) !== JSON.stringify(LedgerService.getLedgerItems())) {
-            LedgerService.setLedgerItemsInMemory(freshData.ledgerItems);
-            memoryChanged = true;
-          }
-          if ((freshData as any).rawMaterialsDict && JSON.stringify((freshData as any).rawMaterialsDict) !== JSON.stringify(RawMaterialsDictService.getItems())) {
-            RawMaterialsDictService.setRawMaterialsDictInMemory((freshData as any).rawMaterialsDict);
-            memoryChanged = true;
-          }
-
-          if (memoryChanged) {
-            // 强行分发，使 React UI 触发重新渲染，对齐最新服务器状态
-            PrepReportService.forceNotify();
-            LedgerService.forceNotify();
+          const changed = SyncHelper.applyFreshData(freshData);
+          if (changed) {
             LogBroker.publish("INFO", "App", "心跳同步成功，检测到服务器数据变化并完成多端数据静默对齐");
           }
         }

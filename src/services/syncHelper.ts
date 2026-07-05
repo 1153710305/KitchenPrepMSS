@@ -7,7 +7,13 @@
  * @description 客户端与后端持久化层之间的同步协调器（SyncHelper）：阶段三·增量写协议——收集调用方显式描述的
  * "这次到底变了什么"（SyncOp），去抖动 200ms 合并批量提交给服务端，并在系统初始化完成前加锁防止空状态覆写云端数据。
  * 取代此前"每次都整体拉取全部内存状态、整体 POST"的旧协议（BackendData/memoryFetcher/triggerSyncToServer）。
+ * 另提供 refreshNow()：拉取全量最新状态并应用进各业务 service 内存，供 useAppData.ts 的心跳轮询与
+ * "后端一次性完成级联后前端需要立即感知"两处场景共用同一份"拉取+比对+应用+分发"逻辑。
  */
+
+import { PrepReportService } from "./store.ts";
+import { LedgerService } from "./ledgerStore.ts";
+import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 /**
  * @description 后端读取接口 GET /api/storage/load 返回的完整状态数据结构（读路径不受本次改造影响，仍是整体状态）
@@ -172,6 +178,63 @@ export class SyncHelper {
       console.error("[SYNC HELPER] 从后端加载数据失败:", err);
       return null;
     }
+  }
+
+  /**
+   * @description 把一份已经拉取到的全量最新状态与当前内存逐字段比对，仅对真正变化的字段调用对应 service 的
+   * setXxxInMemory() 覆盖内存，变化时统一 forceNotify() 触发 UI 重绘。纯函数式的"应用"步骤，不涉及网络请求，
+   * 供心跳轮询（先自行 loadFromServer() 并做竞态守卫判断，守卫通过后再调用本方法）复用这份 diff+应用逻辑。
+   * @param {BackendData} freshData 已经拉取到的全量最新状态
+   * @returns {boolean} 本次是否真的检测到并应用了变化
+   */
+  public static applyFreshData(freshData: BackendData): boolean {
+    let memoryChanged = false;
+
+    if (freshData.reports && JSON.stringify(freshData.reports) !== JSON.stringify(PrepReportService.getReports())) {
+      PrepReportService.setReportsInMemory(freshData.reports);
+      memoryChanged = true;
+    }
+    if (freshData.activeGroups && JSON.stringify(freshData.activeGroups) !== JSON.stringify(PrepReportService.getActiveGroups())) {
+      PrepReportService.setActiveGroupsInMemory(freshData.activeGroups);
+      memoryChanged = true;
+    }
+    if (freshData.activeCategories && JSON.stringify(freshData.activeCategories) !== JSON.stringify(PrepReportService.getActiveCategories())) {
+      PrepReportService.setActiveCategoriesInMemory(freshData.activeCategories);
+      memoryChanged = true;
+    }
+    if (freshData.ledgers && JSON.stringify(freshData.ledgers) !== JSON.stringify(LedgerService.getLedgers())) {
+      LedgerService.setLedgersInMemory(freshData.ledgers);
+      memoryChanged = true;
+    }
+    if (freshData.ledgerItems && JSON.stringify(freshData.ledgerItems) !== JSON.stringify(LedgerService.getLedgerItems())) {
+      LedgerService.setLedgerItemsInMemory(freshData.ledgerItems);
+      memoryChanged = true;
+    }
+    if (freshData.rawMaterialsDict && JSON.stringify(freshData.rawMaterialsDict) !== JSON.stringify(RawMaterialsDictService.getItems())) {
+      RawMaterialsDictService.setRawMaterialsDictInMemory(freshData.rawMaterialsDict);
+      memoryChanged = true;
+    }
+
+    if (memoryChanged) {
+      PrepReportService.forceNotify();
+      LedgerService.forceNotify();
+    }
+    return memoryChanged;
+  }
+
+  /**
+   * @description 拉取一次全量最新状态并立即应用（fetch + applyFreshData 的组合），不做任何竞态守卫。
+   * 供"某个操作已确定成功、且后端可能连带级联修改了其它实体"的场景在拿到成功响应后主动调用，
+   * 避免只能等最多 10 秒的心跳轮询才能感知级联结果。心跳轮询本身不用这个方法——它需要在 loadFromServer()
+   * 之后、应用之前插入 lastLocalMutationAt/hasPendingSync 竞态守卫，因此自行拉取后直接调用 applyFreshData()。
+   * @returns {Promise<boolean>} 本次是否真的检测到并应用了变化
+   */
+  public static async refreshNow(): Promise<boolean> {
+    const freshData = await SyncHelper.loadFromServer();
+    if (!freshData) {
+      return false;
+    }
+    return SyncHelper.applyFreshData(freshData);
   }
 
   /**

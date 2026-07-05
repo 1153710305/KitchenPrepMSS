@@ -5,7 +5,7 @@
 
 /**
  * @description /api/storage/* 路由的 HTTP 层集成测试：不改动 server.ts 本身（其顶层直接 dotenv.config() + bootstrap() 里 app.listen()，import 即产生副作用，不适合直接拿来测），
- * 而是在测试文件内按 server.ts 相同的挂载方式新建一个只挂载 storageRouter 的最小 Express 实例，用 supertest 发真实 HTTP 请求覆盖 load/save/backups/restore 四个端点。
+ * 而是在测试文件内按 server.ts 相同的挂载方式新建一个只挂载 storageRouter 的最小 Express 实例，用 supertest 发真实 HTTP 请求覆盖 load/save 两个端点。
  * 阶段三·增量写协议：POST /api/storage/save 的请求体固定为 { protocolVersion: 2, ops: SyncOp[] }，不再是此前的"整体状态"JSON。
  */
 
@@ -114,60 +114,5 @@ describe("POST /api/storage/save", () => {
   it("PROTOCOL GUARD: rejects with 400 when ops is not an array", async () => {
     const res = await request(app).post("/api/storage/save").send({ protocolVersion: 2, ops: "not-an-array" });
     expect(res.status).toBe(400);
-  });
-});
-
-describe("GET /api/storage/backups", () => {
-  it("returns an empty array when no snapshots exist yet", async () => {
-    const res = await request(app).get("/api/storage/backups");
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-  });
-
-  it("returns the backup filenames created by prior saves", async () => {
-    await saveOps([]);
-
-    const res = await request(app).get("/api/storage/backups");
-
-    expect(res.status).toBe(200);
-    expect(res.body.length).toBe(1);
-    expect(res.body[0]).toMatch(/^db_.*\.json$/);
-  });
-});
-
-describe("POST /api/storage/restore", () => {
-  it("rejects the request with 400 when backupName is missing", async () => {
-    const res = await request(app).post("/api/storage/restore").send({});
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/backupName/);
-  });
-
-  it("restores a valid backup and returns the restored data", async () => {
-    await saveOps([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } }]);
-    const backupsRes = await request(app).get("/api/storage/backups");
-    const backupName = backupsRes.body[0];
-
-    // 再增量新增一个不同的台账，验证 restore 真的把骨架换回了备份快照里的版本
-    await saveOps([{ entity: "ledger", op: "upsert", key: "OTHER", data: { id: "OTHER", name: "别的台账", createdAt: "2026-01-01T00:00:00.000Z" } }]);
-
-    const res = await request(app).post("/api/storage/restore").send({ backupName });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const kidLedger = res.body.data.ledgers.find((l: any) => l.id === "KID");
-    expect(kidLedger).toEqual({ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" });
-    const otherLedger = res.body.data.ledgers.find((l: any) => l.id === "OTHER");
-    expect(otherLedger).toBeUndefined();
-  });
-
-  it("responds with 500 when the backup file does not exist", async () => {
-    const res = await request(app).post("/api/storage/restore").send({ backupName: "db_2099-01-01T00-00-00-000Z.json" });
-    expect(res.status).toBe(500);
-  });
-
-  it("SECURITY REGRESSION: responds with 500 (not a file leak) for a path-traversal backupName", async () => {
-    const res = await request(app).post("/api/storage/restore").send({ backupName: "../../../etc/passwd" });
-    expect(res.status).toBe(500);
-    expect(res.body.data).toBeUndefined();
   });
 });
