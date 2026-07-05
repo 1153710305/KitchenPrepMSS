@@ -12,9 +12,17 @@ echo ========================================
 where node >nul 2>nul
 if %errorlevel% neq 0 (
   echo [错误] 未检测到 Node.js 运行环境。
-  echo 请先安装 Node.js（建议 18 或更高版本），可从 https://nodejs.org 下载离线安装包。
+  echo 请先安装 Node.js 22.x LTS 版本（必须与准备部署包时使用的大版本完全一致，见部署指南.md），可从 https://nodejs.org 下载离线安装包。
   pause
   exit /b 1
+)
+
+for /f "tokens=* usebackq" %%v in (`node --version`) do set NODE_VER=%%v
+echo %NODE_VER% | findstr /b "v22." >nul
+if %errorlevel% neq 0 (
+  echo [警告] 检测到当前 Node.js 版本为 %NODE_VER%，本系统要求 22.x LTS 版本。
+  echo 本地存储所用的 better-sqlite3 是原生二进制模块，版本不匹配会导致启动报错 ERR_DLOPEN_FAILED，详见部署指南.md。
+  pause
 )
 
 if not exist "dist\server.cjs" (
