@@ -409,6 +409,21 @@ export class StorageService {
           StorageService.upsertSkeleton(StorageService.db, defaultData);
           console.log("[SYSTEM BOOT] 已在后端自动生成并注入默认种子数据完成");
         }
+      } else {
+        // 数据表非空，但检查是否存在核心配置表因旧版备份恢复被意外清空的情况
+        const groupCount = StorageService.db.prepare("SELECT COUNT(*) as c FROM active_groups").get() as { c: number };
+        if (groupCount.c === 0 && process.env.SKIP_SEEDING !== "1") {
+          console.log("[SYSTEM BOOT] 检测到 active_groups 为空 (可能由于旧版备份覆盖导致)，启动种子数据自动修复...");
+          const defaultData = StorageService.generateDefaultSeeds();
+          // 利用 upsertSkeleton 现有的选择性覆盖特性，只修复这四张配置表，不触碰用户的台账与备餐记录
+          StorageService.upsertSkeleton(StorageService.db, {
+            activeGroups: defaultData.activeGroups,
+            activeCategories: defaultData.activeCategories,
+            rawMaterialsDict: defaultData.rawMaterialsDict,
+            ledgerHelperDict: defaultData.ledgerHelperDict
+          });
+          console.log("[SYSTEM BOOT] 种子数据自动修复完成");
+        }
       }
     }
     return StorageService.db;
@@ -437,74 +452,88 @@ export class StorageService {
    */
   private static upsertSkeleton(db: Database.Database, data: any): void {
     // 1. ledgers
-    db.prepare("DELETE FROM ledgers").run();
-    const insertLedger = db.prepare("INSERT INTO ledgers (id, name, created_at) VALUES (?, ?, ?)");
-    for (const l of data.ledgers ?? []) {
-      insertLedger.run(l.id, l.name, l.createdAt);
+    if (data.ledgers !== undefined) {
+      db.prepare("DELETE FROM ledgers").run();
+      const insertLedger = db.prepare("INSERT INTO ledgers (id, name, created_at) VALUES (?, ?, ?)");
+      for (const l of data.ledgers) {
+        insertLedger.run(l.id, l.name, l.createdAt);
+      }
     }
 
     // 2. ledger_items（骨架，不含每日流水）
-    db.prepare("DELETE FROM ledger_items").run();
-    const insertItem = db.prepare(
-      "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, initial_stock, current_stock) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    );
-    for (const item of data.ledgerItems ?? []) {
-      insertItem.run(item.id, item.ledgerId, item.name, item.unit, item.spec ?? null, item.initialStock ?? 0, item.currentStock ?? 0);
+    if (data.ledgerItems !== undefined) {
+      db.prepare("DELETE FROM ledger_items").run();
+      const insertItem = db.prepare(
+        "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, initial_stock, current_stock) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      );
+      for (const item of data.ledgerItems) {
+        insertItem.run(item.id, item.ledgerId, item.name, item.unit, item.spec ?? null, item.initialStock ?? 0, item.currentStock ?? 0);
+      }
     }
 
     // 3. reports + prepared_items + prepared_item_daily_data（这部分历来完整包含在备份快照里，恢复时也要整体覆盖）
-    db.prepare("DELETE FROM reports").run();
-    db.prepare("DELETE FROM prepared_items").run();
-    db.prepare("DELETE FROM prepared_item_daily_data").run();
-    const insertReport = db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)");
-    const insertPreparedItem = db.prepare(
-      "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    const insertDailyData = db.prepare(
-      "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) VALUES (?, ?, ?, ?, ?)"
-    );
-    for (const report of data.reports ?? []) {
-      insertReport.run(report.targetGroup, report.year, report.month);
-      for (const item of report.items ?? []) {
-        insertPreparedItem.run(
-          item.id, report.targetGroup, report.year, report.month,
-          item.name, item.category, item.targetGroup, item.unit, item.note ?? null
-        );
-        for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
-          if (!dateStr || !entry) continue;
-          insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
+    if (data.reports !== undefined) {
+      db.prepare("DELETE FROM reports").run();
+      db.prepare("DELETE FROM prepared_items").run();
+      db.prepare("DELETE FROM prepared_item_daily_data").run();
+      const insertReport = db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)");
+      const insertPreparedItem = db.prepare(
+        "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
+      const insertDailyData = db.prepare(
+        "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) VALUES (?, ?, ?, ?, ?)"
+      );
+      for (const report of data.reports) {
+        insertReport.run(report.targetGroup, report.year, report.month);
+        for (const item of report.items ?? []) {
+          insertPreparedItem.run(
+            item.id, report.targetGroup, report.year, report.month,
+            item.name, item.category, item.targetGroup, item.unit, item.note ?? null
+          );
+          for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
+            if (!dateStr || !entry) continue;
+            insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
+          }
         }
       }
     }
 
     // 4. active_groups / active_categories
-    db.prepare("DELETE FROM active_groups").run();
-    const insertGroup = db.prepare("INSERT INTO active_groups (key, label, emoji, is_default) VALUES (?, ?, ?, ?)");
-    for (const g of data.activeGroups ?? []) {
-      insertGroup.run(g.key, g.label, g.emoji ?? null, g.isDefault ? 1 : 0);
+    if (data.activeGroups !== undefined) {
+      db.prepare("DELETE FROM active_groups").run();
+      const insertGroup = db.prepare("INSERT INTO active_groups (key, label, emoji, is_default) VALUES (?, ?, ?, ?)");
+      for (const g of data.activeGroups) {
+        insertGroup.run(g.key, g.label, g.emoji ?? null, g.isDefault ? 1 : 0);
+      }
     }
-    db.prepare("DELETE FROM active_categories").run();
-    const insertCategory = db.prepare("INSERT INTO active_categories (key, label, is_default) VALUES (?, ?, ?)");
-    for (const c of data.activeCategories ?? []) {
-      insertCategory.run(c.key, c.label, c.isDefault ? 1 : 0);
+    if (data.activeCategories !== undefined) {
+      db.prepare("DELETE FROM active_categories").run();
+      const insertCategory = db.prepare("INSERT INTO active_categories (key, label, is_default) VALUES (?, ?, ?)");
+      for (const c of data.activeCategories) {
+        insertCategory.run(c.key, c.label, c.isDefault ? 1 : 0);
+      }
     }
 
     // 5. raw_materials_dict
-    db.prepare("DELETE FROM raw_materials_dict").run();
-    const insertDictItem = db.prepare(
-      "INSERT INTO raw_materials_dict (name, category, unit, remark, conversion_unit, conversion_ratio, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    );
-    for (const d of data.rawMaterialsDict ?? []) {
-      insertDictItem.run(d.name, d.category, d.unit, d.remark ?? null, d.conversionUnit ?? null, d.conversionRatio ?? null, d.isDefault ? 1 : 0);
+    if (data.rawMaterialsDict !== undefined) {
+      db.prepare("DELETE FROM raw_materials_dict").run();
+      const insertDictItem = db.prepare(
+        "INSERT INTO raw_materials_dict (name, category, unit, remark, conversion_unit, conversion_ratio, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      );
+      for (const d of data.rawMaterialsDict) {
+        insertDictItem.run(d.name, d.category, d.unit, d.remark ?? null, d.conversionUnit ?? null, d.conversionRatio ?? null, d.isDefault ? 1 : 0);
+      }
     }
 
     // 6. ledger_helper_options
-    db.prepare("DELETE FROM ledger_helper_options").run();
-    const insertHelperOption = db.prepare("INSERT INTO ledger_helper_options (category, value, sort_order) VALUES (?, ?, ?)");
-    const helperDict = data.ledgerHelperDict ?? {};
-    for (const category of HELPER_DICT_CATEGORIES) {
-      const values: string[] = helperDict[category] ?? [];
-      values.forEach((value, idx) => insertHelperOption.run(category, value, idx));
+    if (data.ledgerHelperDict !== undefined) {
+      db.prepare("DELETE FROM ledger_helper_options").run();
+      const insertHelperOption = db.prepare("INSERT INTO ledger_helper_options (category, value, sort_order) VALUES (?, ?, ?)");
+      const helperDict = data.ledgerHelperDict;
+      for (const category of HELPER_DICT_CATEGORIES) {
+        const values: string[] = helperDict[category] ?? [];
+        values.forEach((value, idx) => insertHelperOption.run(category, value, idx));
+      }
     }
   }
 
