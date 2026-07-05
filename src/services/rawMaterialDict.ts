@@ -45,10 +45,6 @@ export class RawMaterialsDictService {
    * @returns 初始化的原料列表
    */
   public static initDict(): RawMaterialDictItem[] {
-    if (this.items.length > 0) {
-      return this.items;
-    }
-    this.generateDefaultSeeds();
     return this.items;
   }
 
@@ -71,9 +67,8 @@ export class RawMaterialsDictService {
         });
       }
     } else {
-      // generateDefaultSeeds() 内部已经会把整批种子数据以 replaceAll 的方式同步到后端，此处无需重复触发
-      this.generateDefaultSeeds();
-      LogBroker.publish("INFO", "RawMaterialsDictService", "服务器上无原料字典，系统已装载默认推荐原料种子大底库");
+      this.items = [];
+      LogBroker.publish("WARN", "RawMaterialsDictService", "未收到有效的服务端字典数据，可能处于断网状态或服务异常。");
     }
     return this.items;
   }
@@ -211,22 +206,6 @@ export class RawMaterialsDictService {
       { name: "沙白瓜", category: FoodCategory.FRUIT, unit: "斤", remark: "散装" },
       { name: "香蕉", category: FoodCategory.FRUIT, unit: "斤", remark: "" }
     ];
-  }
-
-  /**
-   * @description 生成预置的默认推荐原料种子数据（按用户提供的全量食堂底库重装），并统一标记为系统默认数据（isDefault:true），
-   * 默认数据仅允许后台编辑，不允许删除
-   */
-  private static generateDefaultSeeds(): void {
-    this.items = this.getDefaultSeedList().map((item) => ({ ...item, isDefault: true }));
-    // 批量种子数据生成场景，整批 replaceAll 覆盖，而非强行拆成逐条 upsert 枚举。
-    // 首次启动时这段代码运行在全局初始化 Promise.all 完成之前，此时 SyncHelper 尚处于未就绪锁定状态，
-    // 直接 queueChange 会被静默拦截丢弃（不会报错，但这批种子数据永远不会被持久化）；
-    // 必须用 runWhenInitialized 延后到初始化解锁之后再入队，否则首次启动生成的种子数据会永久丢失
-    // ——这不是假设性风险，是真实发生过的数据丢失事故。
-    SyncHelper.runWhenInitialized(() => {
-      SyncHelper.queueChange({ entity: "rawMaterial", op: "replaceAll", data: this.items });
-    });
   }
 
   /**

@@ -640,3 +640,11 @@
 
 **解决措施:**
 修改了 `src/services/store.ts` 中的 `queuePreparedItemUpsertOps` 方法，强制要求传入所依赖的 `reportTargetGroup`、`reportYear`、`reportMonth`，并在组装 `SyncHelper.queueChange` payload 时予以补充，确保服务端 SQLite 能够获取到完整的外键/联合主键依赖信息顺利入库，从而斩断由于事务回滚引发的心跳降级覆盖链条。
+
+## [2026/07/05] 服务端自动注入默认种子数据
+- **需求**: 服务器端全新部署，底层 SQLite 库中无数据时，要在后端直接生成默认种子数据，不要等前端发现再生成。
+- **改动**:
+  1. 修改了 `server/storageService.ts`，新增 `generateDefaultSeeds` 方法，通过 `countNormalizedRows(db) === 0` 判断实现 SQLite 全表空置时，在后端自动生成 3 大人群、6 大食材大类、完整的预设原料字典与报表矩阵。
+  2. 移除了前端 `src/services/store.ts`、`src/services/ledgerStore.ts` 和 `src/services/rawMaterialDict.ts` 中的 `generateInitialSeeds` / `generateSeeds` / `generateDefaultSeeds`，避免了前端发现数据为空再发往后端的滞后回写逻辑。
+  3. 修复了 Node.js 运行时对 `import.meta.env` 的兼容性问题（通过 `typeof process !== 'undefined'` 区分环境变量来源）。
+- **效果**: 首航启动时不再依赖前端同步，后端可立即为所有后续请求提供完整的默认空底座。

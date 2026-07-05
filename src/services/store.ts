@@ -165,29 +165,12 @@ export class PrepReportService {
               });
             }
           } else {
-            // 服务器上无数据或未同步成功时，降级使用默认种子数据进行填充初始化（统一标记 isDefault:true，仅允许编辑不允许删除）
-            this.activeGroups = [
-              { key: "KID", label: "幼儿", emoji: "👶", isDefault: true },
-              { key: "STUDENT", label: "在校生", emoji: "🎒", isDefault: true },
-              { key: "TEACHER", label: "教师", emoji: "👩‍🏫", isDefault: true }
-            ];
-            this.activeCategories = [
-              { key: "VEGETABLE", label: "蔬菜", isDefault: true },
-              { key: "GRAIN_OIL", label: "粮油", isDefault: true },
-              { key: "SEASONING", label: "调料", isDefault: true },
-              { key: "MEAT", label: "肉蛋", isDefault: true },
-              { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
-              { key: "FRUIT", label: "水果", isDefault: true }
-            ];
-            // 首次启动整批 replaceAll 落盘，与 generateInitialSeeds() 内部对 reports 的整批处理保持同一批量初始化语义。
-            // 这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪锁定状态，必须用
-            // runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘（真实发生过的数据丢失事故）
-            SyncHelper.runWhenInitialized(() => {
-              SyncHelper.queueChange({ entity: "activeGroup", op: "replaceAll", data: this.activeGroups });
-              SyncHelper.queueChange({ entity: "activeCategory", op: "replaceAll", data: this.activeCategories });
-            });
-            this.generateInitialSeeds();
-            LogBroker.publish("INFO", "PrepReportService", "服务器上无数据记录，系统已初始化备餐默认种子数据");
+            // 服务端现在负责注入初始数据。若到达此处，说明网络失败或未收到有效负载。
+            // 降级为空状态，不再主动在前端进行种子数据生成或覆盖推送
+            this.activeGroups = [];
+            this.activeCategories = [];
+            this.reports = [];
+            LogBroker.publish("WARN", "PrepReportService", "未收到有效的服务端报表数据，可能处于断网状态或服务异常。");
           }
           resolve(this.reports);
         } catch (error) {
@@ -417,67 +400,6 @@ export class PrepReportService {
     });
   }
 
-  /**
-   * @description 用预设值初始化种子数据
-   */
-  private static generateInitialSeeds(): void {
-    LogBroker.publish("INFO", "PrepReportService", "初始缓存缺失，正在合成第一款初始种子报表...");
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1; // 1-12
-    const targetGroups = this.activeGroups.map((g) => g.key);
-    const foodCategories = this.activeCategories.map((c) => c.key);
-
-    const initialReports: GroupMonthlyReport[] = targetGroups.map((group) => {
-      const items: PreparedItem[] = [];
-
-      foodCategories.forEach((cat) => {
-        const defaultNames = (PRESET_ITEMS_BY_CATEGORY as Record<string, string[]>)[cat] || ["预设原料"];
-        const defaultUnit = (CATEGORY_DEFAULT_UNITS as Record<string, string>)[cat] || "斤";
-
-        defaultNames.forEach((name, itemIndex) => {
-          const dailyData: Record<string, DailyEntry> = {};
-
-          for (let d = 1; d <= 31; d++) {
-            const initialQty = 0;
-            const initialPrice = 0;
-
-            dailyData[String(d)] = {
-              quantity: initialQty,
-              price: initialPrice,
-              amount: calculateEntryAmount(initialQty, initialPrice)
-            };
-          }
-
-          items.push({
-            id: `item_${group.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            name,
-            category: cat as FoodCategory,
-            targetGroup: group as TargetGroup,
-            unit: defaultUnit,
-            dailyData
-          });
-        });
-      });
-
-      return {
-        targetGroup: group as TargetGroup,
-        year: currentYear,
-        month: currentMonth,
-        items
-      };
-    });
-
-    this.reports = initialReports;
-    this.saveToStorage();
-    // 批量种子数据生成场景，整批 replaceAll 覆盖（含完整 31 天占位矩阵，与首次启动落盘的既有数据形态保持一致），
-    // 而非强行拆成逐条 upsert 枚举。这段代码运行在全局初始化 Promise.all 完成之前，SyncHelper 尚处于未就绪
-    // 锁定状态，必须用 runWhenInitialized 延后到解锁之后再入队，否则会被静默丢弃、永久不落盘
-    // （真实发生过的数据丢失事故）
-    SyncHelper.runWhenInitialized(() => {
-      SyncHelper.queueChange({ entity: "report", op: "replaceAll", data: initialReports });
-    });
-    LogBroker.publish("INFO", "PrepReportService", `共创建 ${targetGroups.length} 大目标人群、涵盖多品类的日矩阵底层种子数据。`);
-  }
 
 
   /**
