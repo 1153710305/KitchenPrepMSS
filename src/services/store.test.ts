@@ -136,7 +136,7 @@ describe("PrepReportService", () => {
       expect(result.items).toHaveLength(1);
       expect(result.items[0].name).toBe("土豆");
       expect(result.items[0].id).not.toBe("old_1");
-      expect(result.items[0].dailyData["1"]).toEqual({ quantity: 0, price: 0, amount: 0 });
+      expect(result.items[0].dailyData["1"]).toBeUndefined();
     });
 
     it("seeds default items from the active category list when there is no prior report for the group", () => {

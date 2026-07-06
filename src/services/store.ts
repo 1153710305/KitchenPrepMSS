@@ -177,9 +177,6 @@ export class PrepReportService {
         // 复制所有原料条目，但将每日数据置空
         items = latestReportForGroup.items.map((oldItem) => {
           const dailyData: Record<string, DailyEntry> = {};
-          for (let d = 1; d <= 31; d++) {
-            dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
-          }
           return {
             ...oldItem,
             id: `item_${targetGroup.toLowerCase()}_${oldItem.category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -195,9 +192,6 @@ export class PrepReportService {
 
           defaultNames.forEach((name) => {
             const dailyData: Record<string, DailyEntry> = {};
-            for (let d = 1; d <= 31; d++) {
-              dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
-            }
             items.push({
               id: `item_${targetGroup.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
               name,
