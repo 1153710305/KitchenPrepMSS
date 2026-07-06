@@ -438,12 +438,7 @@ export class StorageService {
         INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
-      // 每次启动时清理历史残留的无效每日零数据（针对旧版预先用0塞满31天带来的垃圾数据）
-      try {
-        StorageService.db.prepare("DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0").run();
-      } catch (e) {
-        console.warn("Cleanup of daily zero data failed:", e);
-      }
+      // 每日零数据清理（已废弃 prepared_item_daily_data）
 
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
         if (process.env.SKIP_SEEDING === "1") {
@@ -518,34 +513,7 @@ export class StorageService {
       }
     }
 
-    // 3. reports + prepared_items + prepared_item_daily_data（这部分历来完整包含在备份快照里，恢复时也要整体覆盖）
-    if (data.reports !== undefined) {
-      db.prepare("DELETE FROM reports").run();
-      db.prepare("DELETE FROM prepared_items").run();
-      db.prepare("DELETE FROM prepared_item_daily_data").run();
-      const insertReport = db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)");
-      const insertPreparedItem = db.prepare(
-        "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      );
-      const insertDailyData = db.prepare(
-        "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) VALUES (?, ?, ?, ?, ?)"
-      );
-      for (const report of data.reports) {
-        insertReport.run(report.targetGroup, report.year, report.month);
-        for (const item of report.items ?? []) {
-          insertPreparedItem.run(
-            item.id, report.targetGroup, report.year, report.month,
-            item.name, item.category, item.targetGroup, item.unit, item.note ?? null
-          );
-          for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
-            if (!dateStr || !entry) continue;
-            // 过滤无意义的0数据，数据库瘦身
-            if ((entry.quantity ?? 0) === 0 && (entry.amount ?? 0) === 0) continue;
-            insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
-          }
-        }
-      }
-    }
+
 
     // 4. active_groups / active_categories
     if (data.activeGroups !== undefined) {
@@ -811,25 +779,6 @@ export class StorageService {
           for (const [dateStr, record] of Object.entries(item.dailyRecords ?? {}) as [string, any][]) {
             if (!dateStr || !record) continue;
             stmts.get("upsertDailyRecord")!.run(StorageService.toDailyRecordParams(item.id, dateStr, record));
-          }
-        }
-        break;
-
-      case "report":
-        db.prepare("DELETE FROM prepared_item_daily_data").run();
-        db.prepare("DELETE FROM prepared_items").run();
-        db.prepare("DELETE FROM reports").run();
-        for (const report of rows) {
-          stmts.get("upsertReport")!.run(report.targetGroup, report.year, report.month);
-          for (const item of report.items ?? []) {
-            stmts.get("upsertPreparedItem")!.run({
-              id: item.id, reportTargetGroup: report.targetGroup, reportYear: report.year, reportMonth: report.month,
-              name: item.name, category: item.category, targetGroup: item.targetGroup, unit: item.unit, note: item.note ?? null
-            });
-            for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
-              if (!dateStr || !entry) continue;
-              stmts.get("upsertDailyData")!.run({ itemId: item.id, date: dateStr, quantity: entry.quantity ?? 0, price: entry.price ?? 0, amount: entry.amount ?? 0 });
-            }
           }
         }
         break;
