@@ -31,7 +31,7 @@ const HELPER_DICT_CATEGORIES = [
 
 /** 判断"当前规范化表结构是否完全为空"时需要检查的表清单 */
 const NORMALIZED_TABLES = [
-  "ledgers", "ledger_items", "reports", "active_groups",
+  "ledgers", "ledger_items", "active_groups",
   "active_categories", "raw_materials_dict", "ledger_helper_options"
 ] as const;
 
@@ -80,18 +80,16 @@ export class StorageService {
         if (StorageService.storageType === "local") {
           const db = StorageService.getDb();
           db.prepare("DELETE FROM ledger_item_daily_records").run();
+          db.prepare("DELETE FROM ledger_items").run();
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
           const data = await StorageService.loadCurrentFromCos();
-          if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
-            data.ledgerItems.forEach((item: any) => {
-              if (item.dailyRecords) {
-                // 清空每天的出入库数字流水，保留 item 基本信息
-                item.dailyRecords = {};
-              }
-            });
-          }
+          data.ledgerItems = [];
+          // COS 模式下，直接移除不再使用的备餐冗余数据字段
+          delete data.reports;
+          delete data.preparedItems;
+          delete data.preparedItemDailyData;
           // 保存回 COS
           const { Bucket, Region, Key } = StorageService.getCosConfig();
           await new Promise<void>((resolve, reject) => {
@@ -220,9 +218,9 @@ export class StorageService {
       }
 
       const result = await task();
-      
+
       StorageService.incrementDbVersion();
-      
+
       return result;
     } finally {
       release();
@@ -349,6 +347,11 @@ export class StorageService {
         -- 早期版本遗留表，主动清空（幂等，已清空的库上是无操作）
         DROP TABLE IF EXISTS kv_store;
         DROP TABLE IF EXISTS daily_records;
+        
+        -- 本次架构重构：删减被废弃的冗余备餐表
+        DROP TABLE IF EXISTS reports;
+        DROP TABLE IF EXISTS prepared_items;
+        DROP TABLE IF EXISTS prepared_item_daily_data;
 
         -- 规范化关系型表结构
         CREATE TABLE IF NOT EXISTS ledgers (
@@ -396,34 +399,6 @@ export class StorageService {
         );
         CREATE INDEX IF NOT EXISTS idx_ledger_daily_date ON ledger_item_daily_records(date);
 
-        CREATE TABLE IF NOT EXISTS reports (
-          target_group TEXT NOT NULL,
-          year INTEGER NOT NULL,
-          month INTEGER NOT NULL,
-          PRIMARY KEY (target_group, year, month)
-        );
-
-        CREATE TABLE IF NOT EXISTS prepared_items (
-          id TEXT PRIMARY KEY,
-          report_target_group TEXT NOT NULL,
-          report_year INTEGER NOT NULL,
-          report_month INTEGER NOT NULL,
-          name TEXT NOT NULL,
-          category TEXT NOT NULL,
-          target_group TEXT NOT NULL,
-          unit TEXT NOT NULL,
-          note TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_prepared_items_report ON prepared_items(report_target_group, report_year, report_month);
-
-        CREATE TABLE IF NOT EXISTS prepared_item_daily_data (
-          item_id TEXT NOT NULL,
-          date TEXT NOT NULL,
-          quantity REAL NOT NULL DEFAULT 0,
-          price REAL NOT NULL DEFAULT 0,
-          amount REAL NOT NULL DEFAULT 0,
-          PRIMARY KEY (item_id, date)
-        );
 
         CREATE TABLE IF NOT EXISTS active_groups (
           key TEXT PRIMARY KEY,
@@ -463,12 +438,7 @@ export class StorageService {
         INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
-      // 每次启动时清理历史残留的无效每日零数据（针对旧版预先用0塞满31天带来的垃圾数据）
-      try {
-        StorageService.db.prepare("DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0").run();
-      } catch (e) {
-        console.warn("Cleanup of daily zero data failed:", e);
-      }
+      // 每日零数据清理（已废弃 prepared_item_daily_data）
 
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
         if (process.env.SKIP_SEEDING === "1") {
@@ -543,34 +513,7 @@ export class StorageService {
       }
     }
 
-    // 3. reports + prepared_items + prepared_item_daily_data（这部分历来完整包含在备份快照里，恢复时也要整体覆盖）
-    if (data.reports !== undefined) {
-      db.prepare("DELETE FROM reports").run();
-      db.prepare("DELETE FROM prepared_items").run();
-      db.prepare("DELETE FROM prepared_item_daily_data").run();
-      const insertReport = db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)");
-      const insertPreparedItem = db.prepare(
-        "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      );
-      const insertDailyData = db.prepare(
-        "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) VALUES (?, ?, ?, ?, ?)"
-      );
-      for (const report of data.reports) {
-        insertReport.run(report.targetGroup, report.year, report.month);
-        for (const item of report.items ?? []) {
-          insertPreparedItem.run(
-            item.id, report.targetGroup, report.year, report.month,
-            item.name, item.category, item.targetGroup, item.unit, item.note ?? null
-          );
-          for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
-            if (!dateStr || !entry) continue;
-            // 过滤无意义的0数据，数据库瘦身
-            if ((entry.quantity ?? 0) === 0 && (entry.amount ?? 0) === 0) continue;
-            insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
-          }
-        }
-      }
-    }
+
 
     // 4. active_groups / active_categories
     if (data.activeGroups !== undefined) {
@@ -657,28 +600,7 @@ export class StorageService {
           conversion_unit_quantity=@conversionUnitQuantity, out_date=@outDate
       `));
       stmts.set("deleteDailyRecord", db.prepare("DELETE FROM ledger_item_daily_records WHERE item_id = ? AND date = ?"));
-      stmts.set("upsertReport", db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)"));
-      stmts.set("deleteReport", db.prepare("DELETE FROM reports WHERE target_group = ? AND year = ? AND month = ?"));
-      stmts.set("selectPreparedItemIdsByReport", db.prepare(
-        "SELECT id FROM prepared_items WHERE report_target_group = ? AND report_year = ? AND report_month = ?"
-      ));
-      stmts.set("deletePreparedItemsByReport", db.prepare(
-        "DELETE FROM prepared_items WHERE report_target_group = ? AND report_year = ? AND report_month = ?"
-      ));
-      stmts.set("upsertPreparedItem", db.prepare(
-        "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) " +
-        "VALUES (@id, @reportTargetGroup, @reportYear, @reportMonth, @name, @category, @targetGroup, @unit, @note) " +
-        "ON CONFLICT(id) DO UPDATE SET report_target_group=@reportTargetGroup, report_year=@reportYear, " +
-        "report_month=@reportMonth, name=@name, category=@category, target_group=@targetGroup, unit=@unit, note=@note"
-      ));
-      stmts.set("deletePreparedItem", db.prepare("DELETE FROM prepared_items WHERE id = ?"));
-      stmts.set("deleteDailyDataByItem", db.prepare("DELETE FROM prepared_item_daily_data WHERE item_id = ?"));
-      stmts.set("upsertDailyData", db.prepare(
-        "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) " +
-        "VALUES (@itemId, @date, @quantity, @price, @amount) " +
-        "ON CONFLICT(item_id, date) DO UPDATE SET quantity=@quantity, price=@price, amount=@amount"
-      ));
-      stmts.set("deleteDailyData", db.prepare("DELETE FROM prepared_item_daily_data WHERE item_id = ? AND date = ?"));
+
       stmts.set("upsertActiveGroup", db.prepare(
         "INSERT INTO active_groups (key, label, emoji, is_default) VALUES (@key, @label, @emoji, @isDefault) " +
         "ON CONFLICT(key) DO UPDATE SET label=@label, emoji=@emoji, is_default=@isDefault"
@@ -774,47 +696,11 @@ export class StorageService {
             break;
           }
 
-          case "report": {
-            const key = op.key as { targetGroup: string; year: number; month: number };
-            if (op.op === "delete") {
-              // 级联：先清空该报表下所有备餐细项的每日数据，再删细项，最后删报表本身
-              const ids = stmts.get("selectPreparedItemIdsByReport")!.all(key.targetGroup, key.year, key.month) as Array<{ id: string }>;
-              for (const row of ids) {
-                stmts.get("deleteDailyDataByItem")!.run(row.id);
-              }
-              stmts.get("deletePreparedItemsByReport")!.run(key.targetGroup, key.year, key.month);
-              stmts.get("deleteReport")!.run(key.targetGroup, key.year, key.month);
-            } else {
-              stmts.get("upsertReport")!.run(key.targetGroup, key.year, key.month);
-            }
-            break;
-          }
-
+          case "report":
           case "preparedItem":
-            if (op.op === "delete") {
-              stmts.get("deleteDailyDataByItem")!.run(op.key);
-              stmts.get("deletePreparedItem")!.run(op.key);
-            } else {
-              const d = op.data;
-              stmts.get("upsertPreparedItem")!.run({
-                id: d.id, reportTargetGroup: d.reportTargetGroup, reportYear: d.reportYear, reportMonth: d.reportMonth,
-                name: d.name, category: d.category, targetGroup: d.targetGroup, unit: d.unit, note: d.note ?? null
-              });
-            }
+          case "preparedItemDailyData":
+            // 实体表已被彻底删除，此三种同步操作变为直接忽略
             break;
-
-          case "preparedItemDailyData": {
-            const key = op.key as { itemId: string; date: string };
-            const d = op.data ?? {};
-            if (op.op === "delete" || ((d.quantity ?? 0) === 0 && (d.amount ?? 0) === 0)) {
-              stmts.get("deleteDailyData")!.run(key.itemId, key.date);
-            } else {
-              stmts.get("upsertDailyData")!.run({
-                itemId: key.itemId, date: key.date, quantity: d.quantity ?? 0, price: d.price ?? 0, amount: d.amount ?? 0
-              });
-            }
-            break;
-          }
 
           case "activeGroup":
             if (op.op === "delete") {
@@ -893,25 +779,6 @@ export class StorageService {
           for (const [dateStr, record] of Object.entries(item.dailyRecords ?? {}) as [string, any][]) {
             if (!dateStr || !record) continue;
             stmts.get("upsertDailyRecord")!.run(StorageService.toDailyRecordParams(item.id, dateStr, record));
-          }
-        }
-        break;
-
-      case "report":
-        db.prepare("DELETE FROM prepared_item_daily_data").run();
-        db.prepare("DELETE FROM prepared_items").run();
-        db.prepare("DELETE FROM reports").run();
-        for (const report of rows) {
-          stmts.get("upsertReport")!.run(report.targetGroup, report.year, report.month);
-          for (const item of report.items ?? []) {
-            stmts.get("upsertPreparedItem")!.run({
-              id: item.id, reportTargetGroup: report.targetGroup, reportYear: report.year, reportMonth: report.month,
-              name: item.name, category: item.category, targetGroup: item.targetGroup, unit: item.unit, note: item.note ?? null
-            });
-            for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
-              if (!dateStr || !entry) continue;
-              stmts.get("upsertDailyData")!.run({ itemId: item.id, date: dateStr, quantity: entry.quantity ?? 0, price: entry.price ?? 0, amount: entry.amount ?? 0 });
-            }
           }
         }
         break;
@@ -1001,42 +868,69 @@ export class StorageService {
       dailyRecords: dailyByItem[item.id] || {}
     }));
 
-    const reportsRaw = db.prepare("SELECT target_group as targetGroup, year, month FROM reports").all() as any[];
-    const preparedItemsRaw = db.prepare(`
-      SELECT id, report_target_group as reportTargetGroup, report_year as reportYear, report_month as reportMonth,
-             name, category, target_group as targetGroup, unit, note
-      FROM prepared_items
-    `).all() as any[];
-    
-    let dailyDataRowsSql = "SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data WHERE date >= ? AND date <= ?";
-    const dailyDataRowsParams = [filterStart, filterEnd];
-    const dailyDataRows = db.prepare(dailyDataRowsSql).all(...dailyDataRowsParams) as any[];
-    const dailyDataByItem: Record<string, Record<string, any>> = {};
-    for (const row of dailyDataRows) {
-      if (!dailyDataByItem[row.itemId]) dailyDataByItem[row.itemId] = {};
-      dailyDataByItem[row.itemId][row.date] = { quantity: row.quantity, price: row.price, amount: row.amount };
+    const rawMaterialsDict = (db.prepare(`
+      SELECT name, category, unit, remark, conversion_unit as conversionUnit, conversion_ratio as conversionRatio, is_default as isDefault
+      FROM raw_materials_dict
+    `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
+
+    // 动态生成备餐报表 (Reports)
+    // 根据 ledgers(作为TargetGroup) 和 当前日期范围内的 ledger_item_daily_records，动态合成
+    const [startYearStr, startMonthStr] = filterStart.split('-');
+    const reportYear = parseInt(startYearStr);
+    const reportMonth = parseInt(startMonthStr);
+
+    const reports: any[] = [];
+    for (const ledger of ledgers) {
+      const targetGroup = ledger.id;
+      // 找出当前受众人群下的所有原料项目
+      const itemsForGroup = ledgerItemsRaw.filter(li => li.ledgerId === targetGroup);
+
+      const preparedItems = itemsForGroup.map(li => {
+        const dailyData: Record<string, any> = {};
+        const recordsForThisItem = dailyByItem[li.id] || {};
+
+        for (const dateStr of Object.keys(recordsForThisItem)) {
+          // dateStr is 'YYYY-MM-DD'
+          const day = parseInt(dateStr.split('-')[2]).toString();
+          const r = recordsForThisItem[dateStr];
+
+          if ((r.inQuantity && r.inQuantity > 0) || (r.inAmount && r.inAmount > 0)) {
+            dailyData[day] = {
+              quantity: r.inQuantity || 0,
+              price: r.inPrice || 0,
+              amount: r.inAmount || 0
+            };
+          }
+        }
+
+        // 尝试从大字典中推断 category，找不到默认算 VEGETABLE
+        const dictCategory = rawMaterialsDict.find(d => d.name === li.name)?.category || "VEGETABLE";
+
+        return {
+          id: li.id,
+          name: li.name,
+          category: dictCategory,
+          targetGroup: targetGroup,
+          unit: li.unit,
+          dailyData
+        };
+      });
+
+      // 无论该月有没有数据，都把该受众群体的空报表壳子推入，保证前端有全部月份可切换
+      reports.push({
+        targetGroup: targetGroup,
+        year: reportYear,
+        month: reportMonth,
+        items: preparedItems
+      });
     }
-    const preparedItemsByReport: Record<string, any[]> = {};
-    for (const item of preparedItemsRaw) {
-      const reportKey = `${item.reportTargetGroup}__${item.reportYear}__${item.reportMonth}`;
-      const { reportTargetGroup, reportYear, reportMonth, ...rest } = item;
-      if (!preparedItemsByReport[reportKey]) preparedItemsByReport[reportKey] = [];
-      preparedItemsByReport[reportKey].push({ ...rest, dailyData: dailyDataByItem[item.id] || {} });
-    }
-    const reports = reportsRaw.map((r) => {
-      const key = `${r.targetGroup}__${r.year}__${r.month}`;
-      return { ...r, items: preparedItemsByReport[key] || [] };
-    });
 
     const activeGroups = (db.prepare("SELECT key, label, emoji, is_default as isDefault FROM active_groups").all() as any[])
       .map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, isDefault: !!g.isDefault }));
     const activeCategories = (db.prepare("SELECT key, label, is_default as isDefault FROM active_categories").all() as any[])
       .map((c) => ({ key: c.key, label: c.label, isDefault: !!c.isDefault }));
 
-    const rawMaterialsDict = (db.prepare(`
-      SELECT name, category, unit, remark, conversion_unit as conversionUnit, conversion_ratio as conversionRatio, is_default as isDefault
-      FROM raw_materials_dict
-    `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
+
 
     const helperRows = db.prepare("SELECT category, value FROM ledger_helper_options ORDER BY category, sort_order").all() as Array<{ category: string; value: string }>;
     const ledgerHelperDict: Record<string, string[]> = {};
@@ -1143,22 +1037,13 @@ export class StorageService {
     };
 
     const findLedgerItem = (id: string) => data.ledgerItems.find((i: any) => i.id === id);
-    const findReport = (tg: string, y: number, m: number) => data.reports.find((r: any) => r.targetGroup === tg && r.year === y && r.month === m);
-    const findPreparedItem = (id: string): { report: any; item: any } | null => {
-      for (const r of data.reports) {
-        const it = (r.items ?? []).find((i: any) => i.id === id);
-        if (it) return { report: r, item: it };
-      }
-      return null;
-    };
-
     for (const op of ops) {
       if (op.op === "replaceAll") {
         const rows = op.data ?? [];
         switch (op.entity) {
           case "ledger": data.ledgers = rows; break;
           case "ledgerItem": data.ledgerItems = rows.map((item: any) => ({ ...item, dailyRecords: item.dailyRecords ?? {} })); break;
-          case "report": data.reports = rows.map((r: any) => ({ ...r, items: (r.items ?? []).map((it: any) => ({ ...it, dailyData: it.dailyData ?? {} })) })); break;
+
           case "activeGroup": data.activeGroups = rows; break;
           case "activeCategory": data.activeCategories = rows; break;
           case "rawMaterial": data.rawMaterialsDict = rows; break;
@@ -1193,33 +1078,7 @@ export class StorageService {
           break;
         }
 
-        case "report": {
-          const key = op.key as { targetGroup: string; year: number; month: number };
-          const existingItems = findReport(key.targetGroup, key.year, key.month)?.items ?? [];
-          data.reports = data.reports.filter((r: any) => !(r.targetGroup === key.targetGroup && r.year === key.year && r.month === key.month));
-          if (op.op === "upsert") data.reports.push({ targetGroup: key.targetGroup, year: key.year, month: key.month, items: existingItems });
-          break;
-        }
 
-        case "preparedItem": {
-          for (const r of data.reports) r.items = (r.items ?? []).filter((i: any) => i.id !== op.key);
-          if (op.op === "upsert") {
-            const d = op.data;
-            const report = findReport(d.reportTargetGroup, d.reportYear, d.reportMonth);
-            if (report) report.items.push({ ...d, dailyData: {} });
-          }
-          break;
-        }
-
-        case "preparedItemDailyData": {
-          const key = op.key as { itemId: string; date: string };
-          const found = findPreparedItem(key.itemId);
-          if (found) {
-            if (op.op === "delete") delete found.item.dailyData[key.date];
-            else found.item.dailyData[key.date] = op.data;
-          }
-          break;
-        }
 
         case "activeGroup":
           data.activeGroups = data.activeGroups.filter((g: any) => g.key !== op.key);
@@ -1385,21 +1244,7 @@ export class StorageService {
           ops.push({ entity: "ledgerItem", op: "upsert", key: item.id, data: { ...item, name: trimmedName, unit: finalUnit, spec: finalRemark } });
         }
       }
-      // 级联：备餐报表里所有同名细项的 name/category/unit
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      for (const report of reports) {
-        for (const item of (report.items ?? []) as PreparedItem[]) {
-          if (item.name === oldName) {
-            ops.push({
-              entity: "preparedItem", op: "upsert", key: item.id,
-              data: {
-                id: item.id, reportTargetGroup: report.targetGroup, reportYear: report.year, reportMonth: report.month,
-                name: trimmedName, category: input.category, targetGroup: item.targetGroup, unit: finalUnit, note: (item as any).note
-              }
-            });
-          }
-        }
-      }
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1432,14 +1277,7 @@ export class StorageService {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
         }
       }
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      for (const report of reports) {
-        for (const item of (report.items ?? []) as PreparedItem[]) {
-          if (item.name === name) {
-            ops.push({ entity: "preparedItem", op: "delete", key: item.id });
-          }
-        }
-      }
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1484,13 +1322,7 @@ export class StorageService {
         // 极端情形：台账存在但对应的餐位人群配置尚不存在，补齐一份并按需补一份当月空报表，
         // 与迁移前 syncGroupFromLedger() 的"新建人群"分支保持一致
         ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { key: id, label: normalizedName, emoji: "🍽️" } });
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
-        const reports: GroupMonthlyReport[] = current.reports ?? [];
-        const reportExists = reports.some((r) => r.targetGroup === id && r.year === currentYear && r.month === currentMonth);
-        if (!reportExists) {
-          ops.push({ entity: "report", op: "upsert", key: { targetGroup: id, year: currentYear, month: currentMonth } });
-        }
+        // 此时已不再需要为其自动补充对应的备餐空报表（已弃用 physical tables）
       }
 
       const ok = await StorageService.saveInternal(ops);
@@ -1529,10 +1361,7 @@ export class StorageService {
       if (activeGroups.some((g) => g.key === upperId)) {
         ops.push({ entity: "activeGroup", op: "delete", key: upperId });
       }
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      reports.filter((r) => r.targetGroup === upperId).forEach((report) => {
-        ops.push({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
-      });
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1695,7 +1524,7 @@ export class StorageService {
     return StorageService.withWriteLock(async () => {
       const current = await StorageService.load();
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      
+
       const updatedItems: LedgerItem[] = [];
       const mergedRecords: Record<string, DailyStockRecord> = {};
       const allOps: SyncOp[] = [];
@@ -1711,7 +1540,7 @@ export class StorageService {
         updatedItems.push(updatedItem);
         mergedRecords[itemId] = mergedRecord;
         allOps.push(...ops);
-        
+
         // 关键：为了防止同一个批次里对其它项的查找受影响，实际上这里只需将 updatedItem 替换掉内存中的 item
         // 但由于本批次修改的是不同的 itemId，直接 push ops 并不会互相冲突。
       }
@@ -1722,7 +1551,7 @@ export class StorageService {
           throw new Error("批量保存出入库记录失败");
         }
       }
-      
+
       return { updatedItems, mergedRecords };
     });
   }

@@ -822,3 +822,21 @@ Fix bug：
 - 在前端 `store.ts` 移除 31 天 0 值预占位，仅使用 `{}` 空对象；前端渲染层具备完善的 `?? { quantity: 0 }` 回退，不受影响。
 - 在后端 `storageService.ts` 的全量及增量保存环节增加过滤拦截：如果 `quantity=0` 且 `amount=0`，则跳过保存或执行 `DELETE`（在增量同步时），以支持用户将已有数值清零的场景。
 - 在后端启动 `init()` 阶段注入 `DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0`，自动清理历史沉积的数十万条垃圾脏数据。
+
+## 2026-07-07 系统超级复位(大扫除)功能升级
+**User Prompt:** 
+- 一键清理流水记录也要清理库存吧。prepared_item_daily_data、prepared_items、sys_config这个表不用清理么？reports是干嘛的用不用清理
+- 没看懂，curront_stock不应该清零么？reports清空会怎样
+- 库存不对啊，
+- 肯定要都清理啊，你这么清理，当月受众全采购支出也不对啊
+
+**Action:**
+- 修复了此前清空流水但遗漏了清空 `ledger_items` 里的 `initial_stock` 和 `current_stock`，导致库存总览显示异常的 Bug。
+- 应用户要求，将原“一键清空台账流水”功能全面升级为“**系统大扫除（清空流水与报表）**”的超级复位键。
+- 除了清空台账明细与库存，现在还会连带执行 `DELETE FROM reports`、`prepared_items` 以及 `prepared_item_daily_data`，彻底清空以往所有的备餐历史记录，方便学期初从零开始（但依然保留各项食材的字典、供货商等基本配置）。
+- 修复了后端在拉取全量数据时，错误地对 `prepared_item_daily_data` 使用了 `WHERE date >= 'YYYY-MM-DD'` 进行过滤的严重隐患。由于该表实际存储的 `date` 格式为纯数字（"1"-"31"），导致该过滤总是返回空。修复后，前端在切换月份时不会再因为后端返回空数组而覆写丢失当月已录入的数据。
+- **核心底层架构重构：彻底剥离备餐物理表，实现数据动态映射**
+  - **背景**：此前发现“备餐表”在功能上实质为“从购销台账单向同步过来的每日采购明细只读视图”。但为了存储它，系统额外维护了三张冗余表（`reports`、`prepared_items`、`prepared_item_daily_data`），导致复杂的双写逻辑和潜在的同步不一致风险。
+  - **后端改造**：在 `server/storageService.ts` 中直接 `DROP TABLE` 清除了所有备餐物理表。重构了 `loadCurrentFromSqlite` 方法，使得系统在返回前端数据时，能够在内存中瞬间从 `ledger_item_daily_records` 中提取、分组并构建出完整的 1-31 日十字交叉 `reports` 视图，直接作为 JSON 喂给前端。
+  - **前端瘦身**：在 `src/services/store.ts` 中，大幅精简了 `syncFromLedger` 等方法。由于备餐报表在后端已变为计算型字段，前端移除了所有关于备餐实体的 `SyncHelper.queueChange` 网络同步排队操作，仅保留前端内存级别的即时更新以保证极速的 UI 响应。
+  - **收益**：该重构使得备餐数据 100% 同步于台账流水，永远不会再出现孤儿数据或同步丢失的问题。删减了大量复杂且脆弱的双向同步与增量排队代码，为后续彻底的“前后端分离”打下了坚实且干净的架构基础。

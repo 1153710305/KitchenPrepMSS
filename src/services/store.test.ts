@@ -46,7 +46,7 @@ const makeReport = (overrides: Partial<GroupMonthlyReport> = {}): GroupMonthlyRe
   items: overrides.items || []
 });
 
-const okResponse = (body: any) => ({ ok: true, json: async () => ({ success: true, ...body }) });
+const okResponse = (body: any) => ({ ok: true, headers: new Headers(), json: async () => ({ success: true, ...body }) });
 const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
 
 /**
