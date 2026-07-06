@@ -98,7 +98,8 @@ export function LedgerPrintStyle2Consumable({
         const emptyRowsCount = Math.max(0, rowsPerPage - pageData.length);
 
         return (
-          <div key={pageIndex} style={{ pageBreakAfter: isLastPage ? "auto" : "always", position: "relative" }}>
+          <div key={pageIndex}>
+            <div style={{ position: "relative" }}>
             {/* 标题区：标题+日期作为一个左对齐整体块居中摆放 */}
             <div className="mb-3 relative" style={{ display: "flex", justifyContent: "center" }}>
               <div className="text-left">
@@ -211,6 +212,8 @@ export function LedgerPrintStyle2Consumable({
                 ))}
               </tbody>
             </table>
+            </div>
+            {!isLastPage && <div style={{ breakAfter: "page", pageBreakAfter: "always", height: 0, overflow: "hidden" }}></div>}
           </div>
         );
       })}

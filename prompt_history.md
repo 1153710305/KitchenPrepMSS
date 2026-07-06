@@ -796,3 +796,16 @@ Fix bug：
 
 **Action:**
 - 修复了 LedgerPrintPreviewOverlay 组件未脱离 React 根容器导致打印引擎视窗裁剪的 Bug，采用 `createPortal` 将遮罩挂载到 `document.body`，并通过 `@media print` 隐藏了 `#root`，确保底层原生打印机正确识别并分割纸张页数。
+
+## 2026-07-06 懒加载重构优化
+- 如果前端不好计算，都放服务端计算在返回给前端，可以多加接口，但是要保证性能和数据安全。如果数据放在内存中不好判断是否是最新数据就每次都加载一遍，最好有办法判断数据有没有更新，没有就不用加载
+- 先提交
+
+## 2026-07-06 打印分页修复与管理后台功能确认
+**User Prompt:** 
+- 打印分页的问题
+- 继续下一项开发
+
+**Action:**
+- 修复了图一、图二以及消耗品流水打印时的 CSS 分页失效问题（脱离 `pageBreakAfter` 约束限制，采用独立的 `<div style={{ breakAfter: "page", pageBreakAfter: "always" }} />` 进行分页强制切断）。
+- 确认“在管理增加一个一键清空所有台账记录的功能... 密码配置在.env中...”已在之前的提交中通过 `AdminSystemTab.tsx` 和 `server/routes/system.ts` 实现。

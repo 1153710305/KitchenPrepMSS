@@ -41,10 +41,28 @@ if (process.env.PORT && PORT !== parsedPort) {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+import { RequestContext, StorageService } from "./server/storageService.ts";
+
 // 记录请求日志中转器
 app.use((req, res, next) => {
   console.log(`[HTTP LOG] [${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
+  
+  const baseVersionStr = req.header("X-Base-Version");
+  const baseVersion = baseVersionStr ? parseInt(baseVersionStr, 10) : undefined;
+  
+  // 拦截所有的 res.json 响应，在发出前附带最新的数据库版本号
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (StorageService.getDbVersion) {
+      res.setHeader("X-New-Version", StorageService.getDbVersion().toString());
+    }
+    return originalJson.call(this, body);
+  };
+  
+  // 将基础版本号存入全局上下文，供底层的 withWriteLock 提取校验
+  RequestContext.run({ baseVersion }, () => {
+    next();
+  });
 });
 
 // 挂载数据持久化相关路由 (/api/storage/load|save)
@@ -98,6 +116,9 @@ async function bootstrap() {
 
   // 挂载全局路由执行错误捕获器，确保服务端异常不引起停机且保留堆栈日志
   app.use((err: any, req: any, res: any, next: any) => {
+    if (err.message === "VERSION_CONFLICT") {
+      return res.status(409).json({ error: "数据已被其他终端修改，请刷新页面获取最新数据后重试" });
+    }
     const errMsg = err instanceof Error ? `${err.message}\nStack: ${err.stack}` : String(err);
     console.error("[HTTP ERROR] 路由遭遇运行时内部执行异常:", err);
     LogService.write("ERROR", "ExpressRouter", `URL: ${req.method} ${req.url} - ${errMsg}`);

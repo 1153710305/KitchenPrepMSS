@@ -15,6 +15,7 @@
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { AsyncLocalStorage } from "async_hooks";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
 import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../src/constants/constants.ts";
@@ -53,6 +54,8 @@ export interface SyncOp {
   previousKey?: any;
 }
 
+export const RequestContext = new AsyncLocalStorage<{ baseVersion?: number }>();
+
 /**
  * @description 后端持久化数据同步引擎，支持本地 SQLite 与腾讯云 COS 对象存储双模式切换
  */
@@ -79,18 +82,29 @@ export class StorageService {
           db.prepare("DELETE FROM ledger_item_daily_records").run();
           return true;
         } else {
-          // COS 模式下，直接修改全量数据并上传
-          const data = await StorageService.loadCosData();
-          if (data.ledgers) {
-            for (const ledger of data.ledgers) {
-              if (ledger.items) {
-                for (const item of ledger.items) {
-                  item.dailyRecords = {};
-                }
+          // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
+          const data = await StorageService.loadCurrentFromCos();
+          if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
+            data.ledgerItems.forEach((item: any) => {
+              if (item.dailyRecords) {
+                // 清空每天的出入库数字流水，保留 item 基本信息
+                item.dailyRecords = {};
               }
-            }
+            });
           }
-          await StorageService.saveCosData(data);
+          // 保存回 COS
+          const { Bucket, Region, Key } = StorageService.getCosConfig();
+          await new Promise<void>((resolve, reject) => {
+            StorageService.getCosClient().putObject({
+              Bucket,
+              Region,
+              Key,
+              Body: JSON.stringify(data, null, 2)
+            }, (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
           return true;
         }
       } catch (err: any) {
@@ -148,6 +162,30 @@ export class StorageService {
   private static writeLock: Promise<void> = Promise.resolve();
 
   /**
+   * @description 获取当前数据库版本号
+   */
+  public static getDbVersion(): number {
+    if (StorageService.storageType === "local" && StorageService.db) {
+      try {
+        const row = StorageService.db.prepare("SELECT value FROM sys_config WHERE key = 'db_version'").get() as { value: string } | undefined;
+        return row ? parseInt(row.value, 10) : 1;
+      } catch (err) {
+        return 1;
+      }
+    }
+    return 1;
+  }
+
+  /**
+   * @description 递增当前数据库版本号
+   */
+  private static incrementDbVersion(): void {
+    if (StorageService.storageType === "local" && StorageService.db) {
+      StorageService.db.prepare("UPDATE sys_config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'db_version'").run();
+    }
+  }
+
+  /**
    * @description 把一个异步任务放入写锁队列：等前面所有排队中的任务完成后再执行当前任务，并在完成后释放锁供下一个任务使用
    * @param {() => Promise<T> | T} task 需要互斥执行的任务
    * @returns {Promise<T>} 任务的执行结果
@@ -160,7 +198,20 @@ export class StorageService {
     });
     await previous;
     try {
-      return await task();
+      const ctx = RequestContext.getStore();
+      const baseVersion = ctx?.baseVersion;
+      if (baseVersion !== undefined && StorageService.storageType === "local") {
+        const currentVersion = StorageService.getDbVersion();
+        if (baseVersion < currentVersion) {
+          throw new Error("VERSION_CONFLICT");
+        }
+      }
+
+      const result = await task();
+      
+      StorageService.incrementDbVersion();
+      
+      return result;
     } finally {
       release();
     }
@@ -392,6 +443,12 @@ export class StorageService {
           sort_order INTEGER NOT NULL,
           PRIMARY KEY (category, value)
         );
+
+        CREATE TABLE IF NOT EXISTS sys_config (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
@@ -869,12 +926,12 @@ export class StorageService {
   }
 
   /**
-   * @description 从规范化关系型表中读出完整的应用状态对象，形状与迁移之前的 load() 返回值完全一致
-   * （含把 ledger_item_daily_records 重新拼装回每个 ledgerItem 的 dailyRecords 字典、把 prepared_item_daily_data
-   * 重新拼装回每个 PreparedItem 的 dailyData 字典）。规范化表结构完全为空时返回 {}，与首次启动语义保持一致。
+   * @description 从规范化关系型表中读出完整的应用状态对象，支持按日期范围过滤每日数据
+   * @param {string} [startDate] 可选。起始日期 (YYYY-MM-DD)，如果不传则返回全量或默认逻辑
+   * @param {string} [endDate] 可选。结束日期 (YYYY-MM-DD)
    * @returns {any} 完整的应用状态对象
    */
-  private static readDataFromSqlite(): any {
+  private static readDataFromSqlite(startDate?: string, endDate?: string): any {
     const db = StorageService.getDb();
     if (StorageService.countNormalizedRows(db) === 0) {
       return {};
@@ -882,17 +939,36 @@ export class StorageService {
 
     const ledgers = db.prepare("SELECT id, name, created_at as createdAt FROM ledgers").all();
 
-    const ledgerItemsRaw = db.prepare(
-      "SELECT id, ledger_id as ledgerId, name, unit, spec, initial_stock as initialStock, current_stock as currentStock FROM ledger_items"
-    ).all() as any[];
-    const dailyRows = db.prepare(`
+    const ledgerItemsRaw = db.prepare(`
+      SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock, li.current_stock as currentStock,
+             COALESCE(SUM(dr.in_quantity), 0) as historicalTotalIn,
+             COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut
+      FROM ledger_items li
+      LEFT JOIN ledger_item_daily_records dr ON li.id = dr.item_id
+      GROUP BY li.id
+    `).all() as any[];
+
+    let filterStart = startDate;
+    let filterEnd = endDate;
+    if (!filterStart || !filterEnd) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      filterStart = `${y}-${m}-01`;
+      filterEnd = `${y}-${m}-${new Date(y, now.getMonth() + 1, 0).getDate()}`;
+    }
+
+    let dailyRowsSql = `
       SELECT item_id as itemId, date, in_quantity as inQuantity, in_price as inPrice, in_amount as inAmount,
              out_quantity as outQuantity, out_price as outPrice, out_amount as outAmount, note, certification,
              sensory_property as sensoryProperty, supplier, purchase_date as purchaseDate, buyer, inspector, keeper,
              produce_date as produceDate, shelf_life as shelfLife, out_handler as outHandler, out_recipient as outRecipient,
              conversion_unit_quantity as conversionUnitQuantity, out_date as outDate
       FROM ledger_item_daily_records
-    `).all() as any[];
+      WHERE date >= ? AND date <= ?
+    `;
+    const dailyRowsParams = [filterStart, filterEnd];
+    const dailyRows = db.prepare(dailyRowsSql).all(...dailyRowsParams) as any[];
     const dailyByItem: Record<string, Record<string, any>> = {};
     for (const row of dailyRows) {
       const { itemId, date, ...record } = row;
@@ -910,7 +986,10 @@ export class StorageService {
              name, category, target_group as targetGroup, unit, note
       FROM prepared_items
     `).all() as any[];
-    const dailyDataRows = db.prepare("SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data").all() as any[];
+    
+    let dailyDataRowsSql = "SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data WHERE date >= ? AND date <= ?";
+    const dailyDataRowsParams = [filterStart, filterEnd];
+    const dailyDataRows = db.prepare(dailyDataRowsSql).all(...dailyDataRowsParams) as any[];
     const dailyDataByItem: Record<string, Record<string, any>> = {};
     for (const row of dailyDataRows) {
       if (!dailyDataByItem[row.itemId]) dailyDataByItem[row.itemId] = {};
@@ -1003,21 +1082,21 @@ export class StorageService {
     });
   }
 
-  /**
-   * @description 加载主数据库内容
-   * @returns {Promise<any>} 返回 JSON 数据对象
-   */
-  public static async load(): Promise<any> {
+  public static async load(startDate?: string, endDate?: string): Promise<any> {
+    let data;
     if (StorageService.storageType === "cos") {
-      return StorageService.loadCurrentFromCos();
+      data = await StorageService.loadCurrentFromCos();
+      // COS 不支持服务端过滤，若有需要前端需自行裁剪。这里仍返回全量。
     } else {
       try {
-        return StorageService.readDataFromSqlite();
+        data = StorageService.readDataFromSqlite(startDate, endDate);
       } catch (err) {
         console.error("[STORAGE SQLITE] 读取本地数据失败:", err);
-        return {};
+        data = {};
       }
     }
+    data.dbVersion = StorageService.getDbVersion();
+    return data;
   }
 
   /**
