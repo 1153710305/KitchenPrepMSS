@@ -687,3 +687,15 @@
   2. 移除了前端 `src/services/store.ts`、`src/services/ledgerStore.ts` 和 `src/services/rawMaterialDict.ts` 中的 `generateInitialSeeds` / `generateSeeds` / `generateDefaultSeeds`，避免了前端发现数据为空再发往后端的滞后回写逻辑。
   3. 修复了 Node.js 运行时对 `import.meta.env` 的兼容性问题（通过 `typeof process !== 'undefined'` 区分环境变量来源）。
 - **效果**: 首航启动时不再依赖前端同步，后端可立即为所有后续请求提供完整的默认空底座。
+
+### 🚀 2026-07-06 - [V5.98.0] 优化：字典管理换算比例提示说明，台账二级品类同步，录入界面按钮布局
+- **提示词原文**：
+
+```markdown
+换算比例和换算单位可以空着不填；管理后台修改二级品类后，台账录入时二级品类还是旧的名字；台账录入界面的左右移动的点击按钮应该固定在录入窗口两侧，不应该随着上下滑动直接隐藏消失了。
+```
+
+- **实现方案**：
+  1. 优化后台字典修改界面的“换算比例”和“换算单位”的占位符和标签文字，明确标注为“选填项”。
+  2. 修复台账录入界面 `LedgerStyle1Table.tsx` 二级品类名称渲染使用了硬编码映射常量 `FOOD_CATEGORY_LABELS`，导致未能及时同步管理后台动态二级大类的更新，改用 `PrepReportService.getActiveCategories()` 获取实时品类名。
+  3. 修复了台账录入界面的左右滚动悬浮按钮在用户纵向浏览时超出顶部直接消失的问题。原使用 `sticky top-2` 在较长的列表下表现不佳，现配合 `translate-y-[35vh]` 使其视觉位置始终稳定悬浮于视区垂直居中附近，同时保留水平随容器定位。

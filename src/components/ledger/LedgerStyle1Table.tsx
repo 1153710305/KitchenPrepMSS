@@ -13,6 +13,7 @@ import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
 import { FoodCategory } from "../../types/types.ts";
@@ -146,7 +147,7 @@ export function LedgerStyle1Table({
             <option value="">全部品类</option>
             {availableCategories.map(cat => (
               <option key={cat} value={cat}>
-                {FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}
+                {PrepReportService.getActiveCategories().find(c => c.key === cat)?.label || FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}
               </option>
             ))}
           </select>
@@ -197,9 +198,9 @@ export function LedgerStyle1Table({
       </div>
 
       <div className="relative">
-        {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内，方便查看过长记录行时随时左右移动查看 */}
-        <div className="sticky top-2 z-20 h-0 pointer-events-none">
-          <div className="flex justify-between px-1.5">
+        {/* 左右移动导航栏：粘性定位配合向下偏移，使其始终悬浮在可视区域的两侧居中位置 */}
+        <div className="sticky top-0 z-20 h-0 pointer-events-none">
+          <div className="flex justify-between px-1.5 translate-y-[35vh]">
             <button
               type="button"
               onClick={() => scrollTable(-1)}
@@ -369,7 +370,8 @@ export function LedgerStyle1Table({
                           const dictItem2 = RawMaterialsDictService.getItems().find(d => d.name === item.name);
                           const cat = dictItem2?.category;
                           if (!cat) return <span className="text-slate-300 text-[11px]">—</span>;
-                          const catLabel = FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat;
+                          const activeCat = PrepReportService.getActiveCategories().find(c => c.key === cat);
+                          const catLabel = activeCat ? activeCat.label : (FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat);
                           const colorMap: Record<string, string> = {
                             VEGETABLE: "bg-green-100 text-green-700 border-green-200",
                             GRAIN_OIL: "bg-amber-100 text-amber-700 border-amber-200",

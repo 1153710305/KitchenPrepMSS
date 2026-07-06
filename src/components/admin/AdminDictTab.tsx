@@ -336,7 +336,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">换算比例(袋/箱折合数，如: 50)</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">换算比例(选填，袋/箱折合数，如: 50)</label>
               <input
                 type="number"
                 step="any"

@@ -213,15 +213,27 @@ export function useLedgerRecording({
             const rawName = itemId.replace("temp_", "");
             const dictItem = RawMaterialsDictService.getItems().find(d => d.name === rawName);
             if (dictItem) {
-              const newItem = await LedgerService.addLedgerItem(
-                activeLedgerId,
-                dictItem.name,
-                dictItem.unit,
-                dictItem.remark || "",
-                0
+              // 检查该台账下是否已经存在同名原料 (可能是之前异常中断或多端同步已存在)
+              const currentLedgerItems = LedgerService.getLedgerItems();
+              const existingItem = currentLedgerItems.find(
+                i => i.ledgerId === activeLedgerId && i.name.trim() === dictItem.name.trim()
               );
-              // 使用真实新生成的原料 ID 更新记录
-              promises.push(LedgerService.updateDailyRecord(newItem.id, selectedDate, record));
+              
+              let targetItemId = "";
+              if (existingItem) {
+                targetItemId = existingItem.id;
+              } else {
+                const newItem = await LedgerService.addLedgerItem(
+                  activeLedgerId,
+                  dictItem.name,
+                  dictItem.unit,
+                  dictItem.remark || "",
+                  0
+                );
+                targetItemId = newItem.id;
+              }
+              // 使用真实原料 ID 更新记录
+              promises.push(LedgerService.updateDailyRecord(targetItemId, selectedDate, record));
             }
           }
         } else {
