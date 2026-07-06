@@ -140,8 +140,9 @@ export function LedgerPrintStyle1({
         const keepers = getUniqueFieldValues(r => r.keeper || "");
 
         return (
-          <div key={pageIndex} style={{ pageBreakAfter: isLastPage ? "auto" : "always", position: "relative" }}>
-            <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
+          <div key={pageIndex}>
+            <div style={{ position: "relative" }}>
+              <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
               <tbody>
                 <tr>
                   <td style={{ border: "none", padding: "12px 0 4px", textAlign: "center" }}>
@@ -155,7 +156,7 @@ export function LedgerPrintStyle1({
                 </tr>
               </tbody>
             </table>
-
+            
             <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "8%" }} />
@@ -301,6 +302,8 @@ export function LedgerPrintStyle1({
             )}
           </tbody>
         </table>
+        </div>
+        {!isLastPage && <div style={{ breakAfter: "page", pageBreakAfter: "always", height: 0, overflow: "hidden" }}></div>}
       </div>
     );
   })}

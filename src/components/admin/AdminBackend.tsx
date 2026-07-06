@@ -28,7 +28,9 @@ import {
   Sparkles,
   ChevronLeft,
   FileSpreadsheet,
-  Lock
+  Lock,
+  BookOpen,
+  Database
 } from "lucide-react";
 
 /**
