@@ -113,7 +113,16 @@ export function LedgerPrintStyle2({
   const totalPages = pages.length;
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily, fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize, color: "#000" }} className="text-center">
+    <div
+      style={{
+        fontFamily: LEDGER_PRINT_STYLE2_CONFIG.fontFamily,
+        fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize,
+        color: "#000",
+        marginLeft: "6mm",
+        marginRight: "6mm"
+      }}
+      className="text-center"
+    >
       {/* 提取共有样式至全局，避免每页重复定义 */}
       <style>{`
         .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
@@ -122,11 +131,10 @@ export function LedgerPrintStyle2({
         .ledger-print-style2-table thead th {
           background-color: #ffffff !important;
         }
+        /* 强制允许换行，超出长度时在渲染节点内动态缩小字号 */
         .ledger-print-style2-table td {
           word-break: break-all !important;
           white-space: normal !important;
-          font-size: 11px !important; 
-          line-height: 1.2 !important; 
         }
         @media print {
           .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
@@ -143,6 +151,18 @@ export function LedgerPrintStyle2({
       {pages.map((pageData, pageIndex) => {
         const isLastPage = pageIndex === totalPages - 1;
         const emptyRowsCount = Math.max(0, rowsPerPage - pageData.length);
+
+        const nameText = activeItem.name || "";
+        const nameFontSize = nameText.length > 10 ? "11px" : "inherit";
+        const nameLineHeight = nameText.length > 10 ? "1.2" : "normal";
+
+        const suppText = printSupplier || "";
+        const suppFontSize = suppText.length > 20 ? "11px" : "inherit";
+        const suppLineHeight = suppText.length > 20 ? "1.2" : "normal";
+
+        const certText = printCert || "";
+        const certFontSize = certText.length > 17 ? "11px" : "inherit";
+        const certLineHeight = certText.length > 17 ? "1.2" : "normal";
 
         return (
           <div key={pageIndex} style={{ pageBreakAfter: isLastPage ? "auto" : "always", position: "relative" }}>
@@ -187,12 +207,12 @@ export function LedgerPrintStyle2({
               <thead style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.headerFontSize }}>
                 {/* 表头第一行：基础信息 */}
                 <tr style={{ height: "28px" }}>
-                  <th className="border border-black px-1  bg-white">采购项目</th>
-                  <th colSpan={2} className="border border-black px-1  text-center">{activeItem.name}</th>
-                  <th className="border border-black px-1  bg-white">经销商</th>
-                  <th colSpan={3} className="border border-black px-1 font-normal text-center">{printSupplier}</th>
-                  <th className="border border-black px-1  bg-white">索证索票</th>
-                  <th colSpan={2} className="border border-black px-1 font-normal text-center">{printCert}</th>
+                  <th colSpan={2} className="border border-black px-1 bg-white whitespace-nowrap">采购项目</th>
+                  <th colSpan={2} className="border border-black px-1 text-center" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{nameText}</th>
+                  <th colSpan={1} className="border border-black px-1 bg-white whitespace-nowrap">经销商</th>
+                  <th colSpan={2} className="border border-black px-1 font-normal text-center" style={{ fontSize: suppFontSize, lineHeight: suppLineHeight }}>{suppText}</th>
+                  <th colSpan={2} className="border border-black px-1 bg-white whitespace-nowrap">索证索票</th>
+                  <th colSpan={1} className="border border-black px-1 font-normal text-center" style={{ fontSize: certFontSize, lineHeight: certLineHeight }}>{certText}</th>
                 </tr>
 
                 {/* 表头第二行：大分类（入库/出库） */}
@@ -231,23 +251,47 @@ export function LedgerPrintStyle2({
               <tbody>
                 {pageData.map(({ dStr, record }) => {
                   const balance = stockByDay[dStr];
-                  // 采购数量：优先展示换算后的数量与换算单位，无换算配置时展示原始数量与默认单位
+                  // 数量显示逻辑：配置了换算单位则计算换算后数值，否则使用原始数值
                   const displayQty = record!.inQuantity > 0
                     ? (hasConversion ? Number((record!.inQuantity * dictItem!.conversionRatio!).toFixed(2)) : record!.inQuantity)
                     : "";
+                  const displayOutQty = record!.outQuantity > 0 
+                    ? (hasConversion ? Number((record!.outQuantity * dictItem!.conversionRatio!).toFixed(2)) : record!.outQuantity)
+                    : "";
+                  const displayBalance = hasConversion ? Number((balance * dictItem!.conversionRatio!).toFixed(2)) : balance;
+
+                  const buyer = record!.buyer || "";
+                  const buyerFontSize = buyer.length > 4 ? "11px" : LEDGER_PRINT_STYLE2_CONFIG.dataFontSize;
+                  const buyerLineHeight = buyer.length > 4 ? "1.2" : "normal";
+
+                  const shelfLife = record!.shelfLife || "";
+                  const shelfFontSize = shelfLife.length > 4 ? "11px" : LEDGER_PRINT_STYLE2_CONFIG.dataFontSize;
+                  const shelfLineHeight = shelfLife.length > 4 ? "1.2" : "normal";
+
+                  const sensory = record!.sensoryProperty || "";
+                  const sensoryFontSize = sensory.length > 9 ? "11px" : LEDGER_PRINT_STYLE2_CONFIG.dataFontSize;
+                  const sensoryLineHeight = sensory.length > 9 ? "1.2" : "normal";
+
+                  const inspector = record!.inspector || "";
+                  const inspectorFontSize = inspector.length > 11 ? "11px" : LEDGER_PRINT_STYLE2_CONFIG.dataFontSize;
+                  const inspectorLineHeight = inspector.length > 11 ? "1.2" : "normal";
+
+                  const keeper = record!.keeper || "";
+                  const keeperFontSize = keeper.length > 17 ? "11px" : LEDGER_PRINT_STYLE2_CONFIG.dataFontSize;
+                  const keeperLineHeight = keeper.length > 17 ? "1.2" : "normal";
 
                   return (
                     <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize }}>
                       <td className="border border-black  ">{dStr}</td>
                       <td className="border border-black ">{displayQty !== "" ? `${displayQty}${displayUnit}` : ""}</td>
-                      <td className="border border-black">{record!.buyer || ""}</td>
+                      <td className="border border-black" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
                       <td className="border border-black  ">{record!.produceDate || ""}</td>
-                      <td className="border border-black ">{record!.shelfLife || ""}</td>
-                      <td className="border border-black">{record!.sensoryProperty || ""}</td>
-                      <td className="border border-black">{record!.inspector || ""}</td>
-                      <td className="border border-black ">{record!.outQuantity || ""}</td>
-                      <td className="border border-black  ">{balance}</td>
-                      <td className="border border-black">{record!.keeper || ""}</td>
+                      <td className="border border-black " style={{ fontSize: shelfFontSize, lineHeight: shelfLineHeight }}>{shelfLife}</td>
+                      <td className="border border-black" style={{ fontSize: sensoryFontSize, lineHeight: sensoryLineHeight }}>{sensory}</td>
+                      <td className="border border-black" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
+                      <td className="border border-black ">{displayOutQty !== "" ? `${displayOutQty}${displayUnit}` : ""}</td>
+                      <td className="border border-black  ">{displayBalance}{displayUnit}</td>
+                      <td className="border border-black" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
                     </tr>
                   );
                 })}

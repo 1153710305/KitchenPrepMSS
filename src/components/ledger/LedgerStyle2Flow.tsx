@@ -12,6 +12,7 @@ import { Award, ChevronLeft, ChevronRight } from "lucide-react";
 import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LEDGER_UI_TEXT } from "../../constants/ledgerConstants.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
+import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { HelperSelect } from "../shared/HelperSelect.tsx";
 import { SensorySelector } from "../shared/SensorySelector.tsx";
 
@@ -78,6 +79,10 @@ export function LedgerStyle2Flow({
 
   const activeItem = ledgerItems.find((i) => i.id === activeItemId);
   if (!activeItem) return null;
+
+  const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name);
+  const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
+  const displayUnit = hasConversion ? dictItem.conversionUnit : dictItem?.unit || activeItem.unit || "";
 
   // 提取当月有记录的供应商与索证，做成表头绑定
   const currentMonthStr = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}`;
@@ -201,6 +206,7 @@ export function LedgerStyle2Flow({
                 produceDate: "", shelfLife: "", sensoryProperty: "", outHandler: "", outRecipient: ""
               };
               const balance = dailyStockBalances[dayDateStr] ?? activeItem.initialStock;
+              const displayBalance = hasConversion ? Number((balance * dictItem!.conversionRatio!).toFixed(2)) : balance;
 
               const isRowEditable = isRecordingMode && dayDateStr === selectedDate;
               const dRec = draftRecords[activeItem.id];
@@ -320,7 +326,7 @@ export function LedgerStyle2Flow({
 
                   {/* 当日库存/结余 (公式累算) */}
                   <td className="px-3 py-1.5 bg-slate-100/50 font-mono font-black text-slate-800 text-right">
-                    {balance}
+                    {displayBalance}{displayUnit !== "" ? displayUnit : ""}
                   </td>
 
                   {/* 保管员 */}

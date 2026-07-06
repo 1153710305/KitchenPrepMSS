@@ -58,7 +58,16 @@ export function LedgerPrintStyle2Consumable({
   const totalPages = pages.length;
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_CONSUMABLE_CONFIG.fontFamily, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize, color: "#000" }} className="text-center">
+    <div
+      style={{
+        fontFamily: LEDGER_PRINT_CONSUMABLE_CONFIG.fontFamily,
+        fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize,
+        color: "#000",
+        marginLeft: "6mm",
+        marginRight: "6mm"
+      }}
+      className="text-center"
+    >
       {/* 提取共有样式至全局，避免每页重复定义 */}
       <style>{`
         .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
@@ -77,11 +86,10 @@ export function LedgerPrintStyle2Consumable({
           }
         }
         /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        /* 强制允许换行，超出长度时在渲染节点内动态缩小字号 */
         .ledger-print-consumable-table td {
           word-break: break-all !important;
           white-space: normal !important;
-          font-size: 11px !important; 
-          line-height: 1.2 !important; 
         }
       `}</style>
 
@@ -150,20 +158,47 @@ export function LedgerPrintStyle2Consumable({
               </thead>
 
               <tbody>
-                {pageData.map(({ dStr, record }) => (
-                  <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-                    <td className="border border-black px-1 py-1 ">{displayName}</td>
-                    <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? record!.inQuantity : ""}</td>
-                    <td className="border border-black px-1 py-1">{displaySpec}</td>
-                    <td className="border border-black px-1 py-1">{record!.supplier || ""}</td>
-                    <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
-                    <td className="border border-black px-1 py-1">{record!.buyer || ""}</td>
-                    <td className="border border-black px-1 py-1">{record!.inspector || ""}</td>
-                    <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
-                    <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
-                    <td className="border border-black px-1 py-1">{record!.keeper || ""}</td>
-                  </tr>
-                ))}
+                {(() => {
+                  const nameText = displayName || "";
+                const nameFontSize = nameText.length > 5 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                const nameLineHeight = nameText.length > 5 ? "1.2" : "normal";
+
+                const specText = displaySpec || "";
+                const specFontSize = specText.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                const specLineHeight = specText.length > 4 ? "1.2" : "normal";
+
+                return pageData.map(({ dStr, record }) => {
+                  const supplier = record!.supplier || "";
+                  const supplierFontSize = supplier.length > 11 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                  const supplierLineHeight = supplier.length > 11 ? "1.2" : "normal";
+
+                  const buyer = record!.buyer || "";
+                  const buyerFontSize = buyer.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                  const buyerLineHeight = buyer.length > 4 ? "1.2" : "normal";
+
+                  const inspector = record!.inspector || "";
+                  const inspectorFontSize = inspector.length > 10 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                  const inspectorLineHeight = inspector.length > 10 ? "1.2" : "normal";
+
+                  const keeper = record!.keeper || "";
+                  const keeperFontSize = keeper.length > 15 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                  const keeperLineHeight = keeper.length > 15 ? "1.2" : "normal";
+
+                  return (
+                    <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{nameText}</td>
+                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? record!.inQuantity : ""}</td>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: specFontSize, lineHeight: specLineHeight }}>{specText}</td>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: supplierFontSize, lineHeight: supplierLineHeight }}>{supplier}</td>
+                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
+                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
+                      <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
+                      <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
+                    </tr>
+                  );
+                })();}
 
                 {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
