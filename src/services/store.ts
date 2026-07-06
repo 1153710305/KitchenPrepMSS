@@ -9,9 +9,8 @@
 
 import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/constants.ts";
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
-import { calculateEntryAmount, LogBroker } from "../utils.ts";
+import { LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
-import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 /**
  * @description 自动模拟服务层接口呼叫时延 (毫秒)
@@ -383,48 +382,6 @@ export class PrepReportService {
    */
   private static saveToStorage(): void {
     this.notifyListeners();
-  }
-
-  /**
-   * @description 批量将特定受众、特定日期、特定大品类下的所有细分单价统一刷成同一数值（不可变更新，彻底重绘相关依赖）
-   */
-  public static async batchUpdatePriceCol(
-    targetGroup: TargetGroup,
-    category: FoodCategory,
-    day: string,
-    fixedPrice: number
-  ): Promise<void> {
-    // 校验/重算/持久化已迁移到后端（阶段C，见 SQLite迁移规划.md）；成功后前端本地重放同一份计算逻辑刷新
-    // 内存缓存，不需要额外拉取全量数据——批量调价只影响当前受众报表自己的数据，没有跨服务级联
-    const res = await fetch(`/api/reports/${encodeURIComponent(targetGroup)}/prices`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, day, fixedPrice })
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body.error || "批量调价失败");
-    }
-
-    const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
-    if (reportIndex > -1) {
-      const report = this.reports[reportIndex];
-      const updatedItems = report.items.map((item) => {
-        if (item.category !== category) return item;
-        const updatedDailyData = { ...item.dailyData };
-        const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-        entry.price = Math.max(0, fixedPrice);
-        entry.amount = calculateEntryAmount(entry.quantity, entry.price);
-        updatedDailyData[day] = entry;
-        return { ...item, dailyData: updatedDailyData };
-      });
-      const updatedReports = [...this.reports];
-      updatedReports[reportIndex] = { ...report, items: updatedItems };
-      this.reports = updatedReports;
-    }
-
-    this.saveToStorage();
-    LogBroker.publish("INFO", "PrepReportService", `由于一键调价动作，群组「${targetGroup}」下的品类 [${category}] 在 [${day}号] 均统一设定为单价 ${fixedPrice}元`);
   }
 
   /**

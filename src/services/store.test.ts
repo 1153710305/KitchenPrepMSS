@@ -4,15 +4,16 @@
  */
 
 /**
- * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：台账双向同步、批量调价、一二级配置增删改与默认数据保护、级联更新/删除。
- * [阶段C] batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/deleteCategory 的校验/重算/级联规则已迁移到后端
+ * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：台账双向同步、一二级配置增删改与默认数据保护、级联更新/删除。
+ * [阶段C] saveGroup/deleteGroup/saveCategory/deleteCategory 的校验/重算/级联规则已迁移到后端
  * REST API，本文件改为对全局 fetch 打一个轻量的假后端路由（`fakePrepReportFetch`），镜像真实后端语义，支撑本文件里
  * 大量多步测试序列；真正的服务端校验/级联覆盖测试见 server/routes/reports.test.ts。getOrCreateReport/syncFromLedger/
  * syncGroupFromLedger/syncDeleteLedgerFromGroup 四个方法因架构约束（getOrCreateReport 在 App.tsx 里被同步 useMemo
  * 直接调用，无法改造成异步 REST 调用）或尚未到迁移阶段（阶段C范围内 PrepReportService 只完成"自己被调用"的一侧，
  * syncFromLedger 是"调用 LedgerService"的一侧，留给以后需要时再统一处理）仍是纯前端实现，测试保持不变。
- * addPreparedItem/updateCell/deletePreparedItem 及其后端路由/StorageService方法已随主表格只读设计确认为死代码
- * 一并删除（餐位分组页面下的采购细表自 V5.2.0 起即为只读展示，数据录入统一通过原料购销台账完成）。
+ * addPreparedItem/updateCell/deletePreparedItem/batchUpdatePriceCol 及其后端路由/StorageService方法已确认为
+ * 死代码一并删除（餐位分组页面下的采购细表自 V5.2.0 起即为只读展示，数据录入统一通过原料购销台账完成；
+ * batchUpdatePriceCol 的一键调价功能自身也从未被任何按钮实际触发过）。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -49,23 +50,14 @@ const okResponse = (body: any) => ({ ok: true, json: async () => ({ success: tru
 const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
 
 /**
- * @description 假后端路由：镜像 server/storageService.ts 里 batchUpdatePriceCol/saveGroup/deleteGroup/
- * saveCategory/deleteCategory 的校验与重算语义，读写直接落在 PrepReportService/LedgerService 自己的内存状态上
- * （测试环境下就是"当前数据库状态"）。
+ * @description 假后端路由：镜像 server/storageService.ts 里 saveGroup/deleteGroup/saveCategory/deleteCategory
+ * 的校验与重算语义，读写直接落在 PrepReportService/LedgerService 自己的内存状态上（测试环境下就是"当前数据库状态"）。
  */
 function fakePrepReportFetch(url: string, options: any = {}) {
   const method = options.method || "GET";
   const body = options.body ? JSON.parse(options.body) : {};
 
-  let m = url.match(/^\/api\/reports\/([^/]+)\/prices$/);
-  if (m && method === "PUT") {
-    const targetGroup = decodeURIComponent(m[1]);
-    const report = PrepReportService.getReports().find((r) => r.targetGroup === targetGroup);
-    if (!report) return Promise.resolve(errorResponse("该人群报表不存在"));
-    return Promise.resolve(okResponse({}));
-  }
-
-  m = url.match(/^\/api\/groups\/([^/]*)$/);
+  let m = url.match(/^\/api\/groups\/([^/]*)$/);
   if (m && method === "PUT") {
     const upperKey = decodeURIComponent(m[1]).toUpperCase();
     if (!upperKey.trim()) return Promise.resolve(errorResponse("人群标识键不能为空"));
@@ -159,37 +151,6 @@ describe("PrepReportService", () => {
     it("persists the newly created report into the in-memory reports list", () => {
       PrepReportService.getOrCreateReport("KID", 2026, 7);
       expect(PrepReportService.getReports()).toHaveLength(1);
-    });
-  });
-
-  describe("batchUpdatePriceCol [阶段C：校验/重算已迁移到后端]", () => {
-    it("sets the price for every item in the matching category on the given day and recalculates amount", async () => {
-      PrepReportService.setReportsInMemory([
-        makeReport({
-          items: [
-            makeItem({ id: "a", category: FoodCategory.VEGETABLE, dailyData: { "1": { quantity: 3, price: 0, amount: 0 } } }),
-            makeItem({ id: "b", category: FoodCategory.MEAT, dailyData: { "1": { quantity: 3, price: 0, amount: 0 } } })
-          ]
-        })
-      ]);
-
-      await PrepReportService.batchUpdatePriceCol(TargetGroup.KID, FoodCategory.VEGETABLE, "1", 4);
-
-      const items = PrepReportService.getReports()[0].items;
-      expect(items.find((i) => i.id === "a")!.dailyData["1"]).toEqual({ quantity: 3, price: 4, amount: 12 });
-      expect(items.find((i) => i.id === "b")!.dailyData["1"].price).toBe(0);
-    });
-
-    it("clamps a negative fixed price to zero", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ dailyData: {} })] })]);
-      await PrepReportService.batchUpdatePriceCol(TargetGroup.KID, FoodCategory.VEGETABLE, "1", -10);
-      expect(PrepReportService.getReports()[0].items[0].dailyData["1"].price).toBe(0);
-    });
-
-    it("rejects with the backend's not-found error", async () => {
-      await expect(PrepReportService.batchUpdatePriceCol(TargetGroup.TEACHER, FoodCategory.VEGETABLE, "1", 5)).rejects.toThrow(
-        "该人群报表不存在"
-      );
     });
   });
 

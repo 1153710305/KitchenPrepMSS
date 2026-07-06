@@ -4,11 +4,11 @@
  */
 
 /**
- * @description /api/groups、/api/categories、/api/reports 下的批量调价端点等路由的
- * HTTP 层集成测试（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：覆盖 batchUpdatePriceCol/saveGroup/
- * deleteGroup/saveCategory/deleteCategory 的校验错误文案、重算逻辑、以及人群/大类默认数据保护、跨表级联
- * （人群↔台账、大类↔备餐细项）效果（含孤儿行清理）。仿照 server/routes/ledgers.test.ts 的 supertest 集成测试范式。
- * addPreparedItem/updateCell/deletePreparedItem 三个端点已随主表格只读设计确认为死代码一并删除。
+ * @description /api/groups、/api/categories 路由的 HTTP 层集成测试（阶段C·业务规则迁移到后端，
+ * 见 SQLite迁移规划.md）：覆盖 saveGroup/deleteGroup/saveCategory/deleteCategory 的校验错误文案、
+ * 以及人群/大类默认数据保护、跨表级联（人群↔台账、大类↔备餐细项）效果（含孤儿行清理）。
+ * 仿照 server/routes/ledgers.test.ts 的 supertest 集成测试范式。
+ * addPreparedItem/updateCell/deletePreparedItem/batchUpdatePriceCol 四个端点已确认为死代码一并删除。
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -34,14 +34,13 @@ beforeEach(async () => {
 
   vi.resetModules();
   const { storageRouter } = await import("./storage.ts");
-  const { groupsRouter, categoriesRouter, reportsRouter } = await import("./reports.ts");
+  const { groupsRouter, categoriesRouter } = await import("./reports.ts");
 
   app = express();
   app.use(express.json());
   app.use("/api/storage", storageRouter);
   app.use("/api/groups", groupsRouter);
   app.use("/api/categories", categoriesRouter);
-  app.use("/api/reports", reportsRouter);
 });
 
 afterEach(() => {
@@ -50,41 +49,6 @@ afterEach(() => {
   delete process.env.LOCAL_DATA_DIR;
   delete process.env.SKIP_SEEDING;
   vi.restoreAllMocks();
-});
-
-describe("PUT /api/reports/:targetGroup/prices", () => {
-  beforeEach(async () => {
-    await saveOps([
-      { entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } },
-      { entity: "preparedItem", op: "upsert", key: "a", data: { id: "a", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "土豆", category: "VEGETABLE", targetGroup: "KID", unit: "斤" } },
-      { entity: "preparedItem", op: "upsert", key: "b", data: { id: "b", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "猪肉", category: "MEAT", targetGroup: "KID", unit: "斤" } },
-      { entity: "preparedItemDailyData", op: "upsert", key: { itemId: "a", date: "1" }, data: { quantity: 3, price: 0, amount: 0 } },
-      { entity: "preparedItemDailyData", op: "upsert", key: { itemId: "b", date: "1" }, data: { quantity: 3, price: 0, amount: 0 } }
-    ]);
-  });
-
-  it("sets the price for every item in the matching category on the given day and recalculates amount", async () => {
-    const res = await request(app).put("/api/reports/KID/prices").send({ category: "VEGETABLE", day: "1", fixedPrice: 4 });
-    expect(res.status).toBe(200);
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const report = loadRes.body.reports.find((r: any) => r.targetGroup === "KID");
-    expect(report.items.find((i: any) => i.id === "a").dailyData["1"]).toEqual({ quantity: 3, price: 4, amount: 12 });
-    expect(report.items.find((i: any) => i.id === "b").dailyData["1"].price).toBe(0);
-  });
-
-  it("clamps a negative fixed price to zero", async () => {
-    await request(app).put("/api/reports/KID/prices").send({ category: "VEGETABLE", day: "1", fixedPrice: -10 });
-    const loadRes = await request(app).get("/api/storage/load");
-    const report = loadRes.body.reports.find((r: any) => r.targetGroup === "KID");
-    expect(report.items.find((i: any) => i.id === "a").dailyData["1"].price).toBe(0);
-  });
-
-  it("rejects when the target group's report does not exist", async () => {
-    const res = await request(app).put("/api/reports/TEACHER/prices").send({ category: "VEGETABLE", day: "1", fixedPrice: 5 });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("该人群报表不存在");
-  });
 });
 
 describe("PUT /api/groups/:key", () => {

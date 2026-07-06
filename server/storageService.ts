@@ -175,8 +175,8 @@ export class StorageService {
 
     // 5. reports
     // 生成一个空的 31 天矩阵，确保数据结构连贯
-    // 键统一用当月内的裸日序号（"1".."31"），与 updateCell/batchUpdatePriceCol/addPreparedItem/
-    // syncFromLedger 等全部备餐报表读写点及前端所有渲染/统计逻辑（App.tsx、TableGrid.tsx 等）保持一致；
+    // 键统一用当月内的裸日序号（"1".."31"），与 syncFromLedger 等全部备餐报表读写点及前端所有
+    // 渲染/统计逻辑（App.tsx、TableGrid.tsx 等）保持一致；
     // 不同于台账 dailyRecords 用完整 YYYY-MM-DD——因为一个 PreparedItem 天生只属于单一月份的报表，
     // 年月已由其所属 report 唯一确定，无需在每日键里重复携带
     const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
@@ -1612,47 +1612,6 @@ export class StorageService {
     ops.push({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
 
     return { updatedItem, mergedRecord, ops };
-  }
-
-  /**
-   * @description 批量将某人群报表下某大类在某天的所有细项单价统一刷成同一数值（阶段C·业务规则迁移到后端）：
-   * 校验规则与错误文案与迁移前的前端实现逐字一致（含"只按 targetGroup 匹配第一份报表、不区分年月"的既有行为，
-   * 原样保留、不在本次迁移中修正）。
-   * @param {string} targetGroup 目标受众人群
-   * @param {string} category 食材大类
-   * @param {string} day 日索引
-   * @param {number} fixedPrice 统一设定的单价
-   * @returns {Promise<void>}
-   */
-  public static async batchUpdatePriceCol(targetGroup: string, category: string, day: string, fixedPrice: number): Promise<void> {
-    return StorageService.withWriteLock(async () => {
-      const current = await StorageService.load();
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      const report = reports.find((r) => r.targetGroup === targetGroup);
-      if (!report) {
-        throw new Error("该人群报表不存在");
-      }
-
-      const ops: SyncOp[] = [];
-      for (const item of (report.items ?? []) as PreparedItem[]) {
-        if (item.category !== category) continue;
-        const updatedDailyData: Record<string, DailyEntry> = { ...item.dailyData };
-        const entry: DailyEntry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-        entry.price = Math.max(0, fixedPrice);
-        entry.amount = Math.round(entry.quantity * entry.price * 100) / 100;
-        const hasMeaningful = entry.quantity > 0 || entry.price > 0 || entry.amount > 0;
-        if (hasMeaningful) {
-          ops.push({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: item.id, date: day }, data: entry });
-        } else {
-          ops.push({ entity: "preparedItemDailyData", op: "delete", key: { itemId: item.id, date: day } });
-        }
-      }
-
-      const ok = await StorageService.saveInternal(ops);
-      if (!ok) {
-        throw new Error("批量调价失败");
-      }
-    });
   }
 
   /**

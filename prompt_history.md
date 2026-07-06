@@ -699,3 +699,16 @@
   1. 优化后台字典修改界面的“换算比例”和“换算单位”的占位符和标签文字，明确标注为“选填项”。
   2. 修复台账录入界面 `LedgerStyle1Table.tsx` 二级品类名称渲染使用了硬编码映射常量 `FOOD_CATEGORY_LABELS`，导致未能及时同步管理后台动态二级大类的更新，改用 `PrepReportService.getActiveCategories()` 获取实时品类名。
   3. 修复了台账录入界面的左右滚动悬浮按钮在用户纵向浏览时超出顶部直接消失的问题。原使用 `sticky top-2` 在较长的列表下表现不佳，现配合 `translate-y-[35vh]` 使其视觉位置始终稳定悬浮于视区垂直居中附近，同时保留水平随容器定位。
+
+### 🚀 2026-07-06 - [V5.99.0] 清理 batchUpdatePriceCol 一键批量调价死代码
+- **提示词原文**：
+
+```markdown
+同名备餐细项有必要单独弄一个表保存么？每次从台账记录里面获取，然后前端拼接展示不行么？
+```
+```markdown
+先删除冗余逻辑。
+```
+
+- **实现方案**：详见 [readme_zh.md] 中 [V5.99.0] 条目——讨论"能否派生展示、不单独存表"这个架构问题时排查现存写路径，发现 `handleBatchPriceUpdate`/`batchUpdatePriceCol`（一键批量调价）与 [V5.95.0] 清理的 `addPreparedItem`/`updateCell`/`deletePreparedItem` 同属一类死代码，从未被任何按钮触发过。用户确认"先删除冗余逻辑"，删除该功能链路全部四层（`App.tsx`/`store.ts`/`storageService.ts`/`routes/reports.ts`），顺带清理两处 [V5.95.0] 当时遗漏的连带死代码（`App.tsx` 的 `getGroupLabel`/`getCategoryLabel`、`store.ts` 的 `RawMaterialsDictService` 引用）及因此变成孤儿的 `calculateEntryAmount`（`utils.ts`）。
+- **验证**：同步删除对应测试用例；全量 409 个用例通过；`tsc --noEmit` 报错数保持 18；构建成功。

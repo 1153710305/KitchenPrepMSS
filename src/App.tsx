@@ -9,7 +9,6 @@
 
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { FoodCategory, TargetGroup } from "./types/types.ts";
-import { FOOD_CATEGORY_LABELS } from "./constants/constants.ts";
 import { PrepReportService } from "./services/store.ts";
 import { TableGrid } from "./components/inventory/TableGrid.tsx";
 import { LogBroker, getDaysInMonth } from "./utils.ts";
@@ -181,46 +180,6 @@ export default function App() {
     if (activeGroup === "LEDGER") return null;
     return PrepReportService.getOrCreateReport(activeGroup, selectedYear, selectedMonth);
   }, [reports, activeGroup, selectedYear, selectedMonth]);
-
-  // ================= 记账控制交互事务 =================
-
-  /**
-   * @description 获取受众人群的中文名称（支持动态添加的人群）
-   */
-  const getGroupLabel = (groupKey: string) => {
-    const g = activeGroupsList.find((g) => g.key === groupKey);
-    return g ? g.label : groupKey;
-  };
-
-  /**
-   * @description 获取食材大类的中文名称（支持动态添加的分类）
-   */
-  const getCategoryLabel = (catKey: string) => {
-    const c = activeCategoriesList.find((c) => c.key === catKey);
-    return c ? c.label : (FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey);
-  };
-
-  /**
-   * @description 单元格一建列统一复制，自适应快速调价
-   * @param targetGroup 受众人群分类
-   * @param category 食材供应种类
-   * @param day 作用的特定天
-   * @param price 覆盖的单价新价格
-   */
-  const handleBatchPriceUpdate = (targetGroup: TargetGroup, category: FoodCategory, day: string, price: number) => {
-    PrepReportService.batchUpdatePriceCol(targetGroup, category, day, price).then(() => {
-      const operator = isAdminMode ? "系统管理员" : "普通记账员";
-      const groupLabel = getGroupLabel(targetGroup);
-      const catLabel = getCategoryLabel(category);
-      LogBroker.publish(
-        "INFO",
-        "App",
-        `【批量批量调价】操作员 [${operator}] 一键将「${groupLabel}」的 [${catLabel}类] 在 [${day}号] 的所有食材单价统一设定为 [¥${price}] 元/单位。`
-      );
-    }).catch((err) => {
-      LogBroker.publish("ERROR", "App", "批量列价格重组失败:", String(err));
-    });
-  };
 
   // ================= 辅助指标运算 =================
 
