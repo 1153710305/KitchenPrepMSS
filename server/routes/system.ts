@@ -37,7 +37,7 @@ const requireAdminPassword = (req: express.Request, res: express.Response, next:
  * @description 导出数据库文件
  * @route GET /api/system/export-db
  */
-systemRouter.get("/export-db", requireAdminPassword, (req, res) => {
+systemRouter.get("/export-db", requireAdminPassword, async (req, res) => {
   try {
     const storageType = process.env.STORAGE_TYPE || "local";
     if (storageType === "cos") {
@@ -56,7 +56,23 @@ systemRouter.get("/export-db", requireAdminPassword, (req, res) => {
     const dbPath = path.resolve(process.env.LOCAL_DATA_DIR || "data", "kpmss.sqlite");
     if (fs.existsSync(dbPath)) {
       LogService.write("WARN", "SystemMaintenance", "管理员执行了导出数据库文件操作");
-      res.download(dbPath, `kpmss_${new Date().toISOString().split('T')[0]}.sqlite`);
+      
+      // 使用 better-sqlite3 的 backup 接口导出完整的一致性备份，以处理 WAL 模式下丢失缓存的可能
+      const backupDir = path.resolve(process.env.LOCAL_DATA_DIR || "data", "backups");
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      const backupFileName = `kpmss_${new Date().toISOString().split('T')[0]}_full.sqlite`;
+      const backupPath = path.join(backupDir, backupFileName);
+      
+      await StorageService.backupLocalDb(backupPath);
+      
+      res.download(backupPath, backupFileName, (err) => {
+        // 传送完成后，删除临时的备份文件以节省空间
+        if (fs.existsSync(backupPath)) {
+           fs.unlinkSync(backupPath);
+        }
+      });
     } else {
       res.status(404).json({ error: "找不到本地数据库文件" });
     }

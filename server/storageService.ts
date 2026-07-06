@@ -115,6 +115,18 @@ export class StorageService {
   }
 
   /**
+   * @description 备份本地 SQLite 数据库到指定路径，确保 WAL 日志也一并落盘
+   * @param destinationPath 目标备份文件路径
+   */
+  public static async backupLocalDb(destinationPath: string): Promise<void> {
+    if (StorageService.storageType !== "local") {
+      throw new Error("非本地 SQLite 模式，不支持调用 backupLocalDb");
+    }
+    const db = StorageService.getDb();
+    await db.backup(destinationPath);
+  }
+
+  /**
    * @description 本地 SQLite 数据库文件路径
    */
   private static sqliteDbPath: string = path.join(StorageService.localDataDir, "kpmss.sqlite");
