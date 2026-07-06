@@ -778,3 +778,9 @@ Fix bug：
 
 **Action:**
 - 修复了 LedgerSystem.tsx 中的变量引用错误，将不存在的 `activeLedger.items` 改为了作用域内正确的 `currentLedgerItems`。
+
+## 2026-07-06 简化清除数据提示语
+**User Prompt:** 不需要弹出对话框，告诉你“它在其它日期已有记录，点击确定将仅清除今日（当前选中日期）的数据”。这样，6号的数据被安全清空归零，而5号的土豆记录完好无损。因为这是默认逻辑。默认就不应该影响其他日子的台账数据。检查代码，是否还存在类似问题
+
+**Action:**
+- 修改了 LedgerSystem.tsx 中的 `handleDeleteMaterial` 弹窗文案，去掉了啰嗦的解释，回归简单直接的确认，同时排查确认无其他跨日期副作用操作。
