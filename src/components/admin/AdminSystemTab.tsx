@@ -63,7 +63,7 @@ export const AdminSystemTab: React.FC<AdminSystemTabProps> = ({ showConfirm }) =
   const handleClearRecords = () => {
     showConfirm(
       "【高危操作】清空所有台账流水记录",
-      "您确定要一键清空系统内【所有台账】的每天进出库记录吗？\n注意：此操作仅清空每天填写的流水数字和签字记录，不会删除各类食材的原始配置参数（名称、规格、换算单位等仍保留）。此操作不可逆！",
+      "您确定要一键清空系统内【所有台账】的每天进出库记录以及【所有备餐】的历史报表吗？\n注意：此操作将清空所有的流水明细、库存结余及历史备餐记录，回到新学期第一天的原始状态（保留各类食材、字典和人员等原始配置参数）。此操作不可逆！",
       async () => {
         const password = window.prompt("【系统安全】再次确认：请输入管理员密码以执行清空：");
         if (!password) return;
@@ -146,12 +146,12 @@ export const AdminSystemTab: React.FC<AdminSystemTabProps> = ({ showConfirm }) =
               <Trash2 size={18} />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-bold text-red-800 mb-1">清空所有台账历史流水记录</h3>
+              <h3 className="text-sm font-bold text-red-800 mb-1">系统大扫除（清空流水与报表）</h3>
               <div className="bg-white/80 p-2.5 rounded border border-red-100 mb-3">
                 <p className="text-xs text-slate-700 leading-relaxed flex items-start gap-2">
                   <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
                   <span>
-                    本功能将<strong>一键清空系统内所有台账下属的每日进出库详细记录</strong>。<br />
+                    本功能将<strong>一键清空系统内所有台账下属的每日进出库记录、所有历史备餐报表，并将库存归零</strong>。<br />
                     常用于新学期、新季度初的账目归零。此操作<strong>仅清除流水记录</strong>，您配置好的所有底表大类、原材料基础信息（单位/规格/初始库存等）均会安全保留。
                   </span>
                 </p>

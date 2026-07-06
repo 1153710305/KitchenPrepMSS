@@ -81,6 +81,9 @@ export class StorageService {
           const db = StorageService.getDb();
           db.prepare("DELETE FROM ledger_item_daily_records").run();
           db.prepare("UPDATE ledger_items SET initial_stock = 0, current_stock = 0").run();
+          db.prepare("DELETE FROM reports").run();
+          db.prepare("DELETE FROM prepared_items").run();
+          db.prepare("DELETE FROM prepared_item_daily_data").run();
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
@@ -96,6 +99,9 @@ export class StorageService {
               item.currentStock = 0;
             });
           }
+          // COS 模式清空备餐报表相关数据
+          data.reports = [];
+          data.preparedItems = [];
           // 保存回 COS
           const { Bucket, Region, Key } = StorageService.getCosConfig();
           await new Promise<void>((resolve, reject) => {
