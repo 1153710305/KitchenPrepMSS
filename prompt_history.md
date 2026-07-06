@@ -766,3 +766,9 @@ Fix bug：
 
 **Action:**
 - 修改了 LedgerSystem.tsx 中的 `handleApplyBatchSignatures` 函数，去除了其中关于 `buyer`、`inspector` 和 `keeper` 的硬编码联动赋值，确保出库批量填报仅作用于 `outHandler` 和 `outRecipient`。
+
+## 2026-07-06 修复原料删除级联 Bug
+**User Prompt:** 当删除6号的土豆记录时，5号等其他日期的的土豆记录也被删除了
+
+**Action:**
+- 修改了 LedgerSystem.tsx 中的 `handleDeleteMaterial` 函数。新增历史日期存在性检查。若原料在非当前日期有记录，则只清零当天的 record（更新属性为0/空）；若在其它天无记录，才触发物理删除 `deleteLedgerItem`，避免了跨日期的误删现象。

@@ -468,8 +468,41 @@ export function LedgerSystem() {
    * @description 物理删除原料采购项目
    */
   const handleDeleteMaterial = (id: string) => {
-    if (confirm(LEDGER_UI_TEXT.deleteMaterialConfirm)) {
-      LedgerService.deleteLedgerItem(id).catch((err) => triggerError(err.message));
+    const item = activeLedger?.items.find((i) => i.id === id);
+    if (!item) return;
+
+    const otherDatesWithRecords = Object.keys(item.dailyRecords).filter((date) => {
+      if (date === selectedDate) return false;
+      const r = item.dailyRecords[date];
+      return r.inQuantity > 0 || r.outQuantity > 0 || r.purchaseDate || r.supplier;
+    });
+
+    if (otherDatesWithRecords.length > 0) {
+      if (confirm(`【${item.name}】在其他日期（如 ${otherDatesWithRecords[0]}）已有记录。\n为了保证历史数据完整，此处仅会清除其在今日（${selectedDate}）的数据。\n\n是否继续清除今日数据？`)) {
+        LedgerService.updateDailyRecord(item.id, selectedDate, {
+          inQuantity: 0,
+          inPrice: 0,
+          inAmount: 0,
+          outQuantity: 0,
+          certification: "",
+          sensoryProperty: "",
+          supplier: "",
+          purchaseDate: "",
+          buyer: "",
+          produceDate: "",
+          shelfLife: "",
+          inspector: "",
+          outDate: "",
+          outHandler: "",
+          outRecipient: "",
+          keeper: "",
+          remark: ""
+        }).catch((err) => triggerError(err.message));
+      }
+    } else {
+      if (confirm(LEDGER_UI_TEXT.deleteMaterialConfirm)) {
+        LedgerService.deleteLedgerItem(id).catch((err) => triggerError(err.message));
+      }
     }
   };
 
