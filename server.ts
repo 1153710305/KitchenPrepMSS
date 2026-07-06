@@ -13,6 +13,9 @@ import dotenv from "dotenv";
 import { LogService } from "./server/logService.ts";
 import { storageRouter } from "./server/routes/storage.ts";
 import { miscRouter } from "./server/routes/misc.ts";
+import { rawMaterialsRouter } from "./server/routes/rawMaterials.ts";
+import { ledgersRouter, ledgerItemsRouter } from "./server/routes/ledgers.ts";
+import { groupsRouter, categoriesRouter, reportsRouter } from "./server/routes/reports.ts";
 
 // 加载环境变量
 dotenv.config();
@@ -43,8 +46,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// 挂载数据持久化相关路由 (/api/storage/load|save|backups|restore)
+// 挂载数据持久化相关路由 (/api/storage/load|save)
 app.use("/api/storage", storageRouter);
+
+// 挂载原料字典业务路由（阶段A·校验/级联已迁移到后端，见 SQLite迁移规划.md）
+app.use("/api/raw-materials", rawMaterialsRouter);
+
+// 挂载台账业务路由（阶段B·校验/级联已迁移到后端，见 SQLite迁移规划.md）
+app.use("/api/ledgers", ledgersRouter);
+app.use("/api/ledger-items", ledgerItemsRouter);
+
+// 挂载备餐报表业务路由（阶段C·校验/级联已迁移到后端，见 SQLite迁移规划.md）
+app.use("/api/groups", groupsRouter);
+app.use("/api/categories", categoriesRouter);
+app.use("/api/reports", reportsRouter);
 
 // 挂载杂项路由 (/api/log、/api/health)
 app.use("/api", miscRouter);

@@ -12,7 +12,6 @@ import { FoodCategory, PreparedItem } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { getItemMonthlySummary } from "../../utils.ts";
-import { Trash } from "lucide-react";
 import type { ThemeStyle } from "../../hooks/useTableTheme.ts";
 
 /**
@@ -29,10 +28,6 @@ interface TableGridMatrixViewProps {
   activeTheme: ThemeStyle;
   /** 当前激活的食材二级分类 */
   selectedCategory: FoodCategory | null;
-  /** 是否为只读模式（只读模式下隐藏删除按钮） */
-  readOnly: boolean;
-  /** 删除特定食材行的操作回调 */
-  onDeleteItem: (itemId: string) => void;
 }
 
 /**
@@ -43,9 +38,7 @@ export function TableGridMatrixView({
   filteredItems,
   dayTotals,
   activeTheme,
-  selectedCategory,
-  readOnly,
-  onDeleteItem
+  selectedCategory
 }: TableGridMatrixViewProps) {
   /** @description 左右拖拽滚动的容器引用 */
   const containerRef = useRef<HTMLDivElement>(null);
@@ -192,17 +185,6 @@ export function TableGridMatrixView({
                         );
                       })()}
                     </span>
-
-                    {/* 悬浮删除原料项按钮（只读模式下隐藏，防止在餐位分组页误删） */}
-                    {!readOnly && (
-                      <button
-                        onClick={() => onDeleteItem(item.id)}
-                        className="opacity-0 group-hover/cell:opacity-100 p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg cursor-pointer transition-all shrink-0 ml-1.5"
-                        title="删除此原料行"
-                      >
-                        <Trash size={12} />
-                      </button>
-                    )}
                   </td>
 
                   {/* 渲染31天每日录入小卡格 */}

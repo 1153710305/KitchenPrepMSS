@@ -158,80 +158,52 @@ export class LedgerService {
    * @param name 新的台账名字
    */
   public static async updateLedger(id: string, name: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!name.trim()) {
-          reject(new Error("台账名称不能为空"));
-          return;
-        }
-
-        const ledgerIndex = this.ledgers.findIndex((l) => l.id === id);
-        if (ledgerIndex === -1) {
-          reject(new Error("找不到该台账"));
-          return;
-        }
-
-        const oldName = this.ledgers[ledgerIndex].name;
-        const normalizedName = name.trim();
-
-        // 校验重名 (排除自己)
-        if (this.ledgers.some((l) => l.name === normalizedName && l.id !== id)) {
-          reject(new Error(`名称为 "${normalizedName}" 的台账已存在`));
-          return;
-        }
-
-        const updatedLedgers = [...this.ledgers];
-        updatedLedgers[ledgerIndex] = {
-          ...updatedLedgers[ledgerIndex],
-          name: normalizedName
-        };
-
-        this.ledgers = updatedLedgers;
-        this.notifyListeners();
-        SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: id, data: updatedLedgers[ledgerIndex] });
-        LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${normalizedName}」`);
-
-        // 双向同步：通知备餐系统修改人群
-        PrepReportService.syncGroupFromLedger(id, normalizedName);
-
-        resolve();
-      }, LEDGER_API_LATENCY);
+    // 校验、级联同步餐位人群配置（此前的 PrepReportService.syncGroupFromLedger）均已迁移到后端一次事务完成
+    // （阶段B，见 SQLite迁移规划.md），前端只负责发起请求、用响应更新内存缓存
+    const oldName = this.ledgers.find((l) => l.id === id)?.name;
+    const res = await fetch(`/api/ledgers/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "更新台账失败");
+    }
+    const ledgerIndex = this.ledgers.findIndex((l) => l.id === id);
+    if (ledgerIndex === -1) {
+      this.ledgers.push(body.ledger);
+    } else {
+      this.ledgers = [...this.ledgers];
+      this.ledgers[ledgerIndex] = body.ledger;
+    }
+    this.notifyListeners();
+    LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${body.ledger.name}」`);
+
+    // 级联结果（餐位人群 label 同步）只发生在后端，主动刷新一次而不是等最多 10 秒的心跳
+    await SyncHelper.refreshNow();
   }
 
   /**
-   * @description 物理彻底删除某本台账，同步级联删除其下的所有原料采购项目和出入库账单
+   * @description 物理彻底删除某本台账，级联删除其下的所有原料采购项目和出入库账单
    * @param id 台账ID
    */
   public static async deleteLedger(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const ledger = this.ledgers.find((l) => l.id === id);
-        if (!ledger) {
-          reject(new Error("找不到待删除的台账"));
-          return;
-        }
+    // 校验、级联删除原料项目/对应餐位人群配置/月度报表（此前的 PrepReportService.syncDeleteGroupFromLedger）
+    // 均已迁移到后端一次事务完成，前端只负责发起请求
+    const ledger = this.ledgers.find((l) => l.id === id);
+    const res = await fetch(`/api/ledgers/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "删除台账失败");
+    }
+    this.ledgers = this.ledgers.filter((l) => l.id !== id);
+    this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId !== id);
+    this.notifyListeners();
+    LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger?.name}」以及其下的所有原料出入库及库存账单`);
 
-        // 不可变方式过滤清理
-        const removedItems = this.ledgerItems.filter((item) => item.ledgerId === id);
-        this.ledgers = this.ledgers.filter((l) => l.id !== id);
-        this.ledgerItems = this.ledgerItems.filter((item) => item.ledgerId !== id);
-
-        this.notifyListeners();
-        SyncHelper.queueChange({ entity: "ledger", op: "delete", key: id });
-        // 后端 ledgerItem 删除的级联只清理该原料项自己的逐日流水，不会自动推断"属于同一台账的其它原料项也要删"，
-        // 因此这里需要为每个被级联删除的原料项各自 queue 一个 delete op
-        removedItems.forEach((item) => {
-          SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: item.id });
-        });
-        LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger.name}」以及其下的所有原料出入库及库存账单`);
-
-        // 双向同步：通知备餐系统移出人群
-        PrepReportService.syncDeleteGroupFromLedger(id);
-
-        resolve();
-      }, LEDGER_API_LATENCY);
-    });
+    // 级联结果（餐位人群与月度报表移除）只发生在后端，主动刷新一次而不是等心跳
+    await SyncHelper.refreshNow();
   }
 
   /**
@@ -296,42 +268,20 @@ export class LedgerService {
     spec: string,
     initialStock: number
   ): Promise<LedgerItem> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!name.trim()) {
-          reject(new Error("原料名称不能为空"));
-          return;
-        }
-        if (!this.ledgers.some((l) => l.id === ledgerId)) {
-          reject(new Error("关联的台账不存在"));
-          return;
-        }
-
-        // 避免同一本台账内原料重名
-        const isDuplicate = this.ledgerItems.some((item) => item.ledgerId === ledgerId && item.name === name.trim());
-        if (isDuplicate) {
-          reject(new Error(`该台账内已有名为 "${name.trim()}" 的采购项目原料`));
-          return;
-        }
-
-        const newItem: LedgerItem = {
-          id: `ledger_item_${ledgerId}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          ledgerId,
-          name: name.trim(),
-          unit: unit.trim() || "斤",
-          spec: spec.trim() || "常规",
-          initialStock: Math.max(0, initialStock),
-          currentStock: Math.max(0, initialStock), // 新建时当前库存等于初始库存
-          dailyRecords: {}
-        };
-
-        this.ledgerItems = [...this.ledgerItems, newItem];
-        this.notifyListeners();
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: newItem.id, data: newItem });
-        LogBroker.publish("INFO", "LedgerService", `【新增原料】在台账中成功添加采购项原料「${newItem.name}」（规格：${newItem.spec}，初始库存：${newItem.initialStock}）`);
-        resolve(newItem);
-      }, LEDGER_API_LATENCY);
+    // 校验规则已迁移到后端（阶段B，见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存
+    const res = await fetch(`/api/ledgers/${encodeURIComponent(ledgerId)}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, unit, spec, initialStock })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "新增原料失败");
+    }
+    this.ledgerItems = [...this.ledgerItems, body.item];
+    this.notifyListeners();
+    LogBroker.publish("INFO", "LedgerService", `【新增原料】在台账中成功添加采购项原料「${body.item.name}」（规格：${body.item.spec}，初始库存：${body.item.initialStock}）`);
+    return body.item;
   }
 
   /**
@@ -349,53 +299,25 @@ export class LedgerService {
     spec: string,
     initialStock: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const itemIndex = this.ledgerItems.findIndex((item) => item.id === id);
-        if (itemIndex === -1) {
-          reject(new Error("找不到该采购原料项目"));
-          return;
-        }
-
-        const oldItem = this.ledgerItems[itemIndex];
-        const normalizedName = name.trim();
-
-        // 校验同台账内重名
-        const isDuplicate = this.ledgerItems.some(
-          (item) => item.ledgerId === oldItem.ledgerId && item.name === normalizedName && item.id !== id
-        );
-        if (isDuplicate) {
-          reject(new Error(`台账内已有名为 "${normalizedName}" 的原料`));
-          return;
-        }
-
-        const updatedItem = {
-          ...oldItem,
-          name: normalizedName,
-          unit: unit.trim() || "斤",
-          spec: spec.trim() || "常规",
-          initialStock: Math.max(0, initialStock)
-        };
-
-        // 重新计算该原料的实时当前库存
-        let sumIn = 0;
-        let sumOut = 0;
-        Object.values(updatedItem.dailyRecords).forEach((record) => {
-          sumIn += record.inQuantity || 0;
-          sumOut += record.outQuantity || 0;
-        });
-        updatedItem.currentStock = updatedItem.initialStock + sumIn - sumOut;
-
-        const updatedItems = [...this.ledgerItems];
-        updatedItems[itemIndex] = updatedItem;
-        this.ledgerItems = updatedItems;
-
-        this.notifyListeners();
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
-        LogBroker.publish("INFO", "LedgerService", `【修改原料】成功修改采购原料「${oldItem.name}」的配置参数，并重新同步折算库存。`);
-        resolve();
-      }, LEDGER_API_LATENCY);
+    const oldName = this.ledgerItems.find((item) => item.id === id)?.name;
+    const res = await fetch(`/api/ledger-items/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, unit, spec, initialStock })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "更新原料失败");
+    }
+    const itemIndex = this.ledgerItems.findIndex((item) => item.id === id);
+    if (itemIndex === -1) {
+      this.ledgerItems.push(body.item);
+    } else {
+      this.ledgerItems = [...this.ledgerItems];
+      this.ledgerItems[itemIndex] = body.item;
+    }
+    this.notifyListeners();
+    LogBroker.publish("INFO", "LedgerService", `【修改原料】成功修改采购原料「${oldName}」的配置参数，并重新同步折算库存。`);
   }
 
   /**
@@ -403,21 +325,15 @@ export class LedgerService {
    * @param id 原料项目ID
    */
   public static async deleteLedgerItem(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const item = this.ledgerItems.find((i) => i.id === id);
-        if (!item) {
-          reject(new Error("找不到要删除的原料项目"));
-          return;
-        }
-
-        this.ledgerItems = this.ledgerItems.filter((i) => i.id !== id);
-        this.notifyListeners();
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: id });
-        LogBroker.publish("WARN", "LedgerService", `【删除原料】物理清除了采购项原料「${item.name}」的所有库存出入库明细记录`);
-        resolve();
-      }, LEDGER_API_LATENCY);
-    });
+    const item = this.ledgerItems.find((i) => i.id === id);
+    const res = await fetch(`/api/ledger-items/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "删除原料失败");
+    }
+    this.ledgerItems = this.ledgerItems.filter((i) => i.id !== id);
+    this.notifyListeners();
+    LogBroker.publish("WARN", "LedgerService", `【删除原料】物理清除了采购项原料「${item?.name}」的所有库存出入库明细记录`);
   }
 
   /**
@@ -460,129 +376,56 @@ export class LedgerService {
     dateStr: string,
     fields: Partial<DailyStockRecord>
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        const itemIndex = this.ledgerItems.findIndex((item) => item.id === itemId);
-        if (itemIndex === -1) {
-          reject(new Error("找不到对应的采购原料项目"));
-          return;
-        }
+    // 合并/校验/重算逻辑已迁移到后端（阶段B，见 SQLite迁移规划.md）；反向同步进备餐月度报表
+    // （PrepReportService.syncFromLedger）目前仍是前端调用——PrepReportService 本身尚未迁移到后端（阶段C）
+    const item = this.ledgerItems.find((i) => i.id === itemId);
+    if (!item) {
+      throw new Error("找不到对应的采购原料项目");
+    }
 
-        const item = this.ledgerItems[itemIndex];
-
-        // 深度复制并克隆 dailyRecords 属性
-        const updatedDailyRecords = { ...item.dailyRecords };
-
-        // 初始化或获取原有记录
-        const oldRecord: DailyStockRecord = updatedDailyRecords[dateStr] || {
-          inQuantity: 0,
-          inPrice: 0,
-          inAmount: 0,
-          outQuantity: 0,
-          note: ""
-        };
-
-        // 进行浅合并
-        const mergedRecord: DailyStockRecord = {
-          ...oldRecord,
-          ...fields
-        };
-
-        // 对数值安全过滤并重算入库金额：非负数校验，同时兜底非法数字（如 NaN）不会绕过 Math.max 的负数拦截
-        mergedRecord.inQuantity = Number.isFinite(mergedRecord.inQuantity) ? Math.max(0, mergedRecord.inQuantity!) : 0;
-        mergedRecord.inPrice = Number.isFinite(mergedRecord.inPrice) ? Math.max(0, mergedRecord.inPrice!) : 0;
-        mergedRecord.inAmount = Math.round(mergedRecord.inQuantity * mergedRecord.inPrice * 100) / 100;
-        mergedRecord.outQuantity = Number.isFinite(mergedRecord.outQuantity) ? Math.max(0, mergedRecord.outQuantity!) : 0;
-
-        if (mergedRecord.note !== undefined) {
-          mergedRecord.note = mergedRecord.note.trim();
-        }
-
-        // 清理空记录以节省空间
-        const hasData =
-          mergedRecord.inQuantity > 0 ||
-          mergedRecord.inPrice > 0 ||
-          mergedRecord.outQuantity > 0 ||
-          (mergedRecord.note && mergedRecord.note.trim()) ||
-          (mergedRecord.certification && mergedRecord.certification.trim()) ||
-          (mergedRecord.sensoryProperty && mergedRecord.sensoryProperty.trim()) ||
-          (mergedRecord.supplier && mergedRecord.supplier.trim()) ||
-          (mergedRecord.buyer && mergedRecord.buyer.trim()) ||
-          (mergedRecord.inspector && mergedRecord.inspector.trim()) ||
-          (mergedRecord.keeper && mergedRecord.keeper.trim()) ||
-          (mergedRecord.produceDate && mergedRecord.produceDate.trim()) ||
-          (mergedRecord.shelfLife && mergedRecord.shelfLife.trim()) ||
-          (mergedRecord.outHandler && mergedRecord.outHandler.trim()) ||
-          (mergedRecord.outRecipient && mergedRecord.outRecipient.trim());
-
-        if (!hasData) {
-          delete updatedDailyRecords[dateStr];
-        } else {
-          updatedDailyRecords[dateStr] = mergedRecord;
-        }
-
-        // 重新累加该原料所有历史时间的入库与出库数量，重新核算出物理库存
-        let sumIn = 0;
-        let sumOut = 0;
-        Object.values(updatedDailyRecords).forEach((record) => {
-          sumIn += record.inQuantity || 0;
-          sumOut += record.outQuantity || 0;
-        });
-
-        const newCurrentStock = item.initialStock + sumIn - sumOut;
-
-        const updatedItem: LedgerItem = {
-          ...item,
-          dailyRecords: updatedDailyRecords,
-          currentStock: Math.round(newCurrentStock * 100) / 100
-        };
-
-        const updatedItems = [...this.ledgerItems];
-        updatedItems[itemIndex] = updatedItem;
-        this.ledgerItems = updatedItems;
-
-        this.notifyListeners();
-        // 只增量同步这一天的流水记录本身，而不是整个 dailyRecords 对象；currentStock 属于骨架字段，另发一个 ledgerItem op
-        if (!hasData) {
-          SyncHelper.queueChange({ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId, date: dateStr } });
-        } else {
-          SyncHelper.queueChange({ entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId, date: dateStr }, data: mergedRecord });
-        }
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
-
-        // 当用户手动录入入库数据或入库单价时，单向自动同步至备餐月度报表
-        if (fields.inQuantity !== undefined || fields.inPrice !== undefined) {
-          const inQty = mergedRecord.inQuantity ?? 0;
-          const inPr = mergedRecord.inPrice ?? 0;
-
-          // 从原料库字典中根据原料名称查询二级分类和默认单位
-          const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || FoodCategory.VEGETABLE;
-          const unit = item.unit || "斤";
-
-          // 从 YYYY-MM-DD 提取年、月、日
-          const [yearStr, monthStr, dayStr] = dateStr.split("-");
-          const year = parseInt(yearStr || "2026");
-          const month = parseInt(monthStr || "06");
-          const day = parseInt(dayStr || "01").toString(); // 去除前导0
-
-          PrepReportService.syncFromLedger(
-            item.ledgerId, // 即 targetGroup
-            year,
-            month,
-            day,
-            item.name,
-            category,
-            unit,
-            inQty,
-            inPr
-          );
-        }
-
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
+    const res = await fetch(`/api/ledger-items/${encodeURIComponent(itemId)}/daily/${encodeURIComponent(dateStr)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields)
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "保存出入库记录失败");
+    }
+
+    const itemIndex = this.ledgerItems.findIndex((i) => i.id === itemId);
+    this.ledgerItems = [...this.ledgerItems];
+    this.ledgerItems[itemIndex] = body.item;
+    this.notifyListeners();
+
+    // 当用户手动录入入库数据或入库单价时，单向自动同步至备餐月度报表
+    if (fields.inQuantity !== undefined || fields.inPrice !== undefined) {
+      const mergedRecord: DailyStockRecord = body.mergedRecord;
+      const inQty = mergedRecord.inQuantity ?? 0;
+      const inPr = mergedRecord.inPrice ?? 0;
+
+      // 从原料库字典中根据原料名称查询二级分类和默认单位
+      const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || FoodCategory.VEGETABLE;
+      const unit = item.unit || "斤";
+
+      // 从 YYYY-MM-DD 提取年、月、日
+      const [yearStr, monthStr, dayStr] = dateStr.split("-");
+      const year = parseInt(yearStr || "2026");
+      const month = parseInt(monthStr || "06");
+      const day = parseInt(dayStr || "01").toString(); // 去除前导0
+
+      PrepReportService.syncFromLedger(
+        item.ledgerId, // 即 targetGroup
+        year,
+        month,
+        day,
+        item.name,
+        category,
+        unit,
+        inQty,
+        inPr
+      );
+    }
   }
 
   /**

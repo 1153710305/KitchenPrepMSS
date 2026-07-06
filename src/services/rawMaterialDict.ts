@@ -9,8 +9,6 @@
 
 import { FoodCategory } from "../types/types.ts";
 import { LogBroker } from "../utils.ts";
-import { LedgerService } from "./ledgerStore.ts";
-import { PrepReportService } from "./store.ts";
 import { SyncHelper } from "./syncHelper.ts";
 
 /**
@@ -243,29 +241,18 @@ export class RawMaterialsDictService {
     conversionUnit?: string,
     conversionRatio?: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const trimmedName = name.trim();
-      if (!trimmedName) {
-        reject(new Error("原料名称不能为空"));
-        return;
-      }
-      if (this.items.some((item) => item.name === trimmedName)) {
-        reject(new Error(`名为 "${trimmedName}" 的原料在字典中已存在`));
-        return;
-      }
-      const newItem: RawMaterialDictItem = {
-        name: trimmedName,
-        category,
-        unit: unit.trim() || "斤",
-        remark: remark?.trim() || "",
-        conversionUnit: conversionUnit?.trim() || undefined,
-        conversionRatio: conversionRatio || undefined
-      };
-      this.items.push(newItem);
-      SyncHelper.queueChange({ entity: "rawMaterial", op: "upsert", key: trimmedName, data: newItem });
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
-      resolve();
+    // 校验与级联规则已迁移到后端（阶段A，见 SQLite迁移规划.md），这里只负责发起请求并用响应更新内存缓存
+    const res = await fetch("/api/raw-materials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category, unit, remark, conversionUnit, conversionRatio })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "新增原料失败");
+    }
+    this.items.push(body.item);
+    LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】新增原料「${body.item.name}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
   }
 
   /**
@@ -287,46 +274,28 @@ export class RawMaterialsDictService {
     conversionUnit?: string,
     conversionRatio?: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const trimmedName = name.trim();
-      if (!trimmedName) {
-        reject(new Error("原料名称不能为空"));
-        return;
-      }
-      const index = this.items.findIndex((item) => item.name === oldName);
-      if (index === -1) {
-        reject(new Error("未找到原原料记录"));
-        return;
-      }
-      // 检查重名 (排除自己)
-      if (trimmedName !== oldName && this.items.some((item) => item.name === trimmedName)) {
-        reject(new Error(`名为 "${trimmedName}" 的原料已存在`));
-        return;
-      }
-      const finalRemark = remark?.trim() || "";
-      const updatedItem: RawMaterialDictItem = {
-        name: trimmedName,
-        category,
-        unit: unit.trim() || "斤",
-        remark: finalRemark,
-        conversionUnit: conversionUnit?.trim() || undefined,
-        conversionRatio: conversionRatio || undefined,
-        // 保留原有的默认数据标记，确保系统默认原料被编辑（含改名）后依然不可删除
-        isDefault: this.items[index].isDefault
-      };
-      this.items[index] = updatedItem;
-      // name 本身是后端表的主键，改名时需要把旧主键一并带上，供后端删除旧行、避免留下重复条目
-      SyncHelper.queueChange({
-        entity: "rawMaterial", op: "upsert", key: trimmedName, data: updatedItem,
-        previousKey: trimmedName !== oldName ? oldName : undefined
-      });
-      LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${trimmedName}」（类别: ${category}，单位: ${unit}，备注: ${finalRemark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
-
-      // 级联同步更新台账与备餐中的所有旧原料项目参数，备注作为规格传入（各自会通过 queueChange 描述自己的增量变更）
-      LedgerService.cascadeUpdateMaterial(oldName, trimmedName, unit.trim() || "斤", finalRemark);
-      PrepReportService.cascadeUpdateMaterial(oldName, trimmedName, category, unit.trim() || "斤");
-      resolve();
+    // 校验、isDefault 保留、级联更新台账/备餐报表里的同名条目均已迁移到后端（阶段A，见 SQLite迁移规划.md），
+    // 后端一次事务内完成级联，前端只负责发起请求、用响应更新内存缓存
+    const res = await fetch(`/api/raw-materials/${encodeURIComponent(oldName)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category, unit, remark, conversionUnit, conversionRatio })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "更新原料失败");
+    }
+    const index = this.items.findIndex((item) => item.name === oldName);
+    if (index === -1) {
+      this.items.push(body.item);
+    } else {
+      this.items[index] = body.item;
+    }
+    LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${body.item.name}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
+
+    // 级联结果只发生在后端 SQLite 里，台账/备餐报表当前的内存状态尚未感知，主动刷新一次而不是等最多10秒的心跳，
+    // 避免用户改完名字后台账/备餐细表页面显得"过一会才更新"
+    await SyncHelper.refreshNow();
   }
 
   /**
@@ -334,20 +303,16 @@ export class RawMaterialsDictService {
    * @param name 原料品名
    */
   public static async deleteMaterial(name: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const target = this.items.find((item) => item.name === name);
-      if (target?.isDefault) {
-        reject(new Error(`「${name}」是系统默认原料，不允许删除，如需调整可编辑其属性`));
-        return;
-      }
-      this.items = this.items.filter((item) => item.name !== name);
-      SyncHelper.queueChange({ entity: "rawMaterial", op: "delete", key: name });
-      LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
+    // 校验（isDefault 保护）与级联删除台账/备餐报表里的同名条目均已迁移到后端，前端只负责发起请求
+    const res = await fetch(`/api/raw-materials/${encodeURIComponent(name)}`, { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "删除原料失败");
+    }
+    this.items = this.items.filter((item) => item.name !== name);
+    LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
 
-      // 级联物理删除关联采购原料项与备餐明细（各自会通过 queueChange 描述自己的增量变更）
-      LedgerService.cascadeDeleteMaterial(name);
-      PrepReportService.cascadeDeleteMaterial(name);
-      resolve();
-    });
+    // 同 updateMaterial：级联删除只发生在后端，主动刷新一次而不是等心跳
+    await SyncHelper.refreshNow();
   }
 }

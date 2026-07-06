@@ -7,9 +7,8 @@
  * @description StorageService（本地 SQLite 持久化服务，阶段二·规范化关系型表结构 + 阶段三·增量写协议见 SQLite迁移规划.md）单元测试：
  * 主数据读写往返（含 reports/preparedItems/activeGroups/activeCategories/rawMaterialsDict/ledgerHelperDict 全部 7 个
  * 顶层字段的正确重组）、每日流水的存储与重组（含"删除后不应复活"的历史遗留 bug 回归）、损坏/首次启动状态容错、
- * 备份快照生成节流与保留策略裁剪、快照恢复（骨架部分覆盖但绝不清空当前生效中的台账每日流水）、restore() 的备份文件名
- * 安全校验（防路径穿越）、原子写入与写入锁、以及 applyChangesIntoSqlite 增量 upsert/delete/级联删除/跨实体事务回滚的回归测试。
- * 早期 JSON 存储与阶段一 kv_store 浅迁移的历史兼容代码已彻底移除，不再有相关测试。
+ * 写入锁、以及 applyChangesIntoSqlite 增量 upsert/delete/级联删除/跨实体事务回滚的回归测试。
+ * 早期 JSON 存储、阶段一 kv_store 浅迁移、以及此前的本地/云端 JSON 备份快照功能均已彻底移除，不再有相关测试。
  * 测试通过临时目录 + 动态重新导入模块实现相互隔离，因为 StorageService 在类定义时就从 process.env 读取路径并缓存为
  * private static 字段，运行期不会重新读取。
  *
@@ -92,10 +91,9 @@ afterEach(() => {
 
 describe("StorageService (local mode, SQLite-backed, normalized schema)", () => {
   describe("init", () => {
-    it("creates the data directory and the backups subdirectory on module load", () => {
+    it("creates the data directory on module load", () => {
       const dataDir = process.env.LOCAL_DATA_DIR!;
       expect(fs.existsSync(dataDir)).toBe(true);
-      expect(fs.existsSync(path.join(dataDir, "backups"))).toBe(true);
     });
 
     it("creates the SQLite database file on module load", () => {
@@ -119,6 +117,22 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
       const data = await StorageService.load();
       expect(data.ledgers.length).toBeGreaterThan(0);
       expect(data.rawMaterialsDict.length).toBeGreaterThan(0);
+    });
+
+    it("REGRESSION: seeds each preparedItem's dailyData with bare day-of-month keys (\"1\".. \"31\"), not \"YYYY-MM-DD\" — must match the key format every other read/write site (App.tsx/TableGrid.tsx/updateCell/syncFromLedger 等) actually consumes", async () => {
+      delete process.env.SKIP_SEEDING;
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      StorageService = mod.StorageService;
+
+      const data = await StorageService.load();
+      const firstItem = data.reports[0].items[0];
+      const dailyKeys = Object.keys(firstItem.dailyData);
+
+      expect(dailyKeys.length).toBeGreaterThan(0);
+      dailyKeys.forEach((key: string) => {
+        expect(key).toMatch(/^\d{1,2}$/);
+      });
     });
 
     it("returns the full state after a save, including daily records reattached onto the matching ledgerItem", async () => {
@@ -227,14 +241,6 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
       const data = await StorageService.load();
       expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
       expect(data.ledgerItems[0].dailyRecords["2026-07-03"]).toBeDefined();
-    });
-
-    it("creates a timestamped JSON backup snapshot alongside every save", async () => {
-      await saveFull({ ledgers: [] });
-
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const backups = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_") && f.endsWith(".json"));
-      expect(backups.length).toBe(1);
     });
 
     it("round-trips a full save-then-load cycle correctly, including daily records", async () => {
@@ -396,14 +402,6 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
   });
 
   describe("[V5.85.0] SQLite transaction atomicity (真实事务回滚，规范化多表写入同样全部包在一个事务里)", () => {
-    it("leaves no leftover .tmp- temp files after a normal save (backup snapshot is still written atomically)", async () => {
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const leftoverTemp = fs.readdirSync(backupDir).filter((f) => f.includes(".tmp-"));
-      expect(leftoverTemp).toEqual([]);
-    });
-
     it("REGRESSION: a save() that fails partway through the SQLite transaction rolls back entirely — no partial writes survive", async () => {
       await saveFull({
         ledgers: [{ id: "ORIGINAL", name: "原始数据", createdAt: "2026-01-01T00:00:00.000Z" }],
@@ -445,7 +443,7 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
   });
 
-  describe("write lock (internal mutex serializes save()/restore())", () => {
+  describe("write lock (internal mutex serializes save())", () => {
     it("serializes queued tasks so a later task never starts running before an earlier one finishes", async () => {
       const order: string[] = [];
       const slowTask = async () => {
@@ -486,166 +484,4 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
     });
   });
 
-  describe("getBackups", () => {
-    it("returns an empty array when no backups exist and the backups dir was never touched by a save", async () => {
-      const backups = await StorageService.getBackups();
-      expect(backups).toEqual([]);
-    });
-
-    it("lists backup filenames sorted from newest to oldest", async () => {
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      fs.writeFileSync(path.join(backupDir, "db_2026-07-01T00-00-00-000Z.json"), "{}");
-      fs.writeFileSync(path.join(backupDir, "db_2026-07-03T00-00-00-000Z.json"), "{}");
-      fs.writeFileSync(path.join(backupDir, "db_2026-07-02T00-00-00-000Z.json"), "{}");
-
-      const backups = await StorageService.getBackups();
-
-      expect(backups).toEqual([
-        "db_2026-07-03T00-00-00-000Z.json",
-        "db_2026-07-02T00-00-00-000Z.json",
-        "db_2026-07-01T00-00-00-000Z.json"
-      ]);
-    });
-  });
-
-  describe("trimLocalBackups (retention policy, invoked internally by save)", () => {
-    it("keeps at most the 30 most recent backups, deleting the oldest ones beyond that", async () => {
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      // 预先手工构造 32 份"旧"备份文件（时间戳递增，确保排序稳定）
-      for (let i = 0; i < 32; i++) {
-        const ts = `2026-01-${String(i + 1).padStart(2, "0")}T00-00-00-000Z`;
-        fs.writeFileSync(path.join(backupDir, `db_${ts}.json`), "{}");
-      }
-
-      // 触发一次真实 save()，内部会在写完新快照后调用 trimLocalBackups()
-      await saveFull({ ledgers: [] });
-
-      const remaining = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_") && f.endsWith(".json"));
-      expect(remaining.length).toBe(30);
-      // 最早的两份（01-01、01-02）应已被清理
-      expect(remaining).not.toContain("db_2026-01-01T00-00-00-000Z.json");
-      expect(remaining).not.toContain("db_2026-01-02T00-00-00-000Z.json");
-    });
-  });
-
-  describe("restore", () => {
-    it("overwrites the skeleton fields with the content of the given backup and returns the fully reassembled data", async () => {
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const backupContent = JSON.stringify({ ledgers: [{ id: "RESTORED", name: "已恢复", createdAt: "2026-01-01T00:00:00.000Z" }] });
-      fs.writeFileSync(path.join(backupDir, "db_2026-07-01T00-00-00-000Z.json"), backupContent);
-
-      const result = await StorageService.restore("db_2026-07-01T00-00-00-000Z.json");
-
-      expect(result.ledgers).toEqual([{ id: "RESTORED", name: "已恢复", createdAt: "2026-01-01T00:00:00.000Z" }]);
-      const reloaded = await StorageService.load();
-      expect(reloaded.ledgers).toEqual([{ id: "RESTORED", name: "已恢复", createdAt: "2026-01-01T00:00:00.000Z" }]);
-    });
-
-    it("REGRESSION: restoring a skeleton-only backup never clears the daily records currently in effect", async () => {
-      // 备份快照本身从不包含台账每日流水（与迁移前的既有限制保持一致）；恢复时绝不能把当前生效中的
-      // ledger_item_daily_records 一并清空，否则会造成比历史版本更严重的数据丢失回归
-      await saveFull({
-        ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
-        ledgerItems: [makeLedgerItem({ dailyRecords: { "2026-07-03": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 } } })]
-      });
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const backupName = fs.readdirSync(backupDir).find((f) => f.startsWith("db_"))!;
-
-      const result = await StorageService.restore(backupName);
-
-      expect(result.ledgerItems[0].dailyRecords["2026-07-03"]).toMatchObject({
-        inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0
-      });
-    });
-
-    it("returns null when the requested backup file does not exist", async () => {
-      const result = await StorageService.restore("db_2099-01-01T00-00-00-000Z.json");
-      expect(result).toBeNull();
-    });
-
-    it("SECURITY REGRESSION: rejects a path-traversal backupName and does not touch any file outside the backups directory or import any data", async () => {
-      // 在备份目录之外放一个"敏感文件"作为穿越目标，验证它绝对不会被读取或覆盖
-      const sensitiveFile = path.join(tmpDir, "sensitive.txt");
-      fs.writeFileSync(sensitiveFile, "top-secret-content");
-      const sensitiveContentBefore = fs.readFileSync(sensitiveFile, "utf8");
-
-      const result = await StorageService.restore("../../sensitive.txt");
-
-      expect(result).toBeNull();
-      // 目标敏感文件内容必须完全未被改动
-      expect(fs.readFileSync(sensitiveFile, "utf8")).toBe(sensitiveContentBefore);
-      // 非法请求不应向 SQLite 导入任何数据
-      expect(await StorageService.load()).toEqual({});
-    });
-
-    it("SECURITY REGRESSION: rejects a backupName containing a forward slash even without '..'", async () => {
-      const result = await StorageService.restore("subdir/db_evil.json");
-      expect(result).toBeNull();
-    });
-
-    it("still accepts a legitimate backup filename matching the expected db_<timestamp>.json pattern", async () => {
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      fs.writeFileSync(
-        path.join(backupDir, "db_2026-07-03T08-52-47-296Z.json"),
-        JSON.stringify({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] })
-      );
-
-      const result = await StorageService.restore("db_2026-07-03T08-52-47-296Z.json");
-
-      expect(result.ledgers).toEqual([{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }]);
-    });
-
-    it("KNOWN EDGE CASE: restoring a backup whose content is entirely empty across every entity is indistinguishable from first-boot and returns {} rather than an all-empty-arrays shape", async () => {
-      // 规范化表结构按"每个业务实体一行"存储，而非阶段一那种"每个顶层 key 固定占一行"的 kv_store 形态；
-      // 因此"数据库彻底没有任何数据"和"曾经保存过一份内容全为空数组的状态"在规范化表结构下无法区分。
-      // 这只影响"恢复一份从未真正录入过任何数据的空白备份"这一极端场景（现实中不会有业务需要这么做），
-      // 对真实使用场景（保存过任意一条真实数据）没有影响，此处作为已知行为差异记录下来，避免日后被误当作 bug。
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      fs.writeFileSync(path.join(backupDir, "db_2026-07-04T00-00-00-000Z.json"), JSON.stringify({ ledgers: [] }));
-
-      const result = await StorageService.restore("db_2026-07-04T00-00-00-000Z.json");
-
-      expect(result).toEqual({});
-    });
-  });
-
-  describe("[V5.87.0] backup snapshot throttle (性能隐患修复：不再每次保存都重建全量快照)", () => {
-    it("always generates a snapshot on the very first save after cold start (lastSnapshotAt starts at 0)", async () => {
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      const backups = fs.readdirSync(path.join(process.env.LOCAL_DATA_DIR!, "backups")).filter((f) => f.startsWith("db_"));
-      expect(backups.length).toBe(1);
-    });
-
-    it("skips regenerating the snapshot for a second save that happens within the throttle window", async () => {
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐（改名）", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const backups = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_"));
-      // 两次保存之间间隔仅几毫秒，远小于节流窗口，第二次应当跳过快照生成
-      expect(backups.length).toBe(1);
-    });
-
-    it("still applies the incremental SQL write correctly even when the snapshot itself is skipped", async () => {
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
-      const success = await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐（改名）", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      expect(success).toBe(true);
-      const data = await StorageService.load();
-      expect(data.ledgers).toEqual([{ id: "KID", name: "幼儿备餐（改名）", createdAt: "2026-01-01T00:00:00.000Z" }]);
-    });
-
-    it("generates a new snapshot again once the throttle window has elapsed", async () => {
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      // 手工把 lastSnapshotAt 拨回到节流窗口之外，模拟"距离上次快照已经过了很久"
-      (StorageService as any).lastSnapshotAt = Date.now() - ((StorageService as any).SNAPSHOT_MIN_INTERVAL_MS + 1000);
-      await saveFull({ ledgers: [{ id: "KID", name: "幼儿备餐（改名）", createdAt: "2026-01-01T00:00:00.000Z" }] });
-
-      const backupDir = path.join(process.env.LOCAL_DATA_DIR!, "backups");
-      const backups = fs.readdirSync(backupDir).filter((f) => f.startsWith("db_"));
-      expect(backups.length).toBe(2);
-    });
-  });
 });

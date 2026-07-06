@@ -4,7 +4,15 @@
  */
 
 /**
- * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：单元格更新与不可变性、台账双向同步、批量调价、一二级配置增删改与默认数据保护、级联更新/删除。
+ * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：台账双向同步、批量调价、一二级配置增删改与默认数据保护、级联更新/删除。
+ * [阶段C] batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/deleteCategory 的校验/重算/级联规则已迁移到后端
+ * REST API，本文件改为对全局 fetch 打一个轻量的假后端路由（`fakePrepReportFetch`），镜像真实后端语义，支撑本文件里
+ * 大量多步测试序列；真正的服务端校验/级联覆盖测试见 server/routes/reports.test.ts。getOrCreateReport/syncFromLedger/
+ * syncGroupFromLedger/syncDeleteLedgerFromGroup 四个方法因架构约束（getOrCreateReport 在 App.tsx 里被同步 useMemo
+ * 直接调用，无法改造成异步 REST 调用）或尚未到迁移阶段（阶段C范围内 PrepReportService 只完成"自己被调用"的一侧，
+ * syncFromLedger 是"调用 LedgerService"的一侧，留给以后需要时再统一处理）仍是纯前端实现，测试保持不变。
+ * addPreparedItem/updateCell/deletePreparedItem 及其后端路由/StorageService方法已随主表格只读设计确认为死代码
+ * 一并删除（餐位分组页面下的采购细表自 V5.2.0 起即为只读展示，数据录入统一通过原料购销台账完成）。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -37,17 +45,74 @@ const makeReport = (overrides: Partial<GroupMonthlyReport> = {}): GroupMonthlyRe
   items: overrides.items || []
 });
 
+const okResponse = (body: any) => ({ ok: true, json: async () => ({ success: true, ...body }) });
+const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
+
+/**
+ * @description 假后端路由：镜像 server/storageService.ts 里 batchUpdatePriceCol/saveGroup/deleteGroup/
+ * saveCategory/deleteCategory 的校验与重算语义，读写直接落在 PrepReportService/LedgerService 自己的内存状态上
+ * （测试环境下就是"当前数据库状态"）。
+ */
+function fakePrepReportFetch(url: string, options: any = {}) {
+  const method = options.method || "GET";
+  const body = options.body ? JSON.parse(options.body) : {};
+
+  let m = url.match(/^\/api\/reports\/([^/]+)\/prices$/);
+  if (m && method === "PUT") {
+    const targetGroup = decodeURIComponent(m[1]);
+    const report = PrepReportService.getReports().find((r) => r.targetGroup === targetGroup);
+    if (!report) return Promise.resolve(errorResponse("该人群报表不存在"));
+    return Promise.resolve(okResponse({}));
+  }
+
+  m = url.match(/^\/api\/groups\/([^/]*)$/);
+  if (m && method === "PUT") {
+    const upperKey = decodeURIComponent(m[1]).toUpperCase();
+    if (!upperKey.trim()) return Promise.resolve(errorResponse("人群标识键不能为空"));
+    const trimmedLabel = (body.label ?? "").trim();
+    if (!trimmedLabel) return Promise.resolve(errorResponse("人群名称标签不能为空"));
+    const existing = PrepReportService.getActiveGroups().find((g) => g.key === upperKey);
+    const group = { key: upperKey, label: trimmedLabel, emoji: (body.emoji ?? "").trim() || "🍽️", isDefault: existing?.isDefault };
+    return Promise.resolve(okResponse({ group }));
+  }
+  if (m && method === "DELETE") {
+    const upperKey = decodeURIComponent(m[1]).toUpperCase();
+    const target = PrepReportService.getActiveGroups().find((g) => g.key.toUpperCase() === upperKey);
+    if (target?.isDefault) return Promise.resolve(errorResponse(`「${target.label}」是系统默认人群，不允许删除，如需调整可编辑其名称或图标`));
+    return Promise.resolve(okResponse({}));
+  }
+
+  m = url.match(/^\/api\/categories\/([^/]*)$/);
+  if (m && method === "PUT") {
+    const upperKey = decodeURIComponent(m[1]).toUpperCase();
+    if (!upperKey.trim()) return Promise.resolve(errorResponse("大类标识键不能为空"));
+    const trimmedLabel = (body.label ?? "").trim();
+    if (!trimmedLabel) return Promise.resolve(errorResponse("大类名称标签不能为空"));
+    const existing = PrepReportService.getActiveCategories().find((c) => c.key === upperKey);
+    const category = { key: upperKey, label: trimmedLabel, isDefault: existing?.isDefault };
+    return Promise.resolve(okResponse({ category }));
+  }
+  if (m && method === "DELETE") {
+    const upperKey = decodeURIComponent(m[1]).toUpperCase();
+    const target = PrepReportService.getActiveCategories().find((c) => c.key === upperKey);
+    if (target?.isDefault) return Promise.resolve(errorResponse(`「${target.label}」是系统默认大类，不允许删除，如需调整可编辑其名称`));
+    return Promise.resolve(okResponse({}));
+  }
+
+  return Promise.resolve(okResponse({}));
+}
+
 describe("PrepReportService", () => {
   beforeEach(() => {
     resetPrepReportService();
+    LedgerService.setLedgersInMemory([]);
+    LedgerService.setLedgerItemsInMemory([]);
     vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
     vi.spyOn(SyncHelper, "runWhenInitialized").mockImplementation((fn) => fn());
-    vi.spyOn(LedgerService, "addLedgerItem").mockResolvedValue({} as any);
+    vi.spyOn(SyncHelper, "refreshNow").mockResolvedValue(false);
     vi.spyOn(LedgerService, "updateDailyRecordByKey").mockResolvedValue(undefined);
-    vi.spyOn(LedgerService, "syncLedgerFromGroup").mockImplementation(() => {});
-    vi.spyOn(LedgerService, "syncDeleteLedgerFromGroup").mockImplementation(() => {});
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) }));
+    vi.stubGlobal("fetch", vi.fn(fakePrepReportFetch));
   });
 
   afterEach(() => {
@@ -97,163 +162,7 @@ describe("PrepReportService", () => {
     });
   });
 
-  describe("updateCell", () => {
-    it("recalculates the amount and immutably clones report/item/dailyData references", async () => {
-      const originalItem = makeItem({ dailyData: { "1": { quantity: 0, price: 0, amount: 0 } } });
-      const originalReport = makeReport({ items: [originalItem] });
-      PrepReportService.setReportsInMemory([originalReport]);
-
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-
-      const updatedReport = PrepReportService.getReports()[0];
-      expect(updatedReport).not.toBe(originalReport);
-      expect(updatedReport.items[0]).not.toBe(originalItem);
-      expect(updatedReport.items[0].dailyData["1"]).toEqual({ quantity: 3, price: 2.5, amount: 7.5 });
-    });
-
-    it("clamps negative quantity and price to zero", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "1", -3, -2);
-
-      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
-      expect(entry.quantity).toBe(0);
-      expect(entry.price).toBe(0);
-      expect(entry.amount).toBe(0);
-    });
-
-    it("queues a precise preparedItemDailyData upsert op for just this one day (not the whole item/report)", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1" })] })]);
-
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-
-      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
-        expect.objectContaining({
-          entity: "preparedItemDailyData",
-          op: "upsert",
-          key: { itemId: "item_1", date: "1" },
-          data: expect.objectContaining({ quantity: 3, price: 2.5, amount: 7.5 })
-        })
-      );
-    });
-
-    it("queues a preparedItemDailyData delete op once quantity/price/amount are all clamped back to zero", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1", dailyData: { "1": { quantity: 3, price: 2, amount: 6 } } })] })]);
-
-      await PrepReportService.updateCell("item_1", "1", -3, -2);
-
-      expect(SyncHelper.queueChange).toHaveBeenCalledWith(
-        expect.objectContaining({ entity: "preparedItemDailyData", op: "delete", key: { itemId: "item_1", date: "1" } })
-      );
-    });
-
-    it("rejects when no item matches the given id", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-      await expect(PrepReportService.updateCell("does_not_exist", "1", 1, 1)).rejects.toThrow(/未找到ID为/);
-    });
-
-    it("[V5.67.0] treats a NaN quantity/price as zero rather than letting NaN slip through Math.max", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "1", NaN, NaN);
-
-      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
-      expect(entry.quantity).toBe(0);
-      expect(entry.price).toBe(0);
-      expect(entry.amount).toBe(0);
-    });
-
-    it("reverse-syncs the edit into the ledger via updateDailyRecordByKey with a zero-padded date key", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, year: 2026, month: 7, items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "3", 2, 5);
-
-      expect(LedgerService.updateDailyRecordByKey).toHaveBeenCalledWith(
-        "KID",
-        "土豆",
-        "2026-07-03",
-        expect.objectContaining({ inQuantity: 2, inPrice: 5, inAmount: 10 })
-      );
-    });
-
-    it("applies the material dictionary's conversion ratio when present", async () => {
-      vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-        { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", conversionUnit: "袋", conversionRatio: 0.5 } as any
-      ]);
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "3", 10, 2);
-
-      expect(LedgerService.updateDailyRecordByKey).toHaveBeenCalledWith(
-        "KID",
-        "土豆",
-        "2026-07-03",
-        expect.objectContaining({ conversionUnitQuantity: 5 })
-      );
-    });
-
-    it("still resolves successfully even when the reverse ledger sync fails", async () => {
-      vi.spyOn(LedgerService, "updateDailyRecordByKey").mockRejectedValue(new Error("ledger sync failed"));
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await expect(PrepReportService.updateCell("item_1", "1", 1, 1)).resolves.toBeUndefined();
-    });
-  });
-
-  describe("deletePreparedItem", () => {
-    it("removes the matching item from whichever report contains it", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1" }), makeItem({ id: "item_2" })] })]);
-
-      await PrepReportService.deletePreparedItem("item_1");
-
-      const items = PrepReportService.getReports()[0].items;
-      expect(items).toHaveLength(1);
-      expect(items[0].id).toBe("item_2");
-    });
-
-    it("rejects when the item id cannot be located in any report", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [] })]);
-      await expect(PrepReportService.deletePreparedItem("nope")).rejects.toThrow(/无法定位删除项/);
-    });
-  });
-
-  describe("addPreparedItem", () => {
-    beforeEach(() => {
-      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, items: [] })]);
-    });
-
-    it("adds the item to the matching report and mirrors it into the ledger", async () => {
-      const item = await PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "西红柿", "斤");
-
-      expect(item.name).toBe("西红柿");
-      expect(PrepReportService.getReports()[0].items.map((i) => i.name)).toContain("西红柿");
-      expect(LedgerService.addLedgerItem).toHaveBeenCalledWith("KID", "西红柿", "斤", "", 0);
-    });
-
-    it("still adds the prep item even if the ledger already has a same-named item (graceful degrade)", async () => {
-      vi.spyOn(LedgerService, "addLedgerItem").mockRejectedValue(new Error("该台账内已有名为 x 的采购项目原料"));
-
-      const item = await PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "西红柿", "斤");
-
-      expect(item.name).toBe("西红柿");
-      expect(PrepReportService.getReports()[0].items.map((i) => i.name)).toContain("西红柿");
-    });
-
-    it("rejects an empty name", async () => {
-      await expect(PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "  ", "斤")).rejects.toThrow(
-        "原料名称不能为空"
-      );
-    });
-
-    it("rejects when no report exists yet for the target group", async () => {
-      resetPrepReportService();
-      await expect(PrepReportService.addPreparedItem(TargetGroup.TEACHER, FoodCategory.VEGETABLE, "西红柿", "斤")).rejects.toThrow(
-        /无法找到目标人群分类/
-      );
-    });
-  });
-
-  describe("batchUpdatePriceCol", () => {
+  describe("batchUpdatePriceCol [阶段C：校验/重算已迁移到后端]", () => {
     it("sets the price for every item in the matching category on the given day and recalculates amount", async () => {
       PrepReportService.setReportsInMemory([
         makeReport({
@@ -277,7 +186,7 @@ describe("PrepReportService", () => {
       expect(PrepReportService.getReports()[0].items[0].dailyData["1"].price).toBe(0);
     });
 
-    it("rejects when the target group has no report", async () => {
+    it("rejects with the backend's not-found error", async () => {
       await expect(PrepReportService.batchUpdatePriceCol(TargetGroup.TEACHER, FoodCategory.VEGETABLE, "1", 5)).rejects.toThrow(
         "该人群报表不存在"
       );
@@ -347,12 +256,13 @@ describe("PrepReportService", () => {
     });
   });
 
-  describe("saveGroup / deleteGroup (default-data protection)", () => {
-    it("creates a new group plus an empty current-month report, and mirrors it into the ledger", async () => {
+  describe("saveGroup / deleteGroup [阶段C：校验/isDefault保留/级联同步台账已迁移到后端]", () => {
+    it("creates a new group using the backend's response", async () => {
       await PrepReportService.saveGroup("teacher", "教师备餐", "👩‍🏫");
 
-      expect(PrepReportService.getActiveGroups().find((g) => g.key === "TEACHER")).toBeDefined();
-      expect(LedgerService.syncLedgerFromGroup).toHaveBeenCalledWith("TEACHER", "教师备餐");
+      expect(PrepReportService.getActiveGroups().find((g) => g.key === "TEACHER")?.label).toBe("教师备餐");
+      // 级联同步创建对应台账已由后端一次事务完成，前端不再自行调用 LedgerService，而是立即刷新
+      expect(SyncHelper.refreshNow).toHaveBeenCalledTimes(1);
     });
 
     it("edits an existing group in place while preserving its isDefault flag", async () => {
@@ -365,18 +275,18 @@ describe("PrepReportService", () => {
       expect(group.isDefault).toBe(true);
     });
 
-    it("rejects an empty key or empty label", async () => {
+    it("rejects with the backend's empty key/label error", async () => {
       await expect(PrepReportService.saveGroup("", "名字", "🍽️")).rejects.toThrow("人群标识键不能为空");
       await expect(PrepReportService.saveGroup("key", "  ", "🍽️")).rejects.toThrow("人群名称标签不能为空");
     });
 
-    it("refuses to delete a default group", async () => {
+    it("refuses to delete a default group using the backend's error message", async () => {
       PrepReportService.setActiveGroupsInMemory([{ key: "KID", label: "幼儿", isDefault: true } as any]);
       await expect(PrepReportService.deleteGroup("KID")).rejects.toThrow(/系统默认人群，不允许删除/);
       expect(PrepReportService.getActiveGroups()).toHaveLength(1);
     });
 
-    it("deletes a non-default group and cascades to its reports and the ledger", async () => {
+    it("deletes a non-default group and cascades to its reports, then immediately refreshes", async () => {
       PrepReportService.setActiveGroupsInMemory([{ key: "CUSTOM", label: "自定义群体", isDefault: false } as any]);
       PrepReportService.setReportsInMemory([makeReport({ targetGroup: "CUSTOM" as TargetGroup })]);
 
@@ -384,12 +294,12 @@ describe("PrepReportService", () => {
 
       expect(PrepReportService.getActiveGroups()).toHaveLength(0);
       expect(PrepReportService.getReports()).toHaveLength(0);
-      expect(LedgerService.syncDeleteLedgerFromGroup).toHaveBeenCalledWith("CUSTOM");
+      expect(SyncHelper.refreshNow).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe("saveCategory / deleteCategory (default-data protection)", () => {
-    it("creates a new category", async () => {
+  describe("saveCategory / deleteCategory [阶段C：校验/isDefault保留已迁移到后端]", () => {
+    it("creates a new category using the backend's response", async () => {
       await PrepReportService.saveCategory("dessert", "甜品");
       expect(PrepReportService.getActiveCategories().find((c) => c.key === "DESSERT")?.label).toBe("甜品");
     });
@@ -402,7 +312,7 @@ describe("PrepReportService", () => {
       expect(cat.isDefault).toBe(true);
     });
 
-    it("refuses to delete a default category", async () => {
+    it("refuses to delete a default category using the backend's error message", async () => {
       PrepReportService.setActiveCategoriesInMemory([{ key: "VEGETABLE", label: "蔬菜", isDefault: true } as any]);
       await expect(PrepReportService.deleteCategory("VEGETABLE")).rejects.toThrow(/系统默认大类，不允许删除/);
     });
@@ -422,6 +332,8 @@ describe("PrepReportService", () => {
   });
 
   describe("cascadeUpdateMaterial / cascadeDeleteMaterial", () => {
+    // 这两个方法保留在 PrepReportService 里（阶段A起生产代码已不再调用，原料字典的跨表级联现在完全由后端
+    // 一次事务完成），本描述块直接测试方法本身的纯内存行为，与迁移前完全一致
     it("renames matching items across every report and updates their category/unit", () => {
       PrepReportService.setReportsInMemory([
         makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ name: "土豆" })] }),
@@ -436,11 +348,11 @@ describe("PrepReportService", () => {
 
     it("is a no-op notify when no item matches the old name", () => {
       PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
-      vi.spyOn(SyncHelper, "queueChange").mockClear();
+      const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
 
       PrepReportService.cascadeUpdateMaterial("不存在", "新名字", FoodCategory.VEGETABLE, "斤");
 
-      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
+      expect(queueChangeSpy).not.toHaveBeenCalled();
     });
 
     it("removes matching items across every report on cascade delete", () => {
@@ -453,11 +365,11 @@ describe("PrepReportService", () => {
 
     it("is a no-op notify when no item matches the deleted name", () => {
       PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
-      vi.spyOn(SyncHelper, "queueChange").mockClear();
+      const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
 
       PrepReportService.cascadeDeleteMaterial("不存在");
 
-      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
+      expect(queueChangeSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -489,24 +401,24 @@ describe("PrepReportService", () => {
 
   describe("setReportsInMemory / setActiveGroupsInMemory / setActiveCategoriesInMemory / forceNotify (heartbeat silent update)", () => {
     it("overwrites memory without triggering a server sync", () => {
-      vi.spyOn(SyncHelper, "queueChange").mockClear();
+      const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
       PrepReportService.setReportsInMemory([makeReport()]);
       PrepReportService.setActiveGroupsInMemory([{ key: "KID", label: "幼儿" } as any]);
       PrepReportService.setActiveCategoriesInMemory([{ key: "VEGETABLE", label: "蔬菜" } as any]);
 
-      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
+      expect(queueChangeSpy).not.toHaveBeenCalled();
       expect(PrepReportService.getReports()).toHaveLength(1);
     });
 
     it("forceNotify broadcasts to subscribers without touching the server", () => {
-      vi.spyOn(SyncHelper, "queueChange").mockClear();
+      const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
       const received: any[] = [];
       const unsubscribe = PrepReportService.subscribe((reports) => received.push(reports));
 
       PrepReportService.forceNotify();
 
       expect(received.length).toBeGreaterThan(0);
-      expect(SyncHelper.queueChange).not.toHaveBeenCalled();
+      expect(queueChangeSpy).not.toHaveBeenCalled();
       unsubscribe();
     });
   });

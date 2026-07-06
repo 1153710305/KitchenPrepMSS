@@ -11,7 +11,6 @@ import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/c
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
 import { calculateEntryAmount, LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
-import { LedgerService } from "./ledgerStore.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 /**
@@ -387,227 +386,6 @@ export class PrepReportService {
   }
 
   /**
-   * @description 动态增加一个原材料子细类明细行
-   */
-  public static async addPreparedItem(
-    targetGroup: TargetGroup,
-    category: FoodCategory,
-    name: string,
-    unit: string
-  ): Promise<PreparedItem> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!name.trim()) {
-          reject(new Error("原料名称不能为空"));
-          return;
-        }
-
-        const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
-        if (reportIndex === -1) {
-          reject(new Error(`无法找到目标人群分类为 "${targetGroup}" 的月度报表`));
-          return;
-        }
-
-
-
-        // 采用不可变方式克隆更新，确保 React 感知到 report.items 数组变化
-        const report = this.reports[reportIndex];
-        const dailyData: Record<string, DailyEntry> = {};
-        for (let d = 1; d <= 31; d++) {
-          dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
-        }
-        const newItem: PreparedItem = {
-          id: `item_${targetGroup.toLowerCase()}_${category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          name: name.trim(),
-          category,
-          targetGroup,
-          unit: unit.trim() || CATEGORY_DEFAULT_UNITS[category] || "斤",
-          dailyData
-        };
-
-        // 同步确保台账系统也存在该原料项目
-        LedgerService.addLedgerItem(
-          targetGroup,
-          newItem.name,
-          newItem.unit,
-          "",
-          0
-        ).then(() => {
-          const updatedReport = {
-            ...report,
-            items: [...report.items, newItem]
-          };
-
-          const updatedReports = [...this.reports];
-          updatedReports[reportIndex] = updatedReport;
-          this.reports = updatedReports;
-
-          this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
-          LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
-          resolve(newItem);
-        }).catch((err) => {
-          // 如果台账内该原料已存在，依然追加至备餐明细
-          const updatedReport = {
-            ...report,
-            items: [...report.items, newItem]
-          };
-          const updatedReports = [...this.reports];
-          updatedReports[reportIndex] = updatedReport;
-          this.reports = updatedReports;
-
-          this.saveToStorage();
-          this.queuePreparedItemUpsertOps(newItem, targetGroup, report.year, report.month);
-          resolve(newItem);
-        });
-      }, MOCK_API_LATENCY);
-    });
-  }
-
-  /**
-   * @description 修改某一单元格 (某项、某天) 的具体用料情况并瞬间核算（全面采用 Immutable 不可变更新以完美驱动受控 input 刷新）
-   */
-  public static async updateCell(
-    itemId: string,
-    day: string,
-    quantity: number,
-    price: number
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        let found = false;
-        let matchedReport: GroupMonthlyReport | undefined;
-        let matchedItem: PreparedItem | undefined;
-        let matchedEntry: DailyEntry | undefined;
-
-        const updatedReports = this.reports.map((report) => {
-          const itemIndex = report.items.findIndex((i) => i.id === itemId);
-          if (itemIndex > -1) {
-            found = true;
-            const item = report.items[itemIndex];
-            matchedReport = report;
-            matchedItem = item;
-
-            // 复制 dailyData 深度属性，更新指定一天的指标数值并重新计算子金额
-            const updatedDailyData = { ...item.dailyData };
-            const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-
-            // 非负数校验，同时兜底非法数字（如 NaN）不会绕过 Math.max 的负数拦截
-            entry.quantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
-            entry.price = Number.isFinite(price) ? Math.max(0, price) : 0;
-            entry.amount = calculateEntryAmount(entry.quantity, entry.price);
-            updatedDailyData[day] = entry;
-            matchedEntry = entry;
-
-            // 克隆食材项及列表
-            const updatedItem = {
-              ...item,
-              dailyData: updatedDailyData
-            };
-
-            const updatedItems = [...report.items];
-            updatedItems[itemIndex] = updatedItem;
-
-            // 克隆整个报表对象
-            return {
-              ...report,
-              items: updatedItems
-            };
-          }
-          return report;
-        });
-
-        if (!found) {
-          reject(new Error(`未找到ID为 "${itemId}" 的项目，修改失败`));
-          return;
-        }
-
-        this.reports = updatedReports;
-
-        // 物理存盘并实时派发通知，实现微秒级完美热更新
-        this.saveToStorage();
-        if (matchedItem && matchedEntry) {
-          if (this.hasMeaningfulDailyEntry(matchedEntry)) {
-            SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: matchedItem.id, date: day }, data: matchedEntry });
-          } else {
-            SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "delete", key: { itemId: matchedItem.id, date: day } });
-          }
-        }
-
-        // 获取当前报表客群，更新台账的采购数据
-        if (matchedReport && matchedItem) {
-          const monthStr = String(matchedReport.month).padStart(2, "0");
-          const dayStr = String(day).padStart(2, "0");
-          const targetDateKey = `${matchedReport.year}-${monthStr}-${dayStr}`;
-
-          // 查询字典，获取换算单位
-          const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === matchedItem!.name);
-          const conversionQty = (dictItem && dictItem.conversionRatio)
-            ? Number((quantity * dictItem.conversionRatio).toFixed(2))
-            : undefined;
-
-          // 构造 DailyStockRecord
-          const ledgerRecordFields = {
-            inQuantity: quantity,
-            inPrice: price,
-            inAmount: Number((quantity * price).toFixed(2)),
-            conversionUnitQuantity: conversionQty
-          };
-
-          // 物理写入台账中此原料在指定日期下的入库数据
-          LedgerService.updateDailyRecordByKey(matchedReport.targetGroup, matchedItem.name, targetDateKey, ledgerRecordFields)
-            .then(() => {
-              // 触发一次全局变动通知
-              this.notifyListeners();
-              resolve();
-            })
-            .catch((err) => {
-              LogBroker.publish("WARN", "PrepReportService", `反向同步至台账失败: ${err.message}`);
-              resolve();
-            });
-        } else {
-          resolve();
-        }
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-
-  /**
-   * @description 一键物理删除某一细分原料行（不可变数据结构克隆设计）
-   */
-  public static async deletePreparedItem(itemId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        let deleted = false;
-
-        const updatedReports = this.reports.map((report) => {
-          const filtered = report.items.filter((item) => item.id !== itemId);
-          if (filtered.length < report.items.length) {
-            deleted = true;
-            return {
-              ...report,
-              items: filtered
-            };
-          }
-          return report;
-        });
-
-        if (deleted) {
-          this.reports = updatedReports;
-          this.saveToStorage();
-          SyncHelper.queueChange({ entity: "preparedItem", op: "delete", key: itemId });
-          LogBroker.publish("INFO", "PrepReportService", `成功从系统中永久剔除条目ID: ${itemId}`);
-          resolve();
-        } else {
-          reject(new Error(`无法定位删除项ID: ${itemId}`));
-        }
-      }, MOCK_API_LATENCY);
-    });
-  }
-
-  /**
    * @description 批量将特定受众、特定日期、特定大品类下的所有细分单价统一刷成同一数值（不可变更新，彻底重绘相关依赖）
    */
   public static async batchUpdatePriceCol(
@@ -616,55 +394,37 @@ export class PrepReportService {
     day: string,
     fixedPrice: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
-        if (reportIndex === -1) {
-          reject(new Error("该人群报表不存在"));
-          return;
-        }
-
-        const report = this.reports[reportIndex];
-        const touchedEntries: Array<{ itemId: string; entry: DailyEntry }> = [];
-        const updatedItems = report.items.map((item) => {
-          if (item.category === category) {
-            const updatedDailyData = { ...item.dailyData };
-            const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-
-            entry.price = Math.max(0, fixedPrice);
-            entry.amount = calculateEntryAmount(entry.quantity, entry.price);
-            updatedDailyData[day] = entry;
-            touchedEntries.push({ itemId: item.id, entry });
-
-            return {
-              ...item,
-              dailyData: updatedDailyData
-            };
-          }
-          return item;
-        });
-
-        const updatedReport = {
-          ...report,
-          items: updatedItems
-        };
-
-        const updatedReports = [...this.reports];
-        updatedReports[reportIndex] = updatedReport;
-        this.reports = updatedReports;
-
-        this.saveToStorage();
-        touchedEntries.forEach(({ itemId, entry }) => {
-          if (this.hasMeaningfulDailyEntry(entry)) {
-            SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "upsert", key: { itemId, date: day }, data: entry });
-          } else {
-            SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "delete", key: { itemId, date: day } });
-          }
-        });
-        LogBroker.publish("INFO", "PrepReportService", `由于一键调价动作，群组「${targetGroup}」下的品类 [${category}] 在 [${day}号] 均统一设定为单价 ${fixedPrice}元`);
-        resolve();
-      }, MOCK_API_LATENCY);
+    // 校验/重算/持久化已迁移到后端（阶段C，见 SQLite迁移规划.md）；成功后前端本地重放同一份计算逻辑刷新
+    // 内存缓存，不需要额外拉取全量数据——批量调价只影响当前受众报表自己的数据，没有跨服务级联
+    const res = await fetch(`/api/reports/${encodeURIComponent(targetGroup)}/prices`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, day, fixedPrice })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "批量调价失败");
+    }
+
+    const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
+    if (reportIndex > -1) {
+      const report = this.reports[reportIndex];
+      const updatedItems = report.items.map((item) => {
+        if (item.category !== category) return item;
+        const updatedDailyData = { ...item.dailyData };
+        const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
+        entry.price = Math.max(0, fixedPrice);
+        entry.amount = calculateEntryAmount(entry.quantity, entry.price);
+        updatedDailyData[day] = entry;
+        return { ...item, dailyData: updatedDailyData };
+      });
+      const updatedReports = [...this.reports];
+      updatedReports[reportIndex] = { ...report, items: updatedItems };
+      this.reports = updatedReports;
+    }
+
+    this.saveToStorage();
+    LogBroker.publish("INFO", "PrepReportService", `由于一键调价动作，群组「${targetGroup}」下的品类 [${category}] 在 [${day}号] 均统一设定为单价 ${fixedPrice}元`);
   }
 
   /**
@@ -674,67 +434,30 @@ export class PrepReportService {
    * @param emoji 展现表情符号
    */
   public static async saveGroup(key: string, label: string, emoji: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          if (!key || !key.trim()) {
-            reject(new Error("人群标识键不能为空"));
-            return;
-          }
-          if (!label || !label.trim()) {
-            reject(new Error("人群名称标签不能为空"));
-            return;
-          }
-
-          const upperKey = key.trim().toUpperCase();
-          const existingIndex = this.activeGroups.findIndex((g) => g.key === upperKey);
-          let newReport: GroupMonthlyReport | null = null;
-
-          if (existingIndex > -1) {
-            this.activeGroups[existingIndex] = {
-              key: upperKey,
-              label: label.trim(),
-              emoji: emoji.trim() || "🍽️",
-              // 保留原有的默认数据标记，确保系统默认人群被编辑后依然不可删除
-              isDefault: this.activeGroups[existingIndex].isDefault
-            };
-            LogBroker.publish("INFO", "PrepReportService", `更新了一级备餐人群: ${label} (${upperKey})`);
-          } else {
-            this.activeGroups.push({
-              key: upperKey,
-              label: label.trim(),
-              emoji: emoji.trim() || "🍽️"
-            });
-            const reportExists = this.reports.some((r) => r.targetGroup === upperKey as TargetGroup);
-            if (!reportExists) {
-              const currentYear = new Date().getFullYear();
-              const currentMonth = new Date().getMonth() + 1;
-
-              newReport = {
-                targetGroup: upperKey as TargetGroup,
-                year: currentYear,
-                month: currentMonth,
-                items: []
-              };
-              this.reports.push(newReport);
-            }
-            LogBroker.publish("INFO", "PrepReportService", `新增了一级备餐人群: ${label} (${upperKey})`);
-          }
-
-          this.saveConfigAndNotify();
-          const savedGroup = this.activeGroups.find((g) => g.key === upperKey)!;
-          SyncHelper.queueChange({ entity: "activeGroup", op: "upsert", key: upperKey, data: savedGroup });
-          if (newReport) {
-            this.queueReportUpsertOp(newReport);
-          }
-          // 同步至台账服务
-          LedgerService.syncLedgerFromGroup(upperKey, label.trim());
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      }, MOCK_API_LATENCY);
+    // 校验、isDefault保留、级联同步创建/改名对应台账（此前的 LedgerService.syncLedgerFromGroup 调用）
+    // 均已迁移到后端（阶段C，见 SQLite迁移规划.md）
+    const res = await fetch(`/api/groups/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, emoji })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "保存人群配置失败");
+    }
+    const savedGroup: DynamicGroup = body.group;
+    const existingIndex = this.activeGroups.findIndex((g) => g.key === savedGroup.key);
+    if (existingIndex > -1) {
+      this.activeGroups[existingIndex] = savedGroup;
+      LogBroker.publish("INFO", "PrepReportService", `更新了一级备餐人群: ${label} (${savedGroup.key})`);
+    } else {
+      this.activeGroups.push(savedGroup);
+      LogBroker.publish("INFO", "PrepReportService", `新增了一级备餐人群: ${label} (${savedGroup.key})`);
+    }
+    this.saveConfigAndNotify();
+
+    // 级联结果（新建当月空报表、同步创建/改名对应台账）只发生在后端，主动刷新一次而不是等最多10秒的心跳
+    await SyncHelper.refreshNow();
   }
 
   /**
@@ -742,28 +465,20 @@ export class PrepReportService {
    * @param key 人群标识键
    */
   public static async deleteGroup(key: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const upperKey = key.toUpperCase();
-        const target = this.activeGroups.find((g) => g.key.toUpperCase() === upperKey);
-        if (target?.isDefault) {
-          reject(new Error(`「${target.label}」是系统默认人群，不允许删除，如需调整可编辑其名称或图标`));
-          return;
-        }
-        const removedReports = this.reports.filter((r) => r.targetGroup.toUpperCase() === upperKey);
-        this.activeGroups = this.activeGroups.filter((g) => g.key.toUpperCase() !== upperKey);
-        this.reports = this.reports.filter((r) => r.targetGroup.toUpperCase() !== upperKey as any);
-        LogBroker.publish("WARN", "PrepReportService", `剔除了一级备餐人群及关联的所有报表: ${upperKey}`);
-        this.saveConfigAndNotify();
-        SyncHelper.queueChange({ entity: "activeGroup", op: "delete", key: upperKey });
-        removedReports.forEach((report) => {
-          SyncHelper.queueChange({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
-        });
-        // 同步至台账服务进行对应删除
-        LedgerService.syncDeleteLedgerFromGroup(upperKey);
-        resolve();
-      }, MOCK_API_LATENCY);
-    });
+    // 校验、级联删除报表/对应台账（此前的 LedgerService.syncDeleteLedgerFromGroup 调用）均已迁移到后端
+    const upperKey = key.toUpperCase();
+    const res = await fetch(`/api/groups/${encodeURIComponent(key)}`, { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "删除人群配置失败");
+    }
+    this.activeGroups = this.activeGroups.filter((g) => g.key.toUpperCase() !== upperKey);
+    this.reports = this.reports.filter((r) => r.targetGroup.toUpperCase() !== upperKey);
+    LogBroker.publish("WARN", "PrepReportService", `剔除了一级备餐人群及关联的所有报表: ${upperKey}`);
+    this.saveConfigAndNotify();
+
+    // 级联结果（删除报表与对应台账）只发生在后端，主动刷新一次而不是等心跳
+    await SyncHelper.refreshNow();
   }
 
   /**
@@ -772,46 +487,26 @@ export class PrepReportService {
    * @param label 大类名称显名
    */
   public static async saveCategory(key: string, label: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          if (!key || !key.trim()) {
-            reject(new Error("大类标识键不能为空"));
-            return;
-          }
-          if (!label || !label.trim()) {
-            reject(new Error("大类名称标签不能为空"));
-            return;
-          }
-
-          const upperKey = key.trim().toUpperCase();
-          const existingIndex = this.activeCategories.findIndex((c) => c.key === upperKey);
-
-          if (existingIndex > -1) {
-            this.activeCategories[existingIndex] = {
-              key: upperKey,
-              label: label.trim(),
-              // 保留原有的默认数据标记，确保系统默认大类被编辑后依然不可删除
-              isDefault: this.activeCategories[existingIndex].isDefault
-            };
-            LogBroker.publish("INFO", "PrepReportService", `更新了二级食材大类: ${label} (${upperKey})`);
-          } else {
-            this.activeCategories.push({
-              key: upperKey,
-              label: label.trim()
-            });
-            LogBroker.publish("INFO", "PrepReportService", `新增了二级食材大类: ${label} (${upperKey})`);
-          }
-
-          this.saveConfigAndNotify();
-          const savedCategory = this.activeCategories.find((c) => c.key === upperKey)!;
-          SyncHelper.queueChange({ entity: "activeCategory", op: "upsert", key: upperKey, data: savedCategory });
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      }, MOCK_API_LATENCY);
+    // 校验、isDefault保留已迁移到后端（阶段C，见 SQLite迁移规划.md）
+    const res = await fetch(`/api/categories/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label })
     });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "保存大类配置失败");
+    }
+    const savedCategory: DynamicCategory = body.category;
+    const existingIndex = this.activeCategories.findIndex((c) => c.key === savedCategory.key);
+    if (existingIndex > -1) {
+      this.activeCategories[existingIndex] = savedCategory;
+      LogBroker.publish("INFO", "PrepReportService", `更新了二级食材大类: ${label} (${savedCategory.key})`);
+    } else {
+      this.activeCategories.push(savedCategory);
+      LogBroker.publish("INFO", "PrepReportService", `新增了二级食材大类: ${label} (${savedCategory.key})`);
+    }
+    this.saveConfigAndNotify();
   }
 
   /**
@@ -819,30 +514,19 @@ export class PrepReportService {
    * @param key 大类标识键
    */
   public static async deleteCategory(key: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const upperKey = key.toUpperCase();
-        const target = this.activeCategories.find((c) => c.key === upperKey);
-        if (target?.isDefault) {
-          reject(new Error(`「${target.label}」是系统默认大类，不允许删除，如需调整可编辑其名称`));
-          return;
-        }
-        this.activeCategories = this.activeCategories.filter((c) => c.key !== upperKey);
-        const removedItemIds: string[] = [];
-        this.reports.forEach((report) => {
-          const removed = report.items.filter((item) => item.category === upperKey as FoodCategory);
-          removedItemIds.push(...removed.map((item) => item.id));
-          report.items = report.items.filter((item) => item.category !== upperKey as FoodCategory);
-        });
-        LogBroker.publish("WARN", "PrepReportService", `剔除了二级大类及各群体名下的对应食材: ${upperKey}`);
-        this.saveConfigAndNotify();
-        SyncHelper.queueChange({ entity: "activeCategory", op: "delete", key: upperKey });
-        removedItemIds.forEach((itemId) => {
-          SyncHelper.queueChange({ entity: "preparedItem", op: "delete", key: itemId });
-        });
-        resolve();
-      }, MOCK_API_LATENCY);
+    // 校验/级联清空报表里的对应细分项已迁移到后端
+    const upperKey = key.toUpperCase();
+    const res = await fetch(`/api/categories/${encodeURIComponent(key)}`, { method: "DELETE" });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "删除大类配置失败");
+    }
+    this.activeCategories = this.activeCategories.filter((c) => c.key !== upperKey);
+    this.reports.forEach((report) => {
+      report.items = report.items.filter((item) => item.category !== upperKey as FoodCategory);
     });
+    LogBroker.publish("WARN", "PrepReportService", `剔除了二级大类及各群体名下的对应食材: ${upperKey}`);
+    this.saveConfigAndNotify();
   }
 
   /**

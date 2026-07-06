@@ -9,7 +9,6 @@
 
 import { PreparedItem } from "../../types/types.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
-import { Trash } from "lucide-react";
 import type { ThemeStyle } from "../../hooks/useTableTheme.ts";
 
 /**
@@ -28,10 +27,6 @@ interface TableGridFocusViewProps {
   focusDay: string;
   /** 切换聚焦日期的回调 */
   setFocusDay: (day: string) => void;
-  /** 是否为只读模式（只读模式下隐藏删除按钮） */
-  readOnly: boolean;
-  /** 删除特定食材行的操作回调 */
-  onDeleteItem: (itemId: string) => void;
 }
 
 /**
@@ -43,9 +38,7 @@ export function TableGridFocusView({
   dayTotals,
   activeTheme,
   focusDay,
-  setFocusDay,
-  readOnly,
-  onDeleteItem
+  setFocusDay
 }: TableGridFocusViewProps) {
   return (
     <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-4">
@@ -123,17 +116,6 @@ export function TableGridFocusView({
                       );
                     })()}
                   </div>
-
-                  {/* 垃圾桶删除行按钮（只读模式下隐藏，防止在餐位分组页误删） */}
-                  {!readOnly && (
-                    <button
-                      onClick={() => onDeleteItem(item.id)}
-                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-lg cursor-pointer transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                      title="从备餐细表中移除该原料项目"
-                    >
-                      <Trash size={13} />
-                    </button>
-                  )}
                 </div>
 
                 {/* 修改区 */}
