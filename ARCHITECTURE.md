@@ -25,7 +25,7 @@ KPMSS/
 │       ├── storage.ts        # /api/storage/load|save：全量读取与增量写入（阶段三 SyncOp 协议，见 4.2）
 │       ├── rawMaterials.ts   # /api/raw-materials：原料字典增删改（阶段A迁移）
 │       ├── ledgers.ts        # /api/ledgers、/api/ledger-items：台账及其原料项/逐日流水增删改（阶段B迁移）
-│       ├── reports.ts        # /api/prepared-items、/api/groups、/api/categories、/api/reports：备餐细项/一二级配置增删改（阶段C迁移）
+│       ├── reports.ts        # /api/groups、/api/categories：一二级配置增删改（阶段C迁移）
 │       └── misc.ts           # /api/log、/api/health 两个杂项路由
 ├── src/
 │   ├── main.tsx               # 前端挂载入口
@@ -118,13 +118,12 @@ public static async someMutation(...): Promise<T> {
 |---|---|---|
 | A | `addRawMaterial`/`updateRawMaterial`/`deleteRawMaterial` | 改名/删除级联更新台账 `ledger_items`、备餐 `prepared_items` 里的同名条目 |
 | B | `addLedgerItem`/`updateLedgerItem`/`deleteLedgerItem` | 库存 `currentStock` 重算 |
-| B | `updateLedgerDailyRecord` | 逐日流水合并/重算（`mergeLedgerDailyRecord` 私有辅助方法，被 C 阶段 `updateCell` 复用） |
+| B | `updateLedgerDailyRecord` | 逐日流水合并/重算（`mergeLedgerDailyRecord` 私有辅助方法） |
 | B | `updateLedger`/`deleteLedger` | 同步/删除对应一级人群配置 `active_groups` 与月度报表 `reports` |
-| C | `addPreparedItem` | 尽力而为同步创建对应台账原料项（已存在同名则跳过） |
-| C | `updateCell` | 反向同步台账逐日流水（复用 `mergeLedgerDailyRecord`），响应体附带级联后的完整台账原料项 |
-| C | `deletePreparedItem`/`batchUpdatePriceCol` | 无跨服务级联 |
 | C | `saveGroup`/`deleteGroup` | 同步创建/改名/删除对应台账 |
 | C | `saveCategory`/`deleteCategory` | 删除级联清空所有报表里该大类下的备餐细项 |
+
+> `addPreparedItem`/`updateCell`/`deletePreparedItem`（餐位分组页面下备餐细项的增/改/删）与 `batchUpdatePriceCol`（一键批量调价）四个方法及其对应 REST 端点已被删除——排查确认主报表展示屏的 `readOnly` 硬编码为 `true` 是 [V5.2.0] 就已存在的产品设计（数据录入统一走"原料购销台账"再经 `syncFromLedger()` 反向同步），这四个方法从未有任何 UI 入口能触发，是彻底的死代码，详见 [V5.95.0]。
 
 ## 五、持久化设计与路由一览
 
@@ -160,14 +159,10 @@ public static async someMutation(...): Promise<T> {
 | `/api/ledger-items/:id` | PUT | 编辑台账原料项（重算库存） |
 | `/api/ledger-items/:id` | DELETE | 删除台账原料项 |
 | `/api/ledger-items/:id/daily/:date` | PUT | 更新某原料某天的出入库流水（重算库存） |
-| `/api/prepared-items` | POST | 新增备餐细项（尽力而为同步台账） |
-| `/api/prepared-items/:id` | DELETE | 删除备餐细项 |
-| `/api/prepared-items/:id/cells/:day` | PUT | 更新某细项某天的数量/单价（反向同步台账逐日流水） |
 | `/api/groups/:key` | PUT | 新增/编辑一级人群配置（级联同步台账） |
 | `/api/groups/:key` | DELETE | 删除一级人群配置（`isDefault` 保护，级联清理报表/台账） |
 | `/api/categories/:key` | PUT | 新增/编辑二级食材大类 |
 | `/api/categories/:key` | DELETE | 删除二级食材大类（`isDefault` 保护，级联清空各报表下该大类的备餐细项） |
-| `/api/reports/:targetGroup/prices` | PUT | 批量调价（某人群某大类某天所有细项统一单价） |
 | `/api/log` | POST | 客户端错误/性能日志上报 |
 | `/api/health` | GET | 健康检查 |
 

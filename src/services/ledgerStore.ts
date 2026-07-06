@@ -334,6 +334,12 @@ export class LedgerService {
     this.ledgerItems = this.ledgerItems.filter((i) => i.id !== id);
     this.notifyListeners();
     LogBroker.publish("WARN", "LedgerService", `【删除原料】物理清除了采购项原料「${item?.name}」的所有库存出入库明细记录`);
+
+    // 级联清除该受众人群名下由 syncFromLedger 反向同步生成的同名备餐细项，
+    // 否则左下角当月采购支出与花销趋势图会继续显示已删除原料的历史入库金额
+    if (item) {
+      PrepReportService.cascadeDeleteLedgerItem(item.ledgerId, item.name);
+    }
   }
 
   /**

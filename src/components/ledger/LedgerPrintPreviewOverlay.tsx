@@ -52,13 +52,13 @@ export function LedgerPrintPreviewOverlay({
           <span className="font-bold">【打印预览模式】确认无误后请点击右侧“立即打印”，或按 Ctrl + P / Cmd + P 唤醒设备打印。</span>
         </span>
         <div className="flex gap-2">
-          <button 
+          <button
             onClick={() => window.print()}
             className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
           >
             立即打印
           </button>
-          <button 
+          <button
             onClick={() => setPrintPreviewStyle(null)}
             className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
           >

@@ -52,18 +52,6 @@ export function getDatesBetween(startDate: string, endDate: string): string[] {
 import { pinyin } from "pinyin-pro";
 
 /**
- * @description 计算单条备餐行内指定天数的金额
- * @param quantity 备餐数量
- * @param price 单价 (元)
- * @returns 计算后的实收金额，精度保留 2 位小数
- */
-export function calculateEntryAmount(quantity: number, price: number): number {
-  if (isNaN(quantity) || quantity < 0) quantity = 0;
-  if (isNaN(price) || price < 0) price = 0;
-  return Math.round(quantity * price * 100) / 100;
-}
-
-/**
  * @description 判断目标中文文本是否匹配查询关键词（支持拼音首字母缩写、全拼模糊以及中文原文）
  * @param targetText 中文目标文本，如 "大米"
  * @param querySearch 查找关键词，如 "dm" 或 "dami" 或 "大米"

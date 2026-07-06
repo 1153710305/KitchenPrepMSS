@@ -56,10 +56,15 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
       return;
     }
 
-    const conversionRatio = dictConversionRatioInput.trim() ? Number(dictConversionRatioInput) : undefined;
-    if (dictConversionRatioInput.trim() && isNaN(Number(dictConversionRatioInput))) {
-      setDictError("换算比例必须是有效的数值！");
-      return;
+    let conversionRatio: number | undefined = undefined;
+    const rawRatio = dictConversionRatioInput.trim();
+    if (rawRatio !== "" && rawRatio !== "NaN" && rawRatio !== "null") {
+      const parsed = Number(rawRatio);
+      if (isNaN(parsed)) {
+        setDictError("换算比例必须是有效的数值！");
+        return;
+      }
+      conversionRatio = parsed;
     }
 
     try {
@@ -105,7 +110,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
     setDictUnitInput(item.unit);
     setDictRemarkInput(item.remark || "");
     setDictConversionUnitInput(item.conversionUnit || "");
-    setDictConversionRatioInput(item.conversionRatio !== undefined ? String(item.conversionRatio) : "");
+    setDictConversionRatioInput(item.conversionRatio !== undefined && item.conversionRatio !== null ? String(item.conversionRatio) : "");
   };
 
   const handleDeleteDict = async (name: string) => {
@@ -336,7 +341,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">换算比例(袋/箱折合数，如: 50)</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">换算比例(选填，袋/箱折合数，如: 50)</label>
               <input
                 type="number"
                 step="any"

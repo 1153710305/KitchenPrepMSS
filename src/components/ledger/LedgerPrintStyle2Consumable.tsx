@@ -73,6 +73,11 @@ export function LedgerPrintStyle2Consumable({
         .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
           border: 1px solid #000000 !important;
         }
+
+        /* 增加下面这三行，用来强行干掉 index.html 里的灰色表头背景 */
+        .ledger-print-consumable-table thead th {
+          background-color: #ffffff !important;
+        }
         @media print {
           .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
             -webkit-print-color-adjust: exact !important;
@@ -96,18 +101,21 @@ export function LedgerPrintStyle2Consumable({
         </colgroup>
 
         <thead>
-          <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
+          <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">物品名称</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">规格</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
+            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">
+              <div>采购</div>
+              <div>时间</div>
+            </th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
             <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
             <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
           </tr>
-          <tr className="font-bold bg-gray-50" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
+          <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
             <th className="border border-black px-1 py-1 align-middle">入库</th>
             <th className="border border-black px-1 py-1 align-middle">出库</th>
           </tr>
@@ -116,15 +124,15 @@ export function LedgerPrintStyle2Consumable({
         <tbody>
           {activeRows.map(({ dStr, record }) => (
             <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-              <td className="border border-black px-1 py-1 font-bold">{displayName}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? record.inQuantity : ""}</td>
+              <td className="border border-black px-1 py-1 ">{displayName}</td>
+              <td className="border border-black px-1 py-1 ">{record.inQuantity > 0 ? record.inQuantity : ""}</td>
               <td className="border border-black px-1 py-1">{displaySpec}</td>
               <td className="border border-black px-1 py-1">{record.supplier || ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
+              <td className="border border-black px-1 py-1 ">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
               <td className="border border-black px-1 py-1">{record.buyer || ""}</td>
               <td className="border border-black px-1 py-1">{record.inspector || ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
-              <td className="border border-black px-1 py-1 font-mono">{record.outQuantity > 0 ? (record.outDate || dStr) : ""}</td>
+              <td className="border border-black px-1 py-1 ">{record.inQuantity > 0 ? (record.purchaseDate || dStr) : ""}</td>
+              <td className="border border-black px-1 py-1 ">{record.outQuantity > 0 ? (record.outDate || dStr) : ""}</td>
               <td className="border border-black px-1 py-1">{record.keeper || ""}</td>
             </tr>
           ))}

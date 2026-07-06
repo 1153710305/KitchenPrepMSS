@@ -13,6 +13,7 @@ import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
 import { FoodCategory } from "../../types/types.ts";
@@ -119,9 +120,13 @@ export function LedgerStyle1Table({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    // 根容器不能用 overflow-hidden：下方左右移动按钮的 sticky 定位需要穿透查找到最外层 LedgerSystem.tsx
+    // 页面级滚动容器才能在纵向滚动时始终悬浮可见，而 overflow-hidden（即使自身从未真正溢出滚动）在 CSS
+    // 规范里同样会被视为一个"滚动容器"，截断 sticky 元素继续向上查找，导致按钮定位错误、失去悬浮效果。
+    // 圆角裁剪效果改为分别加在真正需要裁剪的两个子元素上（筛选栏顶部圆角、表格滚动区底部圆角）
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
       {/* ===== 多维度筛选工具栏（含样式标签，与下方筛选条件合并为单行，节省纵向空间） ===== */}
-      <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center gap-2">
+      <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-100 rounded-t-xl flex flex-wrap items-center gap-2">
         {/* 样式标签 */}
         <span className="text-[12px] font-bold text-slate-500 shrink-0">【图一样式】原料购销日总表明细</span>
         {/* 名称搜索框 */}
@@ -146,7 +151,7 @@ export function LedgerStyle1Table({
             <option value="">全部品类</option>
             {availableCategories.map(cat => (
               <option key={cat} value={cat}>
-                {FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}
+                {PrepReportService.getActiveCategories().find(c => c.key === cat)?.label || FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}
               </option>
             ))}
           </select>
@@ -196,10 +201,13 @@ export function LedgerStyle1Table({
         </span>
       </div>
 
-      <div className="relative">
-        {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内，方便查看过长记录行时随时左右移动查看 */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* 左右移动导航栏：粘性定位随纵向滚动始终悬浮在可视区域内（与 LedgerStyle2Flow.tsx 同款方案）。
+            此前用 absolute + top-1/2 -translate-y-1/2 是相对本容器自身盒子定位的，但本容器的高度会随着
+            录入模式下多达数十行原料而撑到几千像素高（真正滚动发生在更外层的 LedgerSystem.tsx 页面容器），
+            导致按钮被定位在整个内容区的几何中点、而非当前可视视口内，用户几乎永远看不到、够不着 */}
         <div className="sticky top-2 z-20 h-0 pointer-events-none">
-          <div className="flex justify-between px-1.5">
+          <div className="flex justify-between px-1.5 translate-y-[35vh]">
             <button
               type="button"
               onClick={() => scrollTable(-1)}
@@ -218,10 +226,10 @@ export function LedgerStyle1Table({
             </button>
           </div>
         </div>
-        <div ref={tableScrollRef} className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-[13px] min-w-[1380px]">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
+        <div ref={tableScrollRef} className="overflow-auto flex-1 bg-white rounded-b-xl">
+          <table className="w-full text-left border-collapse text-[13px] min-w-[1380px] relative">
+            <thead className="sticky top-0 z-10 shadow-sm">
+              <tr className="bg-white border-b border-slate-200 text-slate-500 font-bold uppercase">
                 <th className="px-4 py-2.5 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
                 <th className="px-3 py-2.5 text-center text-violet-700 font-bold bg-violet-50/40 whitespace-nowrap">二级品类</th>
                 <th className="px-3 py-2.5 text-center text-slate-600 font-bold w-20">单位</th>
@@ -369,7 +377,8 @@ export function LedgerStyle1Table({
                           const dictItem2 = RawMaterialsDictService.getItems().find(d => d.name === item.name);
                           const cat = dictItem2?.category;
                           if (!cat) return <span className="text-slate-300 text-[11px]">—</span>;
-                          const catLabel = FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat;
+                          const activeCat = PrepReportService.getActiveCategories().find(c => c.key === cat);
+                          const catLabel = activeCat ? activeCat.label : (FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat);
                           const colorMap: Record<string, string> = {
                             VEGETABLE: "bg-green-100 text-green-700 border-green-200",
                             GRAIN_OIL: "bg-amber-100 text-amber-700 border-amber-200",

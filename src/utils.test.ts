@@ -11,7 +11,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getDaysInMonth,
   getDatesBetween,
-  calculateEntryAmount,
   matchPinyin,
   getItemMonthlySummary,
   createSystemLog,
@@ -75,32 +74,6 @@ describe("getDatesBetween", () => {
 
   it("returns an empty array when start is after end", () => {
     expect(getDatesBetween("2026-07-05", "2026-07-01")).toEqual([]);
-  });
-});
-
-describe("calculateEntryAmount", () => {
-  it("multiplies quantity by price", () => {
-    expect(calculateEntryAmount(3, 2.5)).toBe(7.5);
-  });
-
-  it("rounds to 2 decimal places", () => {
-    expect(calculateEntryAmount(3, 0.1)).toBeCloseTo(0.3, 2);
-  });
-
-  it("treats NaN quantity as 0", () => {
-    expect(calculateEntryAmount(NaN, 5)).toBe(0);
-  });
-
-  it("treats NaN price as 0", () => {
-    expect(calculateEntryAmount(5, NaN)).toBe(0);
-  });
-
-  it("treats negative quantity as 0", () => {
-    expect(calculateEntryAmount(-3, 5)).toBe(0);
-  });
-
-  it("treats negative price as 0", () => {
-    expect(calculateEntryAmount(3, -5)).toBe(0);
   });
 });
 
