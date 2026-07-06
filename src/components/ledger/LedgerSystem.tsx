@@ -56,14 +56,14 @@ export function LedgerSystem() {
   const [style2StartDate, setStyle2StartDate] = useState<string>("");
   /** 样式二（单原料日流水）自定义时间段 - 结束日期 */
   const [style2EndDate, setStyle2EndDate] = useState<string>("");
-  
+
   /** 界面操作的当前选项卡: "entry" | "invoice" */
   const [activeTab, setActiveTab] = useState<"entry" | "invoice">("entry");
   /** 重命名台账的目标ID */
   const [renameLedgerId, setRenameLedgerId] = useState<string | null>(null);
   /** 重命名台账的新名字输入 */
   const [renameLedgerName, setRenameLedgerName] = useState<string>("");
-  
+
   // 批量签字人填报状态
   const [batchOutHandler, setBatchOutHandler] = useState<string>("");
   const [batchOutRecipient, setBatchOutRecipient] = useState<string>("");
@@ -74,7 +74,7 @@ export function LedgerSystem() {
   const [editMaterialUnit, setEditMaterialUnit] = useState<string>("斤");
   const [editMaterialSpec, setEditMaterialSpec] = useState<string>("");
   const [editMaterialStock, setEditMaterialStock] = useState<number>(0);
-  
+
   /** 自动同步成功小气泡的文字 */
   const [saveToast, setSaveToast] = useState<string | null>(null);
   /** 系统交互时的报错提示 */
@@ -330,11 +330,11 @@ export function LedgerSystem() {
     const parts = selectedDate.split("-");
     const year = parseInt(parts[0] || "2026");
     const month = parseInt(parts[1] || "06");
-    
+
     const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
     const lastDayNum = new Date(year, month, 0).getDate();
     const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayNum).padStart(2, "0")}`;
-    
+
     setStyle2StartDate(firstDay);
     setStyle2EndDate(lastDay);
   }, [selectedDate]);
@@ -359,9 +359,9 @@ export function LedgerSystem() {
     if (!activeItemId) return {};
     const item = ledgerItems.find((i) => i.id === activeItemId);
     if (!item) return {};
-    
+
     const balances: Record<string, number> = {};
-    
+
     // 计算开始日期之前的历史期初库存（从初始库存出发，加减所有早于 style2StartDate 的出入库记录）
     let startBalance = item.initialStock || 0;
     Object.entries(item.dailyRecords).forEach(([dateKey, record]) => {
@@ -369,7 +369,7 @@ export function LedgerSystem() {
         startBalance += (record.inQuantity || 0) - (record.outQuantity || 0);
       }
     });
-    
+
     // 从期初库存开始，逐日正向累计出入库变动，推算每天结余
     let accum = Math.round(startBalance * 100) / 100;
     style2DatesArray.forEach((dateStr) => {
@@ -377,7 +377,7 @@ export function LedgerSystem() {
       accum = accum + (record.inQuantity || 0) - (record.outQuantity || 0);
       balances[dateStr] = Math.round(accum * 100) / 100;
     });
-    
+
     return balances;
   }, [activeItemId, ledgerItems, style2StartDate, style2EndDate, style2DatesArray]);
 
@@ -386,7 +386,7 @@ export function LedgerSystem() {
     return currentLedgerItems
       .map((item) => ({
         ...item,
-        record: item.dailyRecords[selectedDate] || { 
+        record: item.dailyRecords[selectedDate] || {
           inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
           certification: "", sensoryProperty: "", supplier: "", buyer: "", inspector: "", keeper: "", outHandler: "", outRecipient: ""
         }
@@ -399,7 +399,7 @@ export function LedgerSystem() {
     return currentLedgerItems
       .map((item) => ({
         ...item,
-        record: item.dailyRecords[selectedDate] || { 
+        record: item.dailyRecords[selectedDate] || {
           inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "",
           certification: "", sensoryProperty: "", supplier: "", buyer: "", inspector: "", keeper: "", outHandler: "", outRecipient: ""
         }
@@ -478,7 +478,7 @@ export function LedgerSystem() {
     });
 
     if (otherDatesWithRecords.length > 0) {
-      if (confirm(`【${item.name}】在其他日期（如 ${otherDatesWithRecords[0]}）已有记录。\n为了保证历史数据完整，此处仅会清除其在今日（${selectedDate}）的数据。\n\n是否继续清除今日数据？`)) {
+      if (confirm(`确定清除（${selectedDate}）日的【${item.name}】的记录吗？`)) {
         LedgerService.updateDailyRecord(item.id, selectedDate, {
           inQuantity: 0,
           inPrice: 0,
@@ -516,7 +516,7 @@ export function LedgerSystem() {
     }
 
     const promises: Promise<void>[] = [];
-    
+
     // 对有变动的原料项目执行批量浅合并写入
     currentLedgerItems.forEach((item) => {
       const record = item.dailyRecords[selectedDate];
@@ -528,7 +528,7 @@ export function LedgerSystem() {
         if (batchOutRecipient.trim()) {
           fieldsToUpdate.outRecipient = batchOutRecipient.trim();
         }
-        
+
         if (Object.keys(fieldsToUpdate).length > 0) {
           promises.push(LedgerService.updateDailyRecord(item.id, selectedDate, fieldsToUpdate));
         }
@@ -639,7 +639,7 @@ export function LedgerSystem() {
 
   return (
     <div className="flex flex-col lg:flex-row h-full w-full bg-[#f1f5f9] text-slate-800 font-sans overflow-hidden">
-      
+
       {/* 左侧台账选择名录区 */}
       <LedgerSidebar
         ledgers={ledgers}
@@ -655,7 +655,7 @@ export function LedgerSystem() {
       {/* 右侧明细录入区 */}
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
-        
+
         {/* 页眉日期及样式选择栏 */}
         <div className="p-3 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-2 shrink-0">
           <div>
@@ -678,7 +678,7 @@ export function LedgerSystem() {
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-fit">
               <Calendar size={13} className="text-slate-500" />
               <span className="text-[12px] text-slate-500 font-medium">同步日期：</span>
-              <input 
+              <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => {
@@ -754,7 +754,7 @@ export function LedgerSystem() {
         {/* 主体工作区 */}
 
         <div className="flex-1 overflow-auto p-4 scrollbar-thin">
-          
+
           {/* Tab 1: 台账数据录入 */}
           {activeTab === "entry" && (
             <>
