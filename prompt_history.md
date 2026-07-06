@@ -834,3 +834,4 @@ Fix bug：
 - 修复了此前清空流水但遗漏了清空 `ledger_items` 里的 `initial_stock` 和 `current_stock`，导致库存总览显示异常的 Bug。
 - 应用户要求，将原“一键清空台账流水”功能全面升级为“**系统大扫除（清空流水与报表）**”的超级复位键。
 - 除了清空台账明细与库存，现在还会连带执行 `DELETE FROM reports`、`prepared_items` 以及 `prepared_item_daily_data`，彻底清空以往所有的备餐历史记录，方便学期初从零开始（但依然保留各项食材的字典、供货商等基本配置）。
+- 修复了后端在拉取全量数据时，错误地对 `prepared_item_daily_data` 使用了 `WHERE date >= 'YYYY-MM-DD'` 进行过滤的严重隐患。由于该表实际存储的 `date` 格式为纯数字（"1"-"31"），导致该过滤总是返回空。修复后，前端在切换月份时不会再因为后端返回空数组而覆写丢失当月已录入的数据。

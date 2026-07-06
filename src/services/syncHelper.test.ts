@@ -85,7 +85,7 @@ describe("SyncHelper", () => {
 
     it("dedupes rapid successive writes to the same entity+key into a single last-write-wins op", async () => {
       vi.useFakeTimers();
-      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
       SyncHelper.setInitialized(true);
 
@@ -109,7 +109,7 @@ describe("SyncHelper", () => {
 
     it("batches ops with different entity+key into the same request within one debounce window", async () => {
       vi.useFakeTimers();
-      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
       SyncHelper.setInitialized(true);
 
@@ -138,7 +138,7 @@ describe("SyncHelper", () => {
       vi.useFakeTimers();
       const fetchSpy = vi.fn()
         .mockRejectedValueOnce(new Error("transient failure"))
-        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+        .mockResolvedValueOnce({ ok: true, headers: new Headers(), json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
       SyncHelper.setInitialized(true);
 
@@ -182,7 +182,7 @@ describe("SyncHelper", () => {
 
     it("stamps the current time the moment a real local mutation is triggered, before the debounce even fires", () => {
       vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
       SyncHelper.setInitialized(true);
       const before = Date.now();
 
@@ -198,7 +198,7 @@ describe("SyncHelper", () => {
       // 消费方（useAppData 的心跳回调）就应当据此判断该次心跳响应已过期、丢弃不覆盖内存。
       // 这里只验证 SyncHelper 暴露的时间戳本身具备这个判别能力，具体丢弃逻辑在 useAppData 侧测试覆盖。
       vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
       SyncHelper.setInitialized(true);
 
       const heartbeatRequestStartedAt = Date.now();
@@ -221,7 +221,7 @@ describe("SyncHelper", () => {
 
     it("reports pending sync while an op is queued waiting for the 200ms debounce to fire", () => {
       vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
       SyncHelper.setInitialized(true);
 
       SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
@@ -239,7 +239,7 @@ describe("SyncHelper", () => {
       await vi.advanceTimersByTimeAsync(200); // 触发防抖 flush，发出请求但尚未收到响应
       expect(SyncHelper.hasPendingSync()).toBe(true);
 
-      resolveFetch!({ ok: true, json: async () => ({}) });
+      resolveFetch!({ ok: true, headers: new Headers(), json: async () => ({}) });
       await vi.advanceTimersByTimeAsync(0);
       expect(SyncHelper.hasPendingSync()).toBe(false);
     });
@@ -253,7 +253,7 @@ describe("SyncHelper", () => {
 
     it("waitForPendingSync only resolves after the queued op has actually been flushed and confirmed", async () => {
       vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
       SyncHelper.setInitialized(true);
 
       SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });

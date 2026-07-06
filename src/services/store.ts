@@ -212,8 +212,6 @@ export class PrepReportService {
       };
       this.reports.push(report);
       this.saveToStorage();
-      this.queueReportUpsertOp(report);
-      report.items.forEach((item) => this.queuePreparedItemUpsertOps(item, report.targetGroup, report.year, report.month));
       LogBroker.publish("INFO", "PrepReportService", `惰性合成了客群「${targetGroup}」在 ${year}年${month}月 的空白初始备餐表。`);
     }
     return report;
@@ -244,8 +242,6 @@ export class PrepReportService {
       const report = this.reports[reportIndex];
       const itemIndex = report.items.findIndex((item) => item.name === itemName);
 
-      this.queueReportUpsertOp(report);
-
       if (itemIndex > -1) {
         const item = report.items[itemIndex];
         const updatedDailyData = { ...item.dailyData };
@@ -265,11 +261,6 @@ export class PrepReportService {
           ...report,
           items: updatedItems
         };
-        if (this.hasMeaningfulDailyEntry(newEntry)) {
-          SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: item.id, date: day }, data: newEntry });
-        } else {
-          SyncHelper.queueChange({ entity: "preparedItemDailyData", op: "delete", key: { itemId: item.id, date: day } });
-        }
       } else {
         // 创建新原料行
         const dailyData: Record<string, DailyEntry> = {};
@@ -294,7 +285,6 @@ export class PrepReportService {
           items: [...report.items, newItem]
         };
         this.reports[reportIndex] = updatedReport;
-        this.queuePreparedItemUpsertOps(newItem, targetGroup, year, month);
       }
 
       this.notifyListeners();
@@ -343,9 +333,6 @@ export class PrepReportService {
       }
       this.saveConfigAndNotify();
       SyncHelper.queueChange({ entity: "activeGroup", op: "upsert", key: id, data: newGroup });
-      if (newReport) {
-        this.queueReportUpsertOp(newReport);
-      }
     }
   }
 
@@ -360,12 +347,6 @@ export class PrepReportService {
     this.reports = this.reports.filter((r) => r.targetGroup !== upperKey as TargetGroup);
     LogBroker.publish("WARN", "PrepReportService", `从台账同步物理移除了群组与备餐报表: ${upperKey}`);
     this.saveConfigAndNotify();
-    SyncHelper.queueChange({ entity: "activeGroup", op: "delete", key: upperKey });
-    // 后端 report 删除的级联只清理该报表自己的 preparedItems/dailyData，不会自动推断"同一人群的其它月份报表也要删"，
-    // 因此这里需要为每个被级联删除的报表各自 queue 一个 delete op
-    removedReports.forEach((report) => {
-      SyncHelper.queueChange({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
-    });
   }
 
 

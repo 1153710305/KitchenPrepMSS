@@ -359,6 +359,11 @@ export class StorageService {
         -- 早期版本遗留表，主动清空（幂等，已清空的库上是无操作）
         DROP TABLE IF EXISTS kv_store;
         DROP TABLE IF EXISTS daily_records;
+        
+        -- 本次架构重构：删减被废弃的冗余备餐表
+        DROP TABLE IF EXISTS reports;
+        DROP TABLE IF EXISTS prepared_items;
+        DROP TABLE IF EXISTS prepared_item_daily_data;
 
         -- 规范化关系型表结构
         CREATE TABLE IF NOT EXISTS ledgers (
@@ -784,47 +789,11 @@ export class StorageService {
             break;
           }
 
-          case "report": {
-            const key = op.key as { targetGroup: string; year: number; month: number };
-            if (op.op === "delete") {
-              // 级联：先清空该报表下所有备餐细项的每日数据，再删细项，最后删报表本身
-              const ids = stmts.get("selectPreparedItemIdsByReport")!.all(key.targetGroup, key.year, key.month) as Array<{ id: string }>;
-              for (const row of ids) {
-                stmts.get("deleteDailyDataByItem")!.run(row.id);
-              }
-              stmts.get("deletePreparedItemsByReport")!.run(key.targetGroup, key.year, key.month);
-              stmts.get("deleteReport")!.run(key.targetGroup, key.year, key.month);
-            } else {
-              stmts.get("upsertReport")!.run(key.targetGroup, key.year, key.month);
-            }
-            break;
-          }
-
+          case "report":
           case "preparedItem":
-            if (op.op === "delete") {
-              stmts.get("deleteDailyDataByItem")!.run(op.key);
-              stmts.get("deletePreparedItem")!.run(op.key);
-            } else {
-              const d = op.data;
-              stmts.get("upsertPreparedItem")!.run({
-                id: d.id, reportTargetGroup: d.reportTargetGroup, reportYear: d.reportYear, reportMonth: d.reportMonth,
-                name: d.name, category: d.category, targetGroup: d.targetGroup, unit: d.unit, note: d.note ?? null
-              });
-            }
+          case "preparedItemDailyData":
+            // 实体表已被彻底删除，此三种同步操作变为直接忽略
             break;
-
-          case "preparedItemDailyData": {
-            const key = op.key as { itemId: string; date: string };
-            const d = op.data ?? {};
-            if (op.op === "delete" || ((d.quantity ?? 0) === 0 && (d.amount ?? 0) === 0)) {
-              stmts.get("deleteDailyData")!.run(key.itemId, key.date);
-            } else {
-              stmts.get("upsertDailyData")!.run({
-                itemId: key.itemId, date: key.date, quantity: d.quantity ?? 0, price: d.price ?? 0, amount: d.amount ?? 0
-              });
-            }
-            break;
-          }
 
           case "activeGroup":
             if (op.op === "delete") {
@@ -1011,41 +980,69 @@ export class StorageService {
       dailyRecords: dailyByItem[item.id] || {}
     }));
 
-    const reportsRaw = db.prepare("SELECT target_group as targetGroup, year, month FROM reports").all() as any[];
-    const preparedItemsRaw = db.prepare(`
-      SELECT id, report_target_group as reportTargetGroup, report_year as reportYear, report_month as reportMonth,
-             name, category, target_group as targetGroup, unit, note
-      FROM prepared_items
-    `).all() as any[];
-    
-    let dailyDataRowsSql = "SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data";
-    const dailyDataRows = db.prepare(dailyDataRowsSql).all() as any[];
-    const dailyDataByItem: Record<string, Record<string, any>> = {};
-    for (const row of dailyDataRows) {
-      if (!dailyDataByItem[row.itemId]) dailyDataByItem[row.itemId] = {};
-      dailyDataByItem[row.itemId][row.date] = { quantity: row.quantity, price: row.price, amount: row.amount };
+    const rawMaterialsDict = (db.prepare(`
+      SELECT name, category, unit, remark, conversion_unit as conversionUnit, conversion_ratio as conversionRatio, is_default as isDefault
+      FROM raw_materials_dict
+    `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
+
+    // 动态生成备餐报表 (Reports)
+    // 根据 ledgers(作为TargetGroup) 和 当前日期范围内的 ledger_item_daily_records，动态合成
+    const [startYearStr, startMonthStr] = filterStart.split('-');
+    const reportYear = parseInt(startYearStr);
+    const reportMonth = parseInt(startMonthStr);
+
+    const reports: any[] = [];
+    for (const ledger of ledgers) {
+      const targetGroup = ledger.id;
+      // 找出当前受众人群下的所有原料项目
+      const itemsForGroup = ledgerItemsRaw.filter(li => li.ledgerId === targetGroup);
+      
+      const preparedItems = itemsForGroup.map(li => {
+        const dailyData: Record<string, any> = {};
+        const recordsForThisItem = dailyByItem[li.id] || {};
+        
+        for (const dateStr of Object.keys(recordsForThisItem)) {
+          // dateStr is 'YYYY-MM-DD'
+          const day = parseInt(dateStr.split('-')[2]).toString();
+          const r = recordsForThisItem[dateStr];
+          
+          if ((r.inQuantity && r.inQuantity > 0) || (r.inAmount && r.inAmount > 0)) {
+            dailyData[day] = {
+              quantity: r.inQuantity || 0,
+              price: r.inPrice || 0,
+              amount: r.inAmount || 0
+            };
+          }
+        }
+        
+        // 尝试从大字典中推断 category，找不到默认算 VEGETABLE
+        const dictCategory = rawMaterialsDict.find(d => d.name === li.name)?.category || "VEGETABLE";
+        
+        return {
+          id: li.id,
+          name: li.name,
+          category: dictCategory,
+          targetGroup: targetGroup,
+          unit: li.unit,
+          dailyData
+        };
+      });
+
+      // 无论该月有没有数据，都把该受众群体的空报表壳子推入，保证前端有全部月份可切换
+      reports.push({
+        targetGroup: targetGroup,
+        year: reportYear,
+        month: reportMonth,
+        items: preparedItems
+      });
     }
-    const preparedItemsByReport: Record<string, any[]> = {};
-    for (const item of preparedItemsRaw) {
-      const reportKey = `${item.reportTargetGroup}__${item.reportYear}__${item.reportMonth}`;
-      const { reportTargetGroup, reportYear, reportMonth, ...rest } = item;
-      if (!preparedItemsByReport[reportKey]) preparedItemsByReport[reportKey] = [];
-      preparedItemsByReport[reportKey].push({ ...rest, dailyData: dailyDataByItem[item.id] || {} });
-    }
-    const reports = reportsRaw.map((r) => {
-      const key = `${r.targetGroup}__${r.year}__${r.month}`;
-      return { ...r, items: preparedItemsByReport[key] || [] };
-    });
 
     const activeGroups = (db.prepare("SELECT key, label, emoji, is_default as isDefault FROM active_groups").all() as any[])
       .map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, isDefault: !!g.isDefault }));
     const activeCategories = (db.prepare("SELECT key, label, is_default as isDefault FROM active_categories").all() as any[])
       .map((c) => ({ key: c.key, label: c.label, isDefault: !!c.isDefault }));
 
-    const rawMaterialsDict = (db.prepare(`
-      SELECT name, category, unit, remark, conversion_unit as conversionUnit, conversion_ratio as conversionRatio, is_default as isDefault
-      FROM raw_materials_dict
-    `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
+
 
     const helperRows = db.prepare("SELECT category, value FROM ledger_helper_options ORDER BY category, sort_order").all() as Array<{ category: string; value: string }>;
     const ledgerHelperDict: Record<string, string[]> = {};
