@@ -58,7 +58,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
 
     let conversionRatio: number | undefined = undefined;
     const rawRatio = dictConversionRatioInput.trim();
-    if (rawRatio !== "" && rawRatio !== "NaN") {
+    if (rawRatio !== "" && rawRatio !== "NaN" && rawRatio !== "null") {
       const parsed = Number(rawRatio);
       if (isNaN(parsed)) {
         setDictError("换算比例必须是有效的数值！");
@@ -110,7 +110,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
     setDictUnitInput(item.unit);
     setDictRemarkInput(item.remark || "");
     setDictConversionUnitInput(item.conversionUnit || "");
-    setDictConversionRatioInput(item.conversionRatio !== undefined ? String(item.conversionRatio) : "");
+    setDictConversionRatioInput(item.conversionRatio !== undefined && item.conversionRatio !== null ? String(item.conversionRatio) : "");
   };
 
   const handleDeleteDict = async (name: string) => {

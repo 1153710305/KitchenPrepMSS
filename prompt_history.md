@@ -724,3 +724,15 @@
 - **实现方案**：
   1. **换算比例置空报错**：当使用 `<input type="number">` 且绑定的 React state 为特殊字符如 `"NaN"`（历史脏数据引发）时，输入框视觉显示为空，但提交时会因为 `trim()` 取到 `"NaN"` 进而触发 `isNaN` 的无效数值报错。在 `AdminDictTab.tsx` 表单提交校验逻辑中增加针对 `"NaN"` 的专项忽略与安全拦截，将其视同于无内容 (`undefined`)，确保表单能顺利置空提交。
   2. **台账悬浮按钮消失**：原实现由于垂直滚动条落在 `#ledger-detail-scroll-container` 上，导致 `LedgerStyle1Table` 作为其子元素整体被卷动，`sticky` 方案失效。本次重构了台账主体表单组件的 Flex 布局，把 `overflow-x-auto` 升级为 `overflow-auto flex-1`，将垂直与水平滚动条收敛至表格组件内部；原左右导航按钮改用 `absolute top-1/2` 并在父级增加 `relative flex-1 min-h-0`，从而使得表头能做到真正吸顶（`sticky top-0 z-10`），且导航按钮始终保持在表格框内的绝对居中，完美解决了随上下滑动消失的问题。
+
+### 🚀 2026-07-06 - [V5.100.0] 修正 [V5.99.0] 未彻底解决的两个 Bug
+- **提示词原文**：
+
+```markdown
+Fix bug：
+进入管理后台编辑某一原料，点击编辑什么都不输入，直接保存，会提示"换算比例必须是有效的数值"
+台账录入界面的左右移动的点击按钮随着上下滑动隐藏消失了，在输入的时候应该一直显示，方便用户在任何情况下都可以左右移动。不需要运行自动化测试，改完之后验证功能正常直接提交就行
+```
+
+- **实现方案**：详见 [readme_zh.md] 中 [V5.100.0] 条目——用户反馈 `[V5.99.0]` 的两处修复其实都没有真正生效，说明那次的根因诊断都只对了一半：1. 换算比例的真实触发值是 SQL `NULL`（映射成 JS `null`），不是字符串 `"NaN"`；`AdminDictTab.tsx` 的 `handleStartEditDict` 用 `!== undefined` 判断，`null` 会被误判为"有值"从而 `String(null)` 变成字符串 `"null"` 填进输入框，保存时 `Number("null")` 是 `NaN`，触发报错——`[V5.99.0]` 只拦截了 `"NaN"` 这个字符串本身，从未覆盖到这个真实场景。2. 台账按钮的问题不是"该用 sticky 还是 absolute"的选择题：`[V5.99.0]` 把方案换回 `absolute top-1/2` + 让容器变成 `flex-1 min-h-0`，但这条 flex 链在 `LedgerSystem.tsx` 里的祖先节点只是个普通 `overflow-auto` div（不是 flex 容器），`flex-1` 完全不起作用，容器还是被撑到近 4000px 高，按钮被摆在整个内容区的儿何中点、不在可视区内——用 `getBoundingClientRect()` 在浏览器里直接量测坐标复现确认。本次改用 `LedgerStyle2Flow.tsx` 里已验证有效的 `sticky top-2 h-0 pointer-events-none` 方案，并额外定位到一个两次前序尝试都忽略的关键障碍——`LedgerStyle1Table.tsx` 根容器的 `overflow-hidden`（CSS 规范里任何非 `visible` 的 overflow 都会被视为"滚动容器"，会截断 sticky 元素向上查找真正滚动祖先），去掉后圆角裁剪效果分别移到两个真正需要裁剪的子元素上。
+- **验证**：用户要求本次不跑自动化测试，改为真实浏览器直接验证：找到 `conversion_ratio` 确认为 `NULL` 的原料（黄瓜）编辑后不改动直接保存，确认不再报错、数据库内容无变化；台账录入模式下用 `getBoundingClientRect()` 在五个不同滚动位置量测按钮坐标，确认全部落在可视区内，圆角视觉效果无回归。按用户要求直接提交，未运行 `npm test`。
