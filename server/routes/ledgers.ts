@@ -110,3 +110,21 @@ ledgerItemsRouter.put("/:id/daily/:date", async (req, res) => {
     res.status(400).json({ error: err.message || "保存出入库记录失败" });
   }
 });
+
+/**
+ * @description 批量更新指定台账下多个原料在指定日期的出入库流水字段，重算入库金额与实时库存
+ * @route PUT /api/ledger-items/batch-daily/:date
+ */
+ledgerItemsRouter.put("/batch-daily/:date", async (req, res) => {
+  try {
+    const { updates } = req.body ?? {};
+    if (!updates || typeof updates !== "object") {
+      return res.status(400).json({ error: "批量更新参数格式不正确" });
+    }
+    const result = await StorageService.updateLedgerDailyRecordsBatch(req.params.date, updates);
+    res.json({ success: true, updatedItems: result.updatedItems, mergedRecords: result.mergedRecords });
+  } catch (err: any) {
+    console.error("[API LEDGER DAILY RECORDS BATCH UPDATE ERROR]", err);
+    res.status(400).json({ error: err.message || "批量保存出入库记录失败" });
+  }
+});

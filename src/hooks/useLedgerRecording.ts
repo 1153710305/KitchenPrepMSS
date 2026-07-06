@@ -187,6 +187,7 @@ export function useLedgerRecording({
       (window as any).__setGlobalLoading?.("正在向服务端同步并写入今日采购及出入库台账，请稍候...");
 
       const promises: Promise<void>[] = [];
+      const batchUpdates: Record<string, Partial<DailyStockRecord>> = {};
 
       // 验证记录是否含有至少一项有效数据值（不为空且不为0）
       const hasAtLeastOneContent = (rec: DailyStockRecord) => {
@@ -232,14 +233,19 @@ export function useLedgerRecording({
                 );
                 targetItemId = newItem.id;
               }
-              // 使用真实原料 ID 更新记录
-              promises.push(LedgerService.updateDailyRecord(targetItemId, selectedDate, record));
+              // 加入批量更新队列，使用真实原料 ID 更新记录
+              batchUpdates[targetItemId] = record;
             }
           }
         } else {
-          // 已经是数据库中正式存在的原料，直接更新
-          promises.push(LedgerService.updateDailyRecord(itemId, selectedDate, record));
+          // 已经是数据库中正式存在的原料，直接加入批量更新队列
+          batchUpdates[itemId] = record;
         }
+      }
+
+      // 如果有任何有效的修改记录，一次性发起批量提交
+      if (Object.keys(batchUpdates).length > 0) {
+        promises.push(LedgerService.updateDailyRecordsBatch(selectedDate, batchUpdates));
       }
 
       await Promise.all(promises);

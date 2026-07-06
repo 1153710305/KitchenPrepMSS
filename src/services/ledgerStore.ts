@@ -435,6 +435,71 @@ export class LedgerService {
   }
 
   /**
+   * @description 批量录入/更新指定日期下多个原料的出入库或台账字段，大幅提高一次性提交几十条记录的性能
+   * @param dateStr 选中的日期 (格式如 "YYYY-MM-DD")
+   * @param updates 多个原料的属性集合，键为 itemId
+   */
+  public static async updateDailyRecordsBatch(
+    dateStr: string,
+    updates: Record<string, Partial<DailyStockRecord>>
+  ): Promise<void> {
+    const res = await fetch(`/api/ledger-items/batch-daily/${encodeURIComponent(dateStr)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates })
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "批量保存出入库记录失败");
+    }
+
+    const updatedItems: LedgerItem[] = body.updatedItems;
+    const mergedRecords: Record<string, DailyStockRecord> = body.mergedRecords;
+
+    // 批量更新内存缓存
+    const newLedgerItems = [...this.ledgerItems];
+    let needsNotify = false;
+
+    for (const updatedItem of updatedItems) {
+      const itemIndex = newLedgerItems.findIndex((i) => i.id === updatedItem.id);
+      if (itemIndex !== -1) {
+        newLedgerItems[itemIndex] = updatedItem;
+        needsNotify = true;
+      }
+
+      // 处理每个项的备餐月度报表同步
+      const mergedRecord = mergedRecords[updatedItem.id];
+      if (mergedRecord && (updates[updatedItem.id]?.inQuantity !== undefined || updates[updatedItem.id]?.inPrice !== undefined)) {
+        const inQty = mergedRecord.inQuantity ?? 0;
+        const inPr = mergedRecord.inPrice ?? 0;
+        const category = RawMaterialsDictService.getCategoryForMaterial(updatedItem.name) || FoodCategory.VEGETABLE;
+        const unit = updatedItem.unit || "斤";
+        const [yearStr, monthStr, dayStr] = dateStr.split("-");
+        const year = parseInt(yearStr || "2026");
+        const month = parseInt(monthStr || "06");
+        const day = parseInt(dayStr || "01").toString();
+
+        PrepReportService.syncFromLedger(
+          updatedItem.ledgerId,
+          year,
+          month,
+          day,
+          updatedItem.name,
+          category,
+          unit,
+          inQty,
+          inPr
+        );
+      }
+    }
+
+    if (needsNotify) {
+      this.ledgerItems = newLedgerItems;
+      this.notifyListeners();
+    }
+  }
+
+  /**
    * @description 当从后台原料大底库修改了原料属性时，级联同步更新所有关联的已存台账采购原料项目参数
    * @param newSpec 新规格描述（原料字典的备注字段），可选——不传时保留台账原料项目原有的规格不变
    */
