@@ -185,20 +185,6 @@ export default function App() {
   // ================= 记账控制交互事务 =================
 
   /**
-   * @description 单元格数值变动，通过底层Service无卡顿保存并更新内存状态物
-   * @param itemId 行食材ID标识
-   * @param day 日索引("1"-"31")
-   * @param quantity 备餐数量数值
-   * @param price 备餐单价值
-   */
-  const handleCellUpdate = (itemId: string, day: string, quantity: number, price: number) => {
-    // 针对高强度记账性能进行了全流程非阻塞优化：单元格细节输入采用 TableGrid onBlur 机制打印操作日志
-    PrepReportService.updateCell(itemId, day, quantity, price).catch((err) => {
-      LogBroker.publish("ERROR", "App", "执行单元格物理变动写入时发生致命碰撞", String(err));
-    });
-  };
-
-  /**
    * @description 获取受众人群的中文名称（支持动态添加的人群）
    */
   const getGroupLabel = (groupKey: string) => {
@@ -212,53 +198,6 @@ export default function App() {
   const getCategoryLabel = (catKey: string) => {
     const c = activeCategoriesList.find((c) => c.key === catKey);
     return c ? c.label : (FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey);
-  };
-
-  /**
-   * @description 新增某种具体食材条目槽行
-   * @param targetGroup 餐位受众人群分类
-   * @param category 食材供应大品类
-   * @param name 食物细分称呼（如: 土豆）
-   * @param unit 记量单位
-   */
-  const handleAddItem = (targetGroup: TargetGroup, category: FoodCategory, name: string, unit: string) => {
-    PrepReportService.addPreparedItem(targetGroup, category, name, unit).then(() => {
-      const operator = isAdminMode ? "系统管理员" : "普通记账员";
-      const groupLabel = getGroupLabel(targetGroup);
-      const catLabel = getCategoryLabel(category);
-      LogBroker.publish(
-        "INFO",
-        "App",
-        `【新增备餐条目】操作员 [${operator}] 在「${groupLabel}」的 [${catLabel}类] 下成功新增了细分食材项目「${name}」（单位：${unit}）。`
-      );
-    }).catch((err) => {
-      LogBroker.publish("ERROR", "App", "食材原料行新增阻滞:", String(err));
-    });
-  };
-
-  /**
-   * @description 彻底移除某种备餐具体食材大行
-   * @param itemId 行食材ID
-   */
-  const handleDeleteItem = (itemId: string) => {
-    const itemToDelete = reports.flatMap((r) => r.items).find((i) => i.id === itemId);
-    if (!itemToDelete) return;
-
-    if (confirm(`您确定要从此品类中永久删除该项备餐清单吗？对应的历史录入单金额将被瞬间清除。`)) {
-      const operator = isAdminMode ? "系统管理员" : "普通记账员";
-      const groupLabel = getGroupLabel(itemToDelete.targetGroup);
-      const catLabel = getCategoryLabel(itemToDelete.category);
-
-      PrepReportService.deletePreparedItem(itemId).then(() => {
-        LogBroker.publish(
-          "WARN",
-          "App",
-          `【删除备餐条目】操作员 [${operator}] 从「${groupLabel}」的 [${catLabel}类] 中彻底删除了细分食材项目「${itemToDelete.name}」（包括其月度所有的每日备量与价格明细）。`
-        );
-      }).catch((err) => {
-        LogBroker.publish("ERROR", "App", "项目物理删除冲突:", String(err));
-      });
-    }
   };
 
   /**
@@ -801,13 +740,8 @@ export default function App() {
                   <TableGrid
                     report={currentReport}
                     selectedCategory={activeCategory as FoodCategory | null}
-                    onCellUpdate={handleCellUpdate}
-                    onAddItem={handleAddItem as any}
-                    onDeleteItem={handleDeleteItem}
-                    isAdminMode={isAdminMode}
                     activeGroupsList={activeGroupsList}
                     activeCategoriesList={activeCategoriesList}
-                    readOnly={true}
                   />
                 )}
 

@@ -4,14 +4,15 @@
  */
 
 /**
- * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：单元格更新与不可变性、台账双向同步、批量调价、一二级配置增删改与默认数据保护、级联更新/删除。
- * [阶段C] addPreparedItem/updateCell/deletePreparedItem/batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/
- * deleteCategory 的校验/重算/级联规则已迁移到后端 REST API，本文件改为对全局 fetch 打一个轻量的假后端路由
- * （`fakePrepReportFetch`），镜像真实后端语义，支撑本文件里大量多步测试序列；真正的服务端校验/级联覆盖测试见
- * server/routes/reports.test.ts。getOrCreateReport/syncFromLedger/syncGroupFromLedger/syncDeleteLedgerFromGroup
- * 四个方法因架构约束（getOrCreateReport 在 App.tsx 里被同步 useMemo 直接调用，无法改造成异步 REST 调用）或
- * 尚未到迁移阶段（阶段C范围内 PrepReportService 只完成"自己被调用"的一侧，syncFromLedger 是"调用 LedgerService"
- * 的一侧，留给以后需要时再统一处理）仍是纯前端实现，测试保持不变。
+ * @description PrepReportService（备餐采购/月度报表业务数据服务层）单元测试：台账双向同步、批量调价、一二级配置增删改与默认数据保护、级联更新/删除。
+ * [阶段C] batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/deleteCategory 的校验/重算/级联规则已迁移到后端
+ * REST API，本文件改为对全局 fetch 打一个轻量的假后端路由（`fakePrepReportFetch`），镜像真实后端语义，支撑本文件里
+ * 大量多步测试序列；真正的服务端校验/级联覆盖测试见 server/routes/reports.test.ts。getOrCreateReport/syncFromLedger/
+ * syncGroupFromLedger/syncDeleteLedgerFromGroup 四个方法因架构约束（getOrCreateReport 在 App.tsx 里被同步 useMemo
+ * 直接调用，无法改造成异步 REST 调用）或尚未到迁移阶段（阶段C范围内 PrepReportService 只完成"自己被调用"的一侧，
+ * syncFromLedger 是"调用 LedgerService"的一侧，留给以后需要时再统一处理）仍是纯前端实现，测试保持不变。
+ * addPreparedItem/updateCell/deletePreparedItem 及其后端路由/StorageService方法已随主表格只读设计确认为死代码
+ * 一并删除（餐位分组页面下的采购细表自 V5.2.0 起即为只读展示，数据录入统一通过原料购销台账完成）。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -48,62 +49,15 @@ const okResponse = (body: any) => ({ ok: true, json: async () => ({ success: tru
 const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
 
 /**
- * @description 假后端路由：镜像 server/storageService.ts 里 addPreparedItem/updateCell/deletePreparedItem/
- * batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/deleteCategory 的校验与重算语义，读写直接落在
- * PrepReportService/LedgerService 自己的内存状态上（测试环境下就是"当前数据库状态"）。
+ * @description 假后端路由：镜像 server/storageService.ts 里 batchUpdatePriceCol/saveGroup/deleteGroup/
+ * saveCategory/deleteCategory 的校验与重算语义，读写直接落在 PrepReportService/LedgerService 自己的内存状态上
+ * （测试环境下就是"当前数据库状态"）。
  */
 function fakePrepReportFetch(url: string, options: any = {}) {
   const method = options.method || "GET";
   const body = options.body ? JSON.parse(options.body) : {};
 
-  if (url === "/api/prepared-items" && method === "POST") {
-    const trimmedName = (body.name ?? "").trim();
-    if (!trimmedName) return Promise.resolve(errorResponse("原料名称不能为空"));
-    const report = PrepReportService.getReports().find((r) => r.targetGroup === body.targetGroup);
-    if (!report) return Promise.resolve(errorResponse(`无法找到目标人群分类为 "${body.targetGroup}" 的月度报表`));
-    const dailyData: Record<string, any> = {};
-    for (let d = 1; d <= 31; d++) dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
-    const item: PreparedItem = {
-      id: `item_${body.targetGroup.toLowerCase()}_${body.category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: trimmedName, category: body.category, targetGroup: body.targetGroup, unit: (body.unit ?? "").trim() || "斤", dailyData
-    };
-    return Promise.resolve(okResponse({ item }));
-  }
-
-  let m = url.match(/^\/api\/prepared-items\/([^/]+)\/cells\/([^/]+)$/);
-  if (m && method === "PUT") {
-    const itemId = decodeURIComponent(m[1]);
-    const day = decodeURIComponent(m[2]);
-    let matchedItem: PreparedItem | undefined;
-    for (const report of PrepReportService.getReports()) {
-      matchedItem = report.items.find((i) => i.id === itemId);
-      if (matchedItem) break;
-    }
-    if (!matchedItem) return Promise.resolve(errorResponse(`未找到ID为 "${itemId}" 的项目，修改失败`));
-    const updatedDailyData = { ...matchedItem.dailyData };
-    const entry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
-    const quantity = Number.isFinite(body.quantity) ? Math.max(0, body.quantity) : 0;
-    const price = Number.isFinite(body.price) ? Math.max(0, body.price) : 0;
-    entry.quantity = quantity;
-    entry.price = price;
-    entry.amount = Math.round(quantity * price * 100) / 100;
-    updatedDailyData[day] = entry;
-    const item = { ...matchedItem, dailyData: updatedDailyData };
-
-    const ledgerItem = LedgerService.getLedgerItems().find((i) => i.name === matchedItem!.name);
-    const updatedLedgerItem = ledgerItem ? { ...ledgerItem, currentStock: ledgerItem.currentStock } : null;
-    return Promise.resolve(okResponse({ item, ledgerItem: updatedLedgerItem }));
-  }
-
-  m = url.match(/^\/api\/prepared-items\/([^/]+)$/);
-  if (m && method === "DELETE") {
-    const itemId = decodeURIComponent(m[1]);
-    const exists = PrepReportService.getReports().some((r) => r.items.some((i) => i.id === itemId));
-    if (!exists) return Promise.resolve(errorResponse(`无法定位删除项ID: ${itemId}`));
-    return Promise.resolve(okResponse({}));
-  }
-
-  m = url.match(/^\/api\/reports\/([^/]+)\/prices$/);
+  let m = url.match(/^\/api\/reports\/([^/]+)\/prices$/);
   if (m && method === "PUT") {
     const targetGroup = decodeURIComponent(m[1]);
     const report = PrepReportService.getReports().find((r) => r.targetGroup === targetGroup);
@@ -205,121 +159,6 @@ describe("PrepReportService", () => {
     it("persists the newly created report into the in-memory reports list", () => {
       PrepReportService.getOrCreateReport("KID", 2026, 7);
       expect(PrepReportService.getReports()).toHaveLength(1);
-    });
-  });
-
-  describe("updateCell [阶段C：校验/重算/反向同步已迁移到后端]", () => {
-    it("recalculates the amount using the backend's response", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ dailyData: { "1": { quantity: 0, price: 0, amount: 0 } } })] })]);
-
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-
-      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
-      expect(entry).toEqual({ quantity: 3, price: 2.5, amount: 7.5 });
-    });
-
-    it("clamps negative quantity and price to zero", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "1", -3, -2);
-
-      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
-      expect(entry.quantity).toBe(0);
-      expect(entry.price).toBe(0);
-      expect(entry.amount).toBe(0);
-    });
-
-    it("calls PUT /api/prepared-items/:id/cells/:day", async () => {
-      const fetchSpy = vi.fn(fakePrepReportFetch);
-      vi.stubGlobal("fetch", fetchSpy);
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1" })] })]);
-
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/prepared-items/item_1/cells/1",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify({ quantity: 3, price: 2.5 }) })
-      );
-    });
-
-    it("rejects with the backend's not-found error", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-      await expect(PrepReportService.updateCell("does_not_exist", "1", 1, 1)).rejects.toThrow(/未找到ID为/);
-    });
-
-    it("[V5.67.0] treats a NaN quantity/price as zero", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-
-      await PrepReportService.updateCell("item_1", "1", NaN, NaN);
-
-      const entry = PrepReportService.getReports()[0].items[0].dailyData["1"];
-      expect(entry.quantity).toBe(0);
-      expect(entry.price).toBe(0);
-      expect(entry.amount).toBe(0);
-    });
-
-    it("applies a returned ledgerItem to LedgerService's memory directly instead of doing a full SyncHelper.refreshNow() (updateCell 是最高频写操作，避免额外全量刷新开销)", async () => {
-      LedgerService.setLedgerItemsInMemory([{ id: "li_1", ledgerId: "KID", name: "土豆", unit: "斤", initialStock: 0, currentStock: 5, dailyRecords: {} } as any]);
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
-
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-
-      expect(SyncHelper.refreshNow).not.toHaveBeenCalled();
-      expect(LedgerService.getLedgerItems().find((i) => i.id === "li_1")).toBeDefined();
-    });
-
-    it("does not touch LedgerService's memory when the backend reports no matching ledger item", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem()] })]);
-      await PrepReportService.updateCell("item_1", "1", 3, 2.5);
-      expect(LedgerService.getLedgerItems()).toHaveLength(0);
-    });
-  });
-
-  describe("deletePreparedItem [阶段C：校验已迁移到后端]", () => {
-    it("removes the matching item from whichever report contains it", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ id: "item_1" }), makeItem({ id: "item_2" })] })]);
-
-      await PrepReportService.deletePreparedItem("item_1");
-
-      const items = PrepReportService.getReports()[0].items;
-      expect(items).toHaveLength(1);
-      expect(items[0].id).toBe("item_2");
-    });
-
-    it("rejects with the backend's not-found error", async () => {
-      PrepReportService.setReportsInMemory([makeReport({ items: [] })]);
-      await expect(PrepReportService.deletePreparedItem("nope")).rejects.toThrow(/无法定位删除项/);
-    });
-  });
-
-  describe("addPreparedItem [阶段C：校验/尽力而为同步台账已迁移到后端]", () => {
-    beforeEach(() => {
-      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, items: [] })]);
-    });
-
-    it("adds the item returned by the backend to the matching report", async () => {
-      const item = await PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "西红柿", "斤");
-
-      expect(item.name).toBe("西红柿");
-      expect(PrepReportService.getReports()[0].items.map((i) => i.name)).toContain("西红柿");
-    });
-
-    it("rejects with the backend's empty-name error", async () => {
-      await expect(PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "  ", "斤")).rejects.toThrow(
-        "原料名称不能为空"
-      );
-    });
-
-    it("rejects with the backend's report-not-found error", async () => {
-      resetPrepReportService();
-      await expect(PrepReportService.addPreparedItem(TargetGroup.TEACHER, FoodCategory.VEGETABLE, "西红柿", "斤")).rejects.toThrow(
-        /无法找到目标人群分类/
-      );
-    });
-
-    it("immediately refreshes after success (尽力而为同步台账的级联只发生在后端)", async () => {
-      await PrepReportService.addPreparedItem(TargetGroup.KID, FoodCategory.VEGETABLE, "西红柿", "斤");
-      expect(SyncHelper.refreshNow).toHaveBeenCalledTimes(1);
     });
   });
 

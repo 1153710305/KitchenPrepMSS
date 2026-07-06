@@ -7,8 +7,8 @@
  * @description 备餐采购细表的编排层组件：按选定二级大类过滤并与台账入库数据对齐生成明细行，提供搜索、CSV 导出、主题切换、"合计汇总"视图，并根据 viewMode 渲染 EXCEL 日历总矩阵（TableGridMatrixView）或单日聚焦卡片（TableGridFocusView）子组件。
  */
 
-import React, { useState, useMemo, useRef } from "react";
-import { FoodCategory, PreparedItem, TargetGroup, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
+import React, { useState, useMemo } from "react";
+import { FoodCategory, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { FOOD_CATEGORY_LABELS, UI_TEXT } from "../../constants/constants.ts";
 import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
@@ -29,20 +29,10 @@ interface TableGridProps {
   report: GroupMonthlyReport;
   /** 当前激活的食材二级分类 (VEGETABLE | GRAIN_OIL... ；合计子表用 null 表示) */
   selectedCategory: FoodCategory | null;
-  /** 当发生单元格数字修改时的全局联动回调 */
-  onCellUpdate: (itemId: string, day: string, quantity: number, price: number) => void;
-  /** 新增食材明细时的操作回调 */
-  onAddItem: (targetGroup: TargetGroup, category: FoodCategory, name: string, unit: string) => void;
-  /** 删除特定食材行的操作回调 */
-  onDeleteItem: (itemId: string) => void;
-  /** 是否为管理员模式 */
-  isAdminMode: boolean;
   /** 激活的一级受众人群列表 */
   activeGroupsList: DynamicGroup[];
   /** 激活的二级食材分类列表 */
   activeCategoriesList: DynamicCategory[];
-  /** 是否为只读模式（餐位分组页面下禁用增删改操作时传 true） */
-  readOnly?: boolean;
 }
 
 /**
@@ -51,13 +41,8 @@ interface TableGridProps {
 export const TableGrid: React.FC<TableGridProps> = ({
   report,
   selectedCategory,
-  onCellUpdate,
-  onAddItem,
-  onDeleteItem,
-  isAdminMode,
   activeGroupsList,
-  activeCategoriesList,
-  readOnly = false
+  activeCategoriesList
 }) => {
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
@@ -73,22 +58,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   // 食材搜索关键字
   const [searchQuery, setSearchQuery] = useState<string>("");
-
-  // 新条目新增窗控制
-  const [newItemName, setNewItemName] = useState<string>("");
-  const [newItemUnit, setNewItemUnit] = useState<string>("斤");
-
-  /** 根据当前所选二级大品类，过滤该大类下所有的原料字典选项 */
-  const dictOptions = useMemo(() => {
-    return RawMaterialsDictService.getItems()
-      .filter((item) => !selectedCategory || item.category === selectedCategory)
-      .map((item) => ({
-        value: item.name,
-        label: item.name,
-        unit: item.unit,
-        category: item.category
-      }));
-  }, [selectedCategory]);
 
   // 当月包含的日期数组 (["1", "2", ..., "31"])
   const days = useMemo(() => getDaysInMonth(report.year, report.month), [report.year, report.month]);
@@ -177,14 +146,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
     return totals;
   }, [report.items, days]);
 
-  // 高性能修改跟踪，用于在 input 失去焦点(onBlur)时记录变动日志，避免打字时的实时输入卡顿
-  const editTrackerRef = useRef<{
-    itemId: string;
-    day: string;
-    field: "quantity" | "price";
-    initialValue: number;
-  } | null>(null);
-
   const getGroupLabel = (groupKey: string) => {
     const g = activeGroupsList.find((g) => g.key === groupKey);
     return g ? g.label : groupKey;
@@ -193,78 +154,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const getCategoryLabel = (catKey: string) => {
     const c = activeCategoriesList.find((c) => c.key === catKey);
     return c ? c.label : (FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey);
-  };
-
-  const handleInputFocus = (itemId: string, day: string, field: "quantity" | "price", value: number) => {
-    editTrackerRef.current = {
-      itemId,
-      day,
-      field,
-      initialValue: value
-    };
-  };
-
-  const handleInputBlur = (itemId: string, day: string, field: "quantity" | "price", currentValue: number, item: PreparedItem) => {
-    const tracker = editTrackerRef.current;
-    if (tracker && tracker.itemId === itemId && tracker.day === day && tracker.field === field) {
-      if (tracker.initialValue !== currentValue) {
-        const operator = isAdminMode ? "系统管理员" : "普通记账员";
-        const groupLabel = getGroupLabel(item.targetGroup);
-        const catLabel = getCategoryLabel(item.category);
-        const dailyEntry = item.dailyData[day] || { quantity: 0, price: 0 };
-
-        // 计算旧的和新的实收金额
-        const oldQty = field === "quantity" ? tracker.initialValue : dailyEntry.quantity;
-        const oldPrice = field === "price" ? tracker.initialValue : dailyEntry.price;
-        const oldAmount = Math.round(oldQty * oldPrice * 100) / 100;
-
-        const newQty = dailyEntry.quantity;
-        const newPrice = dailyEntry.price;
-        const newAmount = Math.round(newQty * newPrice * 100) / 100;
-
-        const actionType = field === "quantity" ? "数量" : "单价";
-        const targetUnitStr = field === "quantity" ? ` ${item.unit}` : "元";
-
-        LogBroker.publish(
-          "INFO",
-          "TableGrid",
-          `【修改备餐${actionType}】操作员 [${operator}] 修改了「${groupLabel}」的 [${catLabel}类]「${item.name}」在 [${day}号] 的${actionType}：从 [${tracker.initialValue}${targetUnitStr}] 变更为 [${currentValue}${targetUnitStr}]，核算金额从 [¥${oldAmount}] 变更为 [¥${newAmount}]。`
-        );
-      }
-    }
-    editTrackerRef.current = null;
-  };
-
-  /** 
-   * @description 触发快速单格输入修改 
-   */
-  const handleInputChange = (itemId: string, day: string, field: "quantity" | "price", rawValue: string) => {
-    const numericValue = parseFloat(rawValue);
-    const sanitized = isNaN(numericValue) || numericValue < 0 ? 0 : numericValue;
-
-    // 快速定位当前行和天并渲染
-    const targetItem = report.items.find((i) => i.id === itemId);
-    if (targetItem) {
-      const currentEntry = targetItem.dailyData[day] || { quantity: 0, price: 0, amount: 0 };
-      const nextQty = field === "quantity" ? sanitized : currentEntry.quantity;
-      const nextPrice = field === "price" ? sanitized : currentEntry.price;
-      onCellUpdate(itemId, day, nextQty, nextPrice);
-    }
-  };
-
-  /**
-   * @description 触发新食材录入
-   */
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) return;
-    if (selectedCategory === null) {
-      LogBroker.publish("WARN", "TableGrid", "在「合计汇总」面板中无法新增未确定大类的食材项！请至各大类卡片下添加。");
-      return;
-    }
-    onAddItem(report.targetGroup, selectedCategory, newItemName, newItemUnit);
-    setNewItemName("");
-    setNewItemUnit("斤");
   };
 
   /**
@@ -399,40 +288,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
             />
           </div>
 
-          {/* 新增原料采购项下拉框 (只允许从原料大字典已存在的原料中挑选新增，只读模式下隐藏) */}
-          {!readOnly && (
-            <form onSubmit={handleAddSubmit} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-xl px-2.5 py-1">
-              <span className="text-[11px] text-gray-400 font-bold shrink-0">添加原料:</span>
-              <select
-                value={newItemName}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setNewItemName(name);
-                  const matched = dictOptions.find(opt => opt.value === name);
-                  if (matched) {
-                    setNewItemUnit(matched.unit);
-                  }
-                }}
-                className="text-[13px] text-gray-700 bg-transparent outline-none cursor-pointer max-w-[110px]"
-                required
-              >
-                <option value="">-- 选择原料 --</option>
-                {dictOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label} ({opt.unit})
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={!newItemName}
-                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-300 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-              >
-                新增
-              </button>
-            </form>
-          )}
-
           {/* 导出当前客群和二级分组的月度采购细表按钮 */}
           <button
             onClick={handleExportCsv}
@@ -532,8 +387,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
               dayTotals={dayTotals}
               activeTheme={activeTheme}
               selectedCategory={selectedCategory}
-              readOnly={readOnly}
-              onDeleteItem={onDeleteItem}
             />
           )}
 
@@ -546,8 +399,6 @@ export const TableGrid: React.FC<TableGridProps> = ({
               activeTheme={activeTheme}
               focusDay={focusDay}
               setFocusDay={setFocusDay}
-              readOnly={readOnly}
-              onDeleteItem={onDeleteItem}
             />
           )}
         </>

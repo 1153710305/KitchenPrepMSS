@@ -4,11 +4,11 @@
  */
 
 /**
- * @description /api/prepared-items、/api/groups、/api/categories、/api/reports 下的批量调价端点等路由的
- * HTTP 层集成测试（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：覆盖 addPreparedItem/updateCell/
- * deletePreparedItem/batchUpdatePriceCol/saveGroup/deleteGroup/saveCategory/deleteCategory 的校验错误文案、
- * 重算逻辑、以及人群/大类默认数据保护、跨表级联（人群↔台账、大类↔备餐细项）效果（含孤儿行清理）。
- * 仿照 server/routes/ledgers.test.ts 的 supertest 集成测试范式。
+ * @description /api/groups、/api/categories、/api/reports 下的批量调价端点等路由的
+ * HTTP 层集成测试（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：覆盖 batchUpdatePriceCol/saveGroup/
+ * deleteGroup/saveCategory/deleteCategory 的校验错误文案、重算逻辑、以及人群/大类默认数据保护、跨表级联
+ * （人群↔台账、大类↔备餐细项）效果（含孤儿行清理）。仿照 server/routes/ledgers.test.ts 的 supertest 集成测试范式。
+ * addPreparedItem/updateCell/deletePreparedItem 三个端点已随主表格只读设计确认为死代码一并删除。
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -34,12 +34,11 @@ beforeEach(async () => {
 
   vi.resetModules();
   const { storageRouter } = await import("./storage.ts");
-  const { preparedItemsRouter, groupsRouter, categoriesRouter, reportsRouter } = await import("./reports.ts");
+  const { groupsRouter, categoriesRouter, reportsRouter } = await import("./reports.ts");
 
   app = express();
   app.use(express.json());
   app.use("/api/storage", storageRouter);
-  app.use("/api/prepared-items", preparedItemsRouter);
   app.use("/api/groups", groupsRouter);
   app.use("/api/categories", categoriesRouter);
   app.use("/api/reports", reportsRouter);
@@ -51,142 +50,6 @@ afterEach(() => {
   delete process.env.LOCAL_DATA_DIR;
   delete process.env.SKIP_SEEDING;
   vi.restoreAllMocks();
-});
-
-describe("POST /api/prepared-items", () => {
-  beforeEach(async () => {
-    await saveOps([{ entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } }]);
-  });
-
-  it("adds a new prepared item with a 31-day zero matrix", async () => {
-    const res = await request(app).post("/api/prepared-items").send({ targetGroup: "KID", category: "VEGETABLE", name: "西红柿", unit: "斤" });
-    expect(res.status).toBe(200);
-    expect(res.body.item).toMatchObject({ name: "西红柿", category: "VEGETABLE", targetGroup: "KID", unit: "斤" });
-    expect(res.body.item.dailyData["1"]).toEqual({ quantity: 0, price: 0, amount: 0 });
-    expect(Object.keys(res.body.item.dailyData)).toHaveLength(31);
-  });
-
-  it("rejects an empty name", async () => {
-    const res = await request(app).post("/api/prepared-items").send({ targetGroup: "KID", category: "VEGETABLE", name: "  ", unit: "斤" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("原料名称不能为空");
-  });
-
-  it("rejects when the target group's report does not exist", async () => {
-    const res = await request(app).post("/api/prepared-items").send({ targetGroup: "TEACHER", category: "VEGETABLE", name: "西红柿", unit: "斤" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/无法找到目标人群分类/);
-  });
-
-  it("CASCADE: also creates a matching ledger item when a ledger exists for the target group and no duplicate name exists", async () => {
-    await saveOps([{ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } }]);
-
-    const res = await request(app).post("/api/prepared-items").send({ targetGroup: "KID", category: "VEGETABLE", name: "西红柿", unit: "斤" });
-    expect(res.status).toBe(200);
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const ledgerItem = loadRes.body.ledgerItems.find((i: any) => i.ledgerId === "KID" && i.name === "西红柿");
-    expect(ledgerItem).toBeDefined();
-    expect(ledgerItem.id).toBeDefined();
-  });
-
-  it("does not create a duplicate ledger item when one with the same name already exists in that ledger", async () => {
-    await saveOps([
-      { entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } },
-      { entity: "ledgerItem", op: "upsert", key: "li_existing", data: { id: "li_existing", ledgerId: "KID", name: "西红柿", unit: "斤", spec: "", initialStock: 0, currentStock: 0 } }
-    ]);
-
-    await request(app).post("/api/prepared-items").send({ targetGroup: "KID", category: "VEGETABLE", name: "西红柿", unit: "斤" });
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const matches = loadRes.body.ledgerItems.filter((i: any) => i.ledgerId === "KID" && i.name === "西红柿");
-    expect(matches).toHaveLength(1);
-  });
-
-  it("succeeds without a ledger cascade when no ledger exists for the target group", async () => {
-    const res = await request(app).post("/api/prepared-items").send({ targetGroup: "KID", category: "VEGETABLE", name: "西红柿", unit: "斤" });
-    expect(res.status).toBe(200);
-    const loadRes = await request(app).get("/api/storage/load");
-    expect(loadRes.body.ledgerItems ?? []).toHaveLength(0);
-  });
-});
-
-describe("PUT /api/prepared-items/:id/cells/:day", () => {
-  beforeEach(async () => {
-    await saveOps([
-      { entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } },
-      { entity: "preparedItem", op: "upsert", key: "prep_1", data: { id: "prep_1", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "土豆", category: "VEGETABLE", targetGroup: "KID", unit: "斤" } }
-    ]);
-  });
-
-  it("recalculates amount and persists the daily entry", async () => {
-    const res = await request(app).put("/api/prepared-items/prep_1/cells/3").send({ quantity: 3, price: 2.5 });
-    expect(res.status).toBe(200);
-    expect(res.body.item.dailyData["3"]).toEqual({ quantity: 3, price: 2.5, amount: 7.5 });
-    expect(res.body.ledgerItem).toBeNull();
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const item = loadRes.body.reports.find((r: any) => r.targetGroup === "KID").items.find((i: any) => i.id === "prep_1");
-    expect(item.dailyData["3"]).toEqual({ quantity: 3, price: 2.5, amount: 7.5 });
-  });
-
-  it("clamps negative quantity/price to zero", async () => {
-    const res = await request(app).put("/api/prepared-items/prep_1/cells/3").send({ quantity: -3, price: -2 });
-    expect(res.body.item.dailyData["3"]).toEqual({ quantity: 0, price: 0, amount: 0 });
-  });
-
-  it("deletes the daily entry once every field is emptied out", async () => {
-    await request(app).put("/api/prepared-items/prep_1/cells/3").send({ quantity: 3, price: 2 });
-    await request(app).put("/api/prepared-items/prep_1/cells/3").send({ quantity: 0, price: 0 });
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const item = loadRes.body.reports.find((r: any) => r.targetGroup === "KID").items.find((i: any) => i.id === "prep_1");
-    expect(item.dailyData["3"]).toBeUndefined();
-  });
-
-  it("rejects when the item does not exist", async () => {
-    const res = await request(app).put("/api/prepared-items/nope/cells/1").send({ quantity: 1, price: 1 });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/未找到ID为/);
-  });
-
-  it("CASCADE: also updates the matching ledger item's daily record and currentStock, returned in the response", async () => {
-    await saveOps([
-      { entity: "ledger", op: "upsert", key: "KID", data: { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" } },
-      { entity: "ledgerItem", op: "upsert", key: "li_1", data: { id: "li_1", ledgerId: "KID", name: "土豆", unit: "斤", spec: "", initialStock: 10, currentStock: 10 } }
-    ]);
-
-    const res = await request(app).put("/api/prepared-items/prep_1/cells/3").send({ quantity: 5, price: 2 });
-    expect(res.body.ledgerItem).toMatchObject({ id: "li_1", currentStock: 15 });
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const ledgerItem = loadRes.body.ledgerItems.find((i: any) => i.id === "li_1");
-    expect(ledgerItem.currentStock).toBe(15);
-    expect(ledgerItem.dailyRecords["2026-07-03"]).toMatchObject({ inQuantity: 5, inPrice: 2, inAmount: 10 });
-  });
-});
-
-describe("DELETE /api/prepared-items/:id", () => {
-  it("deletes the item and its daily data, leaving no orphan rows", async () => {
-    await saveOps([
-      { entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } },
-      { entity: "preparedItem", op: "upsert", key: "prep_1", data: { id: "prep_1", reportTargetGroup: "KID", reportYear: 2026, reportMonth: 7, name: "土豆", category: "VEGETABLE", targetGroup: "KID", unit: "斤" } },
-      { entity: "preparedItemDailyData", op: "upsert", key: { itemId: "prep_1", date: "1" }, data: { quantity: 2, price: 1, amount: 2 } }
-    ]);
-
-    const res = await request(app).delete("/api/prepared-items/prep_1");
-    expect(res.status).toBe(200);
-
-    const loadRes = await request(app).get("/api/storage/load");
-    const report = loadRes.body.reports.find((r: any) => r.targetGroup === "KID");
-    expect(report.items.find((i: any) => i.id === "prep_1")).toBeUndefined();
-  });
-
-  it("rejects when the item does not exist", async () => {
-    const res = await request(app).delete("/api/prepared-items/nope");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/无法定位删除项ID/);
-  });
 });
 
 describe("PUT /api/reports/:targetGroup/prices", () => {

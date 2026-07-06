@@ -5,7 +5,7 @@
 
 /**
  * @description TableGrid（备餐采购细表编排层）组件测试：合计汇总视图渲染、按品类/搜索过滤台账原料并对齐为备餐明细行、
- * 视图模式(EXCEL矩阵/单日聚焦)切换、CSV 导出触发、新增原料表单（只读模式下隐藏）、空数据态提示。
+ * 视图模式(EXCEL矩阵/单日聚焦)切换、CSV 导出触发、空数据态提示。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -42,10 +42,6 @@ const makeLedgerItem = (dailyRecords: LedgerItem["dailyRecords"] = {}): LedgerIt
 
 const baseProps = {
   report,
-  onCellUpdate: vi.fn(),
-  onAddItem: vi.fn(),
-  onDeleteItem: vi.fn(),
-  isAdminMode: true,
   activeGroupsList,
   activeCategoriesList
 };
@@ -178,20 +174,6 @@ describe("TableGrid", () => {
       await user.click(screen.getByText("单日聚焦卡片 (推荐)"));
 
       expect(screen.getByText(/耗粮记账明细/)).toBeInTheDocument();
-    });
-
-    it("hides the add-material form when readOnly is true", () => {
-      vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([]);
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} readOnly />);
-
-      expect(screen.queryByText("添加原料:")).not.toBeInTheDocument();
-    });
-
-    it("shows the add-material form when not read-only", () => {
-      vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([]);
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} readOnly={false} />);
-
-      expect(screen.getByText("添加原料:")).toBeInTheDocument();
     });
 
     it("triggers a CSV download when the export button is clicked", async () => {

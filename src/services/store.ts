@@ -11,7 +11,6 @@ import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/c
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
 import { calculateEntryAmount, LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
-import { LedgerService } from "./ledgerStore.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 
 /**
@@ -384,99 +383,6 @@ export class PrepReportService {
    */
   private static saveToStorage(): void {
     this.notifyListeners();
-  }
-
-  /**
-   * @description 动态增加一个原材料子细类明细行
-   */
-  public static async addPreparedItem(
-    targetGroup: TargetGroup,
-    category: FoodCategory,
-    name: string,
-    unit: string
-  ): Promise<PreparedItem> {
-    // 校验、尽力而为同步至台账（此前的 LedgerService.addLedgerItem 调用）均已迁移到后端（阶段C，
-    // 见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存
-    const res = await fetch("/api/prepared-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetGroup, category, name, unit })
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body.error || "新增备餐条目失败");
-    }
-    const newItem: PreparedItem = body.item;
-    const reportIndex = this.reports.findIndex((r) => r.targetGroup === targetGroup);
-    if (reportIndex > -1) {
-      const report = this.reports[reportIndex];
-      const updatedReports = [...this.reports];
-      updatedReports[reportIndex] = { ...report, items: [...report.items, newItem] };
-      this.reports = updatedReports;
-    }
-    this.saveToStorage();
-    LogBroker.publish("INFO", "PrepReportService", `在「${targetGroup}」的 [${category}] 品类下成功新增了 [${name}] 的记录槽。`);
-
-    // 级联结果（尽力而为同步至台账）只发生在后端，主动刷新一次而不是等最多10秒的心跳
-    await SyncHelper.refreshNow();
-    return newItem;
-  }
-
-  /**
-   * @description 修改某一单元格 (某项、某天) 的具体用料情况并瞬间核算（全面采用 Immutable 不可变更新以完美驱动受控 input 刷新）
-   */
-  public static async updateCell(
-    itemId: string,
-    day: string,
-    quantity: number,
-    price: number
-  ): Promise<void> {
-    // 校验、金额重算、尽力而为反向同步至台账逐日流水（此前的 LedgerService.updateDailyRecordByKey 调用）
-    // 均已迁移到后端（阶段C，见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存
-    const res = await fetch(`/api/prepared-items/${encodeURIComponent(itemId)}/cells/${encodeURIComponent(day)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity, price })
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body.error || "保存单元格失败");
-    }
-    const updatedItem: PreparedItem = body.item;
-    this.reports = this.reports.map((report) => {
-      const itemIndex = report.items.findIndex((i) => i.id === itemId);
-      if (itemIndex === -1) return report;
-      const updatedItems = [...report.items];
-      updatedItems[itemIndex] = updatedItem;
-      return { ...report, items: updatedItems };
-    });
-
-    this.saveToStorage();
-
-    // updateCell 是全系统调用最高频的写操作（几乎每次单元格失焦都会触发），若像其它低频级联操作
-    // 那样调用 SyncHelper.refreshNow() 做全量刷新，随着历史数据增长这个开销会变得可观。
-    // 后端若确实发生了反向同步至台账的级联，会在响应里直接带回级联后的完整台账原料项目，
-    // 这里改为直接局部更新 LedgerService 的内存缓存并广播，不需要额外的网络往返。
-    if (body.ledgerItem) {
-      const updatedLedgerItems = LedgerService.getLedgerItems().map((i) => (i.id === body.ledgerItem.id ? body.ledgerItem : i));
-      LedgerService.setLedgerItemsInMemory(updatedLedgerItems);
-      LedgerService.forceNotify();
-    }
-  }
-
-  /**
-   * @description 一键物理删除某一细分原料行（不可变数据结构克隆设计）
-   */
-  public static async deletePreparedItem(itemId: string): Promise<void> {
-    // 校验/持久化已迁移到后端（阶段C，见 SQLite迁移规划.md）
-    const res = await fetch(`/api/prepared-items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body.error || "删除备餐条目失败");
-    }
-    this.reports = this.reports.map((report) => ({ ...report, items: report.items.filter((item) => item.id !== itemId) }));
-    this.saveToStorage();
-    LogBroker.publish("INFO", "PrepReportService", `成功从系统中永久剔除条目ID: ${itemId}`);
   }
 
   /**

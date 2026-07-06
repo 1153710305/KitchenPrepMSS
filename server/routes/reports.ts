@@ -5,7 +5,6 @@
 
 /**
  * @description 备餐报表相关路由（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：
- * `preparedItemsRouter` 挂载在 /api/prepared-items 前缀下（备餐细项的增删与单元格更新）；
  * `groupsRouter` 挂载在 /api/groups 前缀下（一级人群配置的增改删）；
  * `categoriesRouter` 挂载在 /api/categories 前缀下（二级食材大类配置的增改删）；
  * `reportsRouter` 挂载在 /api/reports 前缀下（批量调价）。
@@ -15,11 +14,6 @@
 
 import express from "express";
 import { StorageService } from "../storageService.ts";
-
-/**
- * @description 备餐细项路由 Router 实例（/api/prepared-items）
- */
-export const preparedItemsRouter = express.Router();
 
 /**
  * @description 一级人群配置路由 Router 实例（/api/groups）
@@ -35,50 +29,6 @@ export const categoriesRouter = express.Router();
  * @description 报表相关杂项路由 Router 实例（/api/reports），目前只有批量调价一个端点
  */
 export const reportsRouter = express.Router();
-
-/**
- * @description 为某个人群月度报表新增一个备餐细项，尽力而为同步至台账
- * @route POST /api/prepared-items
- */
-preparedItemsRouter.post("/", async (req, res) => {
-  try {
-    const { targetGroup, category, name, unit } = req.body ?? {};
-    const item = await StorageService.addPreparedItem({ targetGroup, category, name, unit });
-    res.json({ success: true, item });
-  } catch (err: any) {
-    console.error("[API PREPARED ITEM ADD ERROR]", err);
-    res.status(400).json({ error: err.message || "新增备餐条目失败" });
-  }
-});
-
-/**
- * @description 物理删除某个备餐细项
- * @route DELETE /api/prepared-items/:id
- */
-preparedItemsRouter.delete("/:id", async (req, res) => {
-  try {
-    await StorageService.deletePreparedItem(req.params.id);
-    res.json({ success: true });
-  } catch (err: any) {
-    console.error("[API PREPARED ITEM DELETE ERROR]", err);
-    res.status(400).json({ error: err.message || "删除备餐条目失败" });
-  }
-});
-
-/**
- * @description 更新某个备餐细项在某一天的数量/单价，尽力而为反向同步至台账逐日流水
- * @route PUT /api/prepared-items/:id/cells/:day
- */
-preparedItemsRouter.put("/:id/cells/:day", async (req, res) => {
-  try {
-    const { quantity, price } = req.body ?? {};
-    const result = await StorageService.updateCell(req.params.id, req.params.day, quantity, price);
-    res.json({ success: true, item: result.item, ledgerItem: result.ledgerItem });
-  } catch (err: any) {
-    console.error("[API PREPARED ITEM CELL UPDATE ERROR]", err);
-    res.status(400).json({ error: err.message || "保存单元格失败" });
-  }
-});
 
 /**
  * @description 新增或编辑一级人群配置，级联同步创建/改名对应台账

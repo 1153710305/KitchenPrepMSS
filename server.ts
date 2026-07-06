@@ -15,7 +15,7 @@ import { storageRouter } from "./server/routes/storage.ts";
 import { miscRouter } from "./server/routes/misc.ts";
 import { rawMaterialsRouter } from "./server/routes/rawMaterials.ts";
 import { ledgersRouter, ledgerItemsRouter } from "./server/routes/ledgers.ts";
-import { preparedItemsRouter, groupsRouter, categoriesRouter, reportsRouter } from "./server/routes/reports.ts";
+import { groupsRouter, categoriesRouter, reportsRouter } from "./server/routes/reports.ts";
 
 // 加载环境变量
 dotenv.config();
@@ -57,7 +57,6 @@ app.use("/api/ledgers", ledgersRouter);
 app.use("/api/ledger-items", ledgerItemsRouter);
 
 // 挂载备餐报表业务路由（阶段C·校验/级联已迁移到后端，见 SQLite迁移规划.md）
-app.use("/api/prepared-items", preparedItemsRouter);
 app.use("/api/groups", groupsRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/reports", reportsRouter);

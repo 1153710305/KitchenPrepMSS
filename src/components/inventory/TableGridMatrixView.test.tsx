@@ -5,12 +5,11 @@
 
 /**
  * @description TableGridMatrixView（EXCEL 日历总矩阵视图）组件测试：渲染每日数量/单价/金额单元格、全月累加列、
- * 表底每日合计行、只读模式下隐藏删除按钮、点击删除按钮触发回调。
+ * 表底每日合计行。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { TableGridMatrixView } from "./TableGridMatrixView.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { PrepReportService } from "../../services/store.ts";
@@ -54,8 +53,6 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -76,48 +73,10 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
     expect(screen.getByText("【蔬菜】每日开支合计")).toBeInTheDocument();
-  });
-
-  it("hides the per-row delete button when readOnly is true", () => {
-    render(
-      <TableGridMatrixView
-        days={days}
-        filteredItems={[makeItem()]}
-        dayTotals={{ "1": 6, "2": 0 }}
-        activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
-        readOnly
-        onDeleteItem={vi.fn()}
-      />
-    );
-
-    expect(screen.queryByTitle("删除此原料行")).not.toBeInTheDocument();
-  });
-
-  it("calls onDeleteItem with the item id when the delete button is clicked", async () => {
-    const user = userEvent.setup();
-    const onDeleteItem = vi.fn();
-    render(
-      <TableGridMatrixView
-        days={days}
-        filteredItems={[makeItem()]}
-        dayTotals={{ "1": 6, "2": 0 }}
-        activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={onDeleteItem}
-      />
-    );
-
-    await user.click(screen.getByTitle("删除此原料行"));
-
-    expect(onDeleteItem).toHaveBeenCalledWith("item_1");
   });
 
   it("does not have the resize-x class and contains the scroll wrapper with grab cursors", () => {
@@ -128,8 +87,6 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -148,8 +105,6 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -166,8 +121,6 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -185,8 +138,6 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={FoodCategory.VEGETABLE}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 

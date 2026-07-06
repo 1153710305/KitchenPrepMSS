@@ -5,7 +5,7 @@
 
 /**
  * @description TableGridFocusView（单日聚焦卡片视图）组件测试：渲染聚焦日的数量/单价/金额卡片、日期刻度盘切换回调、
- * 有数据日期的高亮标记、只读模式下隐藏删除按钮、点击删除按钮触发回调。
+ * 有数据日期的高亮标记。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -51,8 +51,6 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={vi.fn()}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -71,8 +69,6 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={vi.fn()}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
@@ -90,51 +86,11 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={setFocusDay}
-        readOnly={false}
-        onDeleteItem={vi.fn()}
       />
     );
 
     await user.click(screen.getByText("2号"));
 
     expect(setFocusDay).toHaveBeenCalledWith("2");
-  });
-
-  it("hides the per-item delete button when readOnly is true", () => {
-    render(
-      <TableGridFocusView
-        days={days}
-        filteredItems={[makeItem()]}
-        dayTotals={{ "1": 6, "2": 0 }}
-        activeTheme={THEME_MAP.emerald}
-        focusDay="1"
-        setFocusDay={vi.fn()}
-        readOnly
-        onDeleteItem={vi.fn()}
-      />
-    );
-
-    expect(screen.queryByTitle("从备餐细表中移除该原料项目")).not.toBeInTheDocument();
-  });
-
-  it("calls onDeleteItem with the item id when its delete button is clicked", async () => {
-    const user = userEvent.setup();
-    const onDeleteItem = vi.fn();
-    render(
-      <TableGridFocusView
-        days={days}
-        filteredItems={[makeItem()]}
-        dayTotals={{ "1": 6, "2": 0 }}
-        activeTheme={THEME_MAP.emerald}
-        focusDay="1"
-        setFocusDay={vi.fn()}
-        readOnly={false}
-        onDeleteItem={onDeleteItem}
-      />
-    );
-
-    await user.click(screen.getByTitle("从备餐细表中移除该原料项目"));
-
-    expect(onDeleteItem).toHaveBeenCalledWith("item_1");
   });
 });
