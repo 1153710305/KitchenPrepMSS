@@ -373,6 +373,44 @@ describe("PrepReportService", () => {
     });
   });
 
+  describe("cascadeDeleteLedgerItem [回归：删除台账原料项后左下角支出/趋势图未更新]", () => {
+    // 台账原料项目被物理删除后，需要级联清除对应受众人群名下由 syncFromLedger 反向同步生成的同名备餐细项
+    // （含其全部逐日数量/单价/金额），否则左下角"当月采购支出"与花销趋势图会继续包含已删除原料的历史入库金额
+    it("removes the matching item only from reports belonging to the same target group", () => {
+      PrepReportService.setReportsInMemory([
+        makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ id: "a", name: "土豆", targetGroup: TargetGroup.KID })] }),
+        makeReport({ targetGroup: TargetGroup.TEACHER, items: [makeItem({ id: "b", name: "土豆", targetGroup: TargetGroup.TEACHER })] })
+      ]);
+
+      PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
+
+      const kidReport = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
+      const teacherReport = PrepReportService.getReports().find((r) => r.targetGroup === "TEACHER")!;
+      expect(kidReport.items).toHaveLength(0);
+      expect(teacherReport.items.map((i) => i.id)).toEqual(["b"]);
+    });
+
+    it("removes the matching item across every month's report for that target group", () => {
+      PrepReportService.setReportsInMemory([
+        makeReport({ targetGroup: TargetGroup.KID, month: 6, items: [makeItem({ id: "a", name: "土豆" })] }),
+        makeReport({ targetGroup: TargetGroup.KID, month: 7, items: [makeItem({ id: "b", name: "土豆" })] })
+      ]);
+
+      PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
+
+      expect(PrepReportService.getReports().every((r) => r.items.length === 0)).toBe(true);
+    });
+
+    it("is a no-op notify when no item matches", () => {
+      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ name: "土豆" })] })]);
+      const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
+
+      PrepReportService.cascadeDeleteLedgerItem("KID", "不存在");
+
+      expect(queueChangeSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("subscribe / notify contract", () => {
     it("delivers a snapshot to subscribers on every mutating action", async () => {
       const received: number[] = [];

@@ -172,6 +172,7 @@ describe("LedgerService", () => {
     vi.spyOn(PrepReportService, "syncFromLedger").mockResolvedValue(undefined);
     vi.spyOn(PrepReportService, "syncGroupFromLedger").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "syncDeleteGroupFromLedger").mockImplementation(() => {});
+    vi.spyOn(PrepReportService, "cascadeDeleteLedgerItem").mockImplementation(() => {});
     vi.spyOn(RawMaterialsDictService, "getCategoryForMaterial").mockReturnValue(FoodCategory.VEGETABLE);
     vi.spyOn(SyncHelper, "refreshNow").mockResolvedValue(false);
     vi.stubGlobal("fetch", vi.fn(fakeLedgerFetch));
@@ -425,6 +426,20 @@ describe("LedgerService", () => {
 
     it("rejects with the backend's not-found error", async () => {
       await expect(LedgerService.deleteLedgerItem("nope")).rejects.toThrow("找不到要删除的原料项目");
+    });
+
+    it("[回归] 级联清除该受众人群名下由 syncFromLedger 反向同步生成的同名备餐细项，避免删除台账记录后左下角支出/趋势图未更新", async () => {
+      LedgerService.setLedgersInMemory([makeLedger("KID", "幼儿备餐")]);
+      const item = await LedgerService.addLedgerItem("KID", "土豆", "斤", "散装", 10);
+
+      await LedgerService.deleteLedgerItem(item.id);
+
+      expect(PrepReportService.cascadeDeleteLedgerItem).toHaveBeenCalledWith("KID", "土豆");
+    });
+
+    it("does not call the cascade when the backend rejects the deletion", async () => {
+      await expect(LedgerService.deleteLedgerItem("nope")).rejects.toThrow();
+      expect(PrepReportService.cascadeDeleteLedgerItem).not.toHaveBeenCalled();
     });
   });
 

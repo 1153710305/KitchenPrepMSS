@@ -12,7 +12,7 @@ import { FoodCategory, TargetGroup } from "./types/types.ts";
 import { FOOD_CATEGORY_LABELS } from "./constants/constants.ts";
 import { PrepReportService } from "./services/store.ts";
 import { TableGrid } from "./components/inventory/TableGrid.tsx";
-import { LogBroker } from "./utils.ts";
+import { LogBroker, getDaysInMonth } from "./utils.ts";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary.tsx";
 import { useAppAuth } from "./hooks/useAppAuth.ts";
 import { useAppData } from "./hooks/useAppData.ts";
@@ -225,13 +225,18 @@ export default function App() {
   // ================= 辅助指标运算 =================
 
   /**
-   * @description 计算当前选择分组备餐全品类在全月的累积费用总支出
+   * @description 计算当前选择分组备餐全品类在全月的累积费用总支出。
+   * 只按该报表所属年月实际天数（"1".."当月天数"）累加，不使用 Object.keys(dailyData) 盲目累加——
+   * 历史上曾有代码（首启种子数据生成、旧版本 updateCell 等，见 [V5.94.1]）用完整 "YYYY-MM-DD" 作为键，
+   * 与当前统一约定的裸日序号键并存于同一数据库中较久的部署实例里，若不限定有效日期范围会把这些
+   * 早已不再被任何界面渲染读取的历史脏键金额也一并计入合计，导致明细表与合计对不上。
    */
   const activeGroupReportTotal = useMemo(() => {
     if (!currentReport) return 0;
+    const validDays = getDaysInMonth(currentReport.year, currentReport.month);
     let sum = 0;
     currentReport.items.forEach((item) => {
-      Object.keys(item.dailyData).forEach((day) => {
+      validDays.forEach((day) => {
         sum += item.dailyData[day]?.amount || 0;
       });
     });
@@ -239,13 +244,15 @@ export default function App() {
   }, [currentReport]);
 
   /**
-   * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）
+   * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）。
+   * 同上，只按各报表自身年月的有效天数范围累加，避免历史脏键污染合计。
    */
   const allGroupsReportTotal = useMemo(() => {
     let sum = 0;
     reports.forEach((report) => {
+      const validDays = getDaysInMonth(report.year, report.month);
       report.items.forEach((item) => {
-        Object.keys(item.dailyData).forEach((day) => {
+        validDays.forEach((day) => {
           sum += item.dailyData[day]?.amount || 0;
         });
       });

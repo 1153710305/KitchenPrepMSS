@@ -601,6 +601,37 @@ export class PrepReportService {
   }
 
   /**
+   * @description 当台账原料采购项目被物理删除时，级联清除该受众人群名下由 syncFromLedger 反向同步生成的
+   * 同名备餐细项（含其全部逐日数量/单价/金额），使左下角当月采购支出与花销趋势图正确反映删除结果。
+   * 只按 targetGroup（对应台账ID）+ name 精确匹配，不影响其它受众人群名下的同名原料。
+   */
+  public static cascadeDeleteLedgerItem(targetGroup: string, name: string): void {
+    let changed = false;
+    const removedItemIds: string[] = [];
+    this.reports = this.reports.map((report) => {
+      if (report.targetGroup !== targetGroup) return report;
+      const originalCount = report.items.length;
+      const removed = report.items.filter((item) => item.name === name);
+      removedItemIds.push(...removed.map((item) => item.id));
+      const updatedItems = report.items.filter((item) => item.name !== name);
+      if (updatedItems.length !== originalCount) {
+        changed = true;
+        return {
+          ...report,
+          items: updatedItems
+        };
+      }
+      return report;
+    });
+    if (changed) {
+      this.saveConfigAndNotify();
+      removedItemIds.forEach((itemId) => {
+        SyncHelper.queueChange({ entity: "preparedItem", op: "delete", key: itemId });
+      });
+    }
+  }
+
+  /**
    * @description 供心跳轮询静默更新内存中的报表集，防止 LocalStorage 覆写
    */
   public static setReportsInMemory(r: GroupMonthlyReport[]): void {
