@@ -81,9 +81,6 @@ export class StorageService {
           const db = StorageService.getDb();
           db.prepare("DELETE FROM ledger_item_daily_records").run();
           db.prepare("UPDATE ledger_items SET initial_stock = 0, current_stock = 0").run();
-          db.prepare("DELETE FROM reports").run();
-          db.prepare("DELETE FROM prepared_items").run();
-          db.prepare("DELETE FROM prepared_item_daily_data").run();
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
@@ -99,9 +96,10 @@ export class StorageService {
               item.currentStock = 0;
             });
           }
-          // COS 模式清空备餐报表相关数据
-          data.reports = [];
-          data.preparedItems = [];
+          // COS 模式下，直接移除不再使用的备餐冗余数据字段
+          delete data.reports;
+          delete data.preparedItems;
+          delete data.preparedItemDailyData;
           // 保存回 COS
           const { Bucket, Region, Key } = StorageService.getCosConfig();
           await new Promise<void>((resolve, reject) => {
@@ -230,9 +228,9 @@ export class StorageService {
       }
 
       const result = await task();
-      
+
       StorageService.incrementDbVersion();
-      
+
       return result;
     } finally {
       release();
@@ -996,16 +994,16 @@ export class StorageService {
       const targetGroup = ledger.id;
       // 找出当前受众人群下的所有原料项目
       const itemsForGroup = ledgerItemsRaw.filter(li => li.ledgerId === targetGroup);
-      
+
       const preparedItems = itemsForGroup.map(li => {
         const dailyData: Record<string, any> = {};
         const recordsForThisItem = dailyByItem[li.id] || {};
-        
+
         for (const dateStr of Object.keys(recordsForThisItem)) {
           // dateStr is 'YYYY-MM-DD'
           const day = parseInt(dateStr.split('-')[2]).toString();
           const r = recordsForThisItem[dateStr];
-          
+
           if ((r.inQuantity && r.inQuantity > 0) || (r.inAmount && r.inAmount > 0)) {
             dailyData[day] = {
               quantity: r.inQuantity || 0,
@@ -1014,10 +1012,10 @@ export class StorageService {
             };
           }
         }
-        
+
         // 尝试从大字典中推断 category，找不到默认算 VEGETABLE
         const dictCategory = rawMaterialsDict.find(d => d.name === li.name)?.category || "VEGETABLE";
-        
+
         return {
           id: li.id,
           name: li.name,
@@ -1701,7 +1699,7 @@ export class StorageService {
     return StorageService.withWriteLock(async () => {
       const current = await StorageService.load();
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      
+
       const updatedItems: LedgerItem[] = [];
       const mergedRecords: Record<string, DailyStockRecord> = {};
       const allOps: SyncOp[] = [];
@@ -1717,7 +1715,7 @@ export class StorageService {
         updatedItems.push(updatedItem);
         mergedRecords[itemId] = mergedRecord;
         allOps.push(...ops);
-        
+
         // 关键：为了防止同一个批次里对其它项的查找受影响，实际上这里只需将 updatedItem 替换掉内存中的 item
         // 但由于本批次修改的是不同的 itemId，直接 push ops 并不会互相冲突。
       }
@@ -1728,7 +1726,7 @@ export class StorageService {
           throw new Error("批量保存出入库记录失败");
         }
       }
-      
+
       return { updatedItems, mergedRecords };
     });
   }
