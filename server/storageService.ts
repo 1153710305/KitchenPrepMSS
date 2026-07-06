@@ -153,8 +153,8 @@ export class StorageService {
     const activeCategories: DynamicCategory[] = [
       { key: "VEGETABLE", label: "蔬菜", isDefault: true },
       { key: "GRAIN_OIL", label: "粮油", isDefault: true },
-      { key: "SEASONING", label: "调料", isDefault: true },
-      { key: "MEAT", label: "肉类", isDefault: true },
+      { key: "SEASONING", label: "调味品", isDefault: true },
+      { key: "MEAT", label: "肉蛋", isDefault: true },
       { key: "LOW_CONSUMP", label: "低耗品", isDefault: true },
       { key: "FRUIT", label: "水果", isDefault: true }
     ];
@@ -212,10 +212,16 @@ export class StorageService {
     });
 
     // 6. ledgerHelperDict (空)
-    const ledgerHelperDict: Record<string, string[]> = {};
-    for (const category of HELPER_DICT_CATEGORIES) {
-      ledgerHelperDict[category] = [];
-    }
+    const ledgerHelperDict: Record<string, string[]> = {
+      suppliers: ["宾县宾州家家乐粮油店", "宾县鑫百达百货超市"], // 默认供货商
+      buyers: [],                            // 默认采购员
+      inspectors: ["王振东"],                                 // 默认检验员
+      keepers: ["陈洪星"],                           // 默认保管员
+      outHandlers: ["王振东"],                                // 默认发料人
+      outRecipients: ["孙长玲"],                              // 默认接收人
+      sensoryOptions: ["包装完整", "米粒饱满", "新鲜", "有光泽", "味正", "颜色好", "肉鲜", "新鲜光滑", "鲜", "嫩", "绿", "色泽鲜亮", "形状饱满", "光泽度好", "颜色鲜艳"], // 默认感官性状
+      shelfLifeOptions: ["15天", "1个月", "6个月", "1年"]         // 默认保质期
+    };
 
     return {
       ledgers,

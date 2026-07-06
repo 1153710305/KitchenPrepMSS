@@ -456,7 +456,13 @@ function PrintOutDoc({
 .ledger-print-doc-overlay thead th {
   background-color: #ffffff !important;
 }
-
+        /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        .ledger-print-out-table td {
+          word-break: break-all !important;
+          white-space: normal !important;
+          font-size: 11px !important; 
+          line-height: 1.2 !important; 
+        }
         @media print {
           .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
             -webkit-print-color-adjust: exact !important;

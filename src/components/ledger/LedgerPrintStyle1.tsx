@@ -137,6 +137,13 @@ export function LedgerPrintStyle1({
             border-color: #000000 !important;
           }
         }
+        /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        .ledger-print-style1-table td {
+          word-break: break-all !important;
+          white-space: normal !important;
+          font-size: 11px !important; 
+          line-height: 1.2 !important; 
+        }
       `}</style>
       <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
         <colgroup>

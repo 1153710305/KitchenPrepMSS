@@ -320,6 +320,11 @@ export const LEDGER_PRINT_STYLE2_CONFIG = {
   /**
    * @description 标题文字基础前缀（不含受众台账名，受众名单独展示在标题行最右侧）
    */
-  titlePrefix: "宾县第二小学食堂食品原材料购销台账"
+  titlePrefix: "宾县第二小学食堂食品原材料购销台账",
+
+  /**
+   * @description 最小打印行数（不足时以空行填充，超出时触发强制分页）
+   */
+  minPrintRows: 15
 };
 
