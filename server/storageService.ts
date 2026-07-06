@@ -1524,72 +1524,458 @@ export class StorageService {
     return StorageService.withWriteLock(async () => {
       const current = await StorageService.load();
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      const itemIndex = ledgerItems.findIndex((item) => item.id === itemId);
-      if (itemIndex === -1) {
+      const item = ledgerItems.find((i) => i.id === itemId);
+      if (!item) {
         throw new Error("找不到对应的采购原料项目");
       }
-      const item = ledgerItems[itemIndex];
 
-      const updatedDailyRecords: Record<string, DailyStockRecord> = { ...(item.dailyRecords ?? {}) };
-      const oldRecord: DailyStockRecord = updatedDailyRecords[dateStr] || { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "" };
-      const mergedRecord: DailyStockRecord = { ...oldRecord, ...fields };
-
-      mergedRecord.inQuantity = Number.isFinite(mergedRecord.inQuantity) ? Math.max(0, mergedRecord.inQuantity!) : 0;
-      mergedRecord.inPrice = Number.isFinite(mergedRecord.inPrice) ? Math.max(0, mergedRecord.inPrice!) : 0;
-      mergedRecord.inAmount = Math.round(mergedRecord.inQuantity * mergedRecord.inPrice * 100) / 100;
-      mergedRecord.outQuantity = Number.isFinite(mergedRecord.outQuantity) ? Math.max(0, mergedRecord.outQuantity!) : 0;
-      if (mergedRecord.note !== undefined) {
-        mergedRecord.note = mergedRecord.note.trim();
-      }
-
-      const hasData =
-        mergedRecord.inQuantity > 0 ||
-        mergedRecord.inPrice > 0 ||
-        mergedRecord.outQuantity > 0 ||
-        (mergedRecord.note && mergedRecord.note.trim()) ||
-        (mergedRecord.certification && mergedRecord.certification.trim()) ||
-        (mergedRecord.sensoryProperty && mergedRecord.sensoryProperty.trim()) ||
-        (mergedRecord.supplier && mergedRecord.supplier.trim()) ||
-        (mergedRecord.buyer && mergedRecord.buyer.trim()) ||
-        (mergedRecord.inspector && mergedRecord.inspector.trim()) ||
-        (mergedRecord.keeper && mergedRecord.keeper.trim()) ||
-        (mergedRecord.produceDate && mergedRecord.produceDate.trim()) ||
-        (mergedRecord.shelfLife && mergedRecord.shelfLife.trim()) ||
-        (mergedRecord.outHandler && mergedRecord.outHandler.trim()) ||
-        (mergedRecord.outRecipient && mergedRecord.outRecipient.trim());
-
-      if (!hasData) {
-        delete updatedDailyRecords[dateStr];
-      } else {
-        updatedDailyRecords[dateStr] = mergedRecord;
-      }
-
-      let sumIn = 0;
-      let sumOut = 0;
-      Object.values(updatedDailyRecords).forEach((record) => {
-        sumIn += record.inQuantity || 0;
-        sumOut += record.outQuantity || 0;
-      });
-      const newCurrentStock = item.initialStock + sumIn - sumOut;
-      const updatedItem: LedgerItem = {
-        ...item,
-        dailyRecords: updatedDailyRecords,
-        currentStock: Math.round(newCurrentStock * 100) / 100
-      };
-
-      const ops: SyncOp[] = [];
-      if (!hasData) {
-        ops.push({ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId, date: dateStr } });
-      } else {
-        ops.push({ entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId, date: dateStr }, data: mergedRecord });
-      }
-      ops.push({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
+      const { updatedItem, mergedRecord, ops } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
         throw new Error("保存出入库记录失败");
       }
       return { item: updatedItem, mergedRecord };
+    });
+  }
+
+  /**
+   * @description 把一批出入库字段合并进某个已知台账原料项目的指定日期记录，重算入库金额与实时库存，
+   * 并构造对应的增量同步 op（不做任何持久化，纯内存计算）。供 updateLedgerDailyRecord（台账侧直接编辑）
+   * 与 updateCell（备餐报表侧编辑单元格反向同步台账，阶段C）共用同一份合并/校验/重算逻辑，避免两处各自
+   * 维护一份容易起分歧的实现。
+   * @param {LedgerItem} item 当前的台账原料项目（调用方已确认存在）
+   * @param {string} dateStr 选中的日期 (格式如 "YYYY-MM-DD")
+   * @param {Partial<DailyStockRecord>} fields 可选合并的属性集合
+   * @returns {{ updatedItem: LedgerItem; mergedRecord: DailyStockRecord; ops: SyncOp[] }} 更新后的完整原料项目、合并后的当日记录、以及对应的增量同步 op
+   */
+  private static mergeLedgerDailyRecord(
+    item: LedgerItem,
+    dateStr: string,
+    fields: Partial<DailyStockRecord>
+  ): { updatedItem: LedgerItem; mergedRecord: DailyStockRecord; ops: SyncOp[] } {
+    const updatedDailyRecords: Record<string, DailyStockRecord> = { ...(item.dailyRecords ?? {}) };
+    const oldRecord: DailyStockRecord = updatedDailyRecords[dateStr] || { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "" };
+    const mergedRecord: DailyStockRecord = { ...oldRecord, ...fields };
+
+    mergedRecord.inQuantity = Number.isFinite(mergedRecord.inQuantity) ? Math.max(0, mergedRecord.inQuantity!) : 0;
+    mergedRecord.inPrice = Number.isFinite(mergedRecord.inPrice) ? Math.max(0, mergedRecord.inPrice!) : 0;
+    mergedRecord.inAmount = Math.round(mergedRecord.inQuantity * mergedRecord.inPrice * 100) / 100;
+    mergedRecord.outQuantity = Number.isFinite(mergedRecord.outQuantity) ? Math.max(0, mergedRecord.outQuantity!) : 0;
+    if (mergedRecord.note !== undefined) {
+      mergedRecord.note = mergedRecord.note.trim();
+    }
+
+    const hasData =
+      mergedRecord.inQuantity > 0 ||
+      mergedRecord.inPrice > 0 ||
+      mergedRecord.outQuantity > 0 ||
+      (mergedRecord.note && mergedRecord.note.trim()) ||
+      (mergedRecord.certification && mergedRecord.certification.trim()) ||
+      (mergedRecord.sensoryProperty && mergedRecord.sensoryProperty.trim()) ||
+      (mergedRecord.supplier && mergedRecord.supplier.trim()) ||
+      (mergedRecord.buyer && mergedRecord.buyer.trim()) ||
+      (mergedRecord.inspector && mergedRecord.inspector.trim()) ||
+      (mergedRecord.keeper && mergedRecord.keeper.trim()) ||
+      (mergedRecord.produceDate && mergedRecord.produceDate.trim()) ||
+      (mergedRecord.shelfLife && mergedRecord.shelfLife.trim()) ||
+      (mergedRecord.outHandler && mergedRecord.outHandler.trim()) ||
+      (mergedRecord.outRecipient && mergedRecord.outRecipient.trim());
+
+    if (!hasData) {
+      delete updatedDailyRecords[dateStr];
+    } else {
+      updatedDailyRecords[dateStr] = mergedRecord;
+    }
+
+    let sumIn = 0;
+    let sumOut = 0;
+    Object.values(updatedDailyRecords).forEach((record) => {
+      sumIn += record.inQuantity || 0;
+      sumOut += record.outQuantity || 0;
+    });
+    const newCurrentStock = item.initialStock + sumIn - sumOut;
+    const updatedItem: LedgerItem = {
+      ...item,
+      dailyRecords: updatedDailyRecords,
+      currentStock: Math.round(newCurrentStock * 100) / 100
+    };
+
+    const ops: SyncOp[] = [];
+    if (!hasData) {
+      ops.push({ entity: "ledgerItemDailyRecord", op: "delete", key: { itemId: item.id, date: dateStr } });
+    } else {
+      ops.push({ entity: "ledgerItemDailyRecord", op: "upsert", key: { itemId: item.id, date: dateStr }, data: mergedRecord });
+    }
+    ops.push({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
+
+    return { updatedItem, mergedRecord, ops };
+  }
+
+  /**
+   * @description 为某个受众人群月度报表新增一个备餐细项（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：
+   * 校验规则与错误文案与迁移前的前端实现逐字一致。尽力而为同步至台账（对应此前 LedgerService.addLedgerItem
+   * 的调用）：仅当对应台账存在且台账内没有同名原料时才一并创建台账原料项，任何一种前置条件不满足都静默跳过，
+   * 不影响本次新增备餐细项本身的成功——这与迁移前"创建失败/已存在也照常 resolve"的既有容错语义完全一致。
+   * @param {object} input 新增细项的字段
+   * @returns {Promise<PreparedItem>} 新增后的完整备餐细项
+   */
+  public static async addPreparedItem(input: {
+    targetGroup: string; category: string; name: string; unit: string;
+  }): Promise<PreparedItem> {
+    const trimmedName = (input.name ?? "").trim();
+    if (!trimmedName) {
+      throw new Error("原料名称不能为空");
+    }
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      const report = reports.find((r) => r.targetGroup === input.targetGroup);
+      if (!report) {
+        throw new Error(`无法找到目标人群分类为 "${input.targetGroup}" 的月度报表`);
+      }
+
+      const dailyData: Record<string, DailyEntry> = {};
+      for (let d = 1; d <= 31; d++) {
+        dailyData[String(d)] = { quantity: 0, price: 0, amount: 0 };
+      }
+      const newItem: PreparedItem = {
+        id: `item_${input.targetGroup.toLowerCase()}_${input.category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name: trimmedName,
+        category: input.category as FoodCategory,
+        targetGroup: input.targetGroup as TargetGroup,
+        unit: (input.unit ?? "").trim() || (CATEGORY_DEFAULT_UNITS as Record<string, string>)[input.category] || "斤",
+        dailyData
+      };
+
+      const ops: SyncOp[] = [{
+        entity: "preparedItem", op: "upsert", key: newItem.id,
+        data: {
+          id: newItem.id, reportTargetGroup: report.targetGroup, reportYear: report.year, reportMonth: report.month,
+          name: newItem.name, category: newItem.category, targetGroup: newItem.targetGroup, unit: newItem.unit
+        }
+      }];
+
+      const ledgers: Ledger[] = current.ledgers ?? [];
+      const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+      const ledgerExists = ledgers.some((l) => l.id === input.targetGroup);
+      const duplicateInLedger = ledgerItems.some((item) => item.ledgerId === input.targetGroup && item.name === trimmedName);
+      if (ledgerExists && !duplicateInLedger) {
+        const newLedgerItemId = `ledger_item_${input.targetGroup}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        ops.push({
+          entity: "ledgerItem", op: "upsert", key: newLedgerItemId,
+          data: { id: newLedgerItemId, ledgerId: input.targetGroup, name: newItem.name, unit: newItem.unit, spec: "", initialStock: 0, currentStock: 0 }
+        });
+      }
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("新增备餐条目失败");
+      }
+      return newItem;
+    });
+  }
+
+  /**
+   * @description 修改某一备餐单元格（某项、某天）的数量/单价并重算金额（阶段C·业务规则迁移到后端）：
+   * 校验规则与错误文案与迁移前的前端实现逐字一致。尽力而为反向同步至台账逐日流水（对应此前
+   * LedgerService.updateDailyRecordByKey 的调用）：找不到对应台账原料项目时静默跳过，不影响本次单元格更新
+   * 本身的成功——与迁移前"反向同步失败只打 WARN 日志、不阻断整体操作"的既有容错语义完全一致。
+   * updateCell 是全系统调用最高频的写操作（几乎每次单元格失焦都会触发），若也发生了级联，返回值里附带
+   * 级联后的完整台账原料项目，供前端直接局部更新 LedgerService 的内存缓存，不需要像其它低频级联操作那样
+   * 额外发一次 GET /api/storage/load 全量刷新（那样开销会随历史数据增长而越来越可观）。
+   * @param {string} itemId 备餐细项ID
+   * @param {string} day 日索引（"1"-"31"）
+   * @param {number} quantity 数量
+   * @param {number} price 单价
+   * @returns {Promise<{ item: PreparedItem; ledgerItem: LedgerItem | null }>} 更新后的完整备餐细项，以及（若发生级联）更新后的完整台账原料项目
+   */
+  public static async updateCell(
+    itemId: string, day: string, quantity: number, price: number
+  ): Promise<{ item: PreparedItem; ledgerItem: LedgerItem | null }> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      let matchedReport: GroupMonthlyReport | undefined;
+      let matchedItem: PreparedItem | undefined;
+      for (const report of reports) {
+        const item = (report.items ?? []).find((i: PreparedItem) => i.id === itemId);
+        if (item) {
+          matchedReport = report;
+          matchedItem = item;
+          break;
+        }
+      }
+      if (!matchedReport || !matchedItem) {
+        throw new Error(`未找到ID为 "${itemId}" 的项目，修改失败`);
+      }
+
+      const updatedDailyData: Record<string, DailyEntry> = { ...matchedItem.dailyData };
+      const entry: DailyEntry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
+      entry.quantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+      entry.price = Number.isFinite(price) ? Math.max(0, price) : 0;
+      entry.amount = Math.round(entry.quantity * entry.price * 100) / 100;
+      updatedDailyData[day] = entry;
+      const updatedItem: PreparedItem = { ...matchedItem, dailyData: updatedDailyData };
+
+      const ops: SyncOp[] = [];
+      const hasMeaningful = entry.quantity > 0 || entry.price > 0 || entry.amount > 0;
+      if (hasMeaningful) {
+        ops.push({ entity: "preparedItemDailyData", op: "upsert", key: { itemId, date: day }, data: entry });
+      } else {
+        ops.push({ entity: "preparedItemDailyData", op: "delete", key: { itemId, date: day } });
+      }
+
+      const monthStr = String(matchedReport.month).padStart(2, "0");
+      const dayStr = String(day).padStart(2, "0");
+      const targetDateKey = `${matchedReport.year}-${monthStr}-${dayStr}`;
+      const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+      const ledgerItem = ledgerItems.find((i) => i.ledgerId === matchedReport!.targetGroup && i.name === matchedItem!.name);
+      let updatedLedgerItem: LedgerItem | null = null;
+      if (ledgerItem) {
+        const rawMaterialsDict: RawMaterialDictItem[] = current.rawMaterialsDict ?? [];
+        const dictItem = rawMaterialsDict.find((d) => d.name === matchedItem!.name);
+        const conversionQty = (dictItem && dictItem.conversionRatio) ? Number((quantity * dictItem.conversionRatio).toFixed(2)) : undefined;
+        const ledgerFields = {
+          inQuantity: quantity,
+          inPrice: price,
+          inAmount: Number((quantity * price).toFixed(2)),
+          conversionUnitQuantity: conversionQty
+        };
+        const { updatedItem: newLedgerItem, ops: ledgerOps } = StorageService.mergeLedgerDailyRecord(ledgerItem, targetDateKey, ledgerFields);
+        updatedLedgerItem = newLedgerItem;
+        ops.push(...ledgerOps);
+      }
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("保存单元格失败");
+      }
+      return { item: updatedItem, ledgerItem: updatedLedgerItem };
+    });
+  }
+
+  /**
+   * @description 一键物理删除某一备餐细项（阶段C·业务规则迁移到后端）：校验规则与错误文案与迁移前的
+   * 前端实现逐字一致。级联清理其每日数据由 applyChangesIntoSqlite 的既有 preparedItem 删除分支自动完成。
+   * @param {string} itemId 备餐细项ID
+   * @returns {Promise<void>}
+   */
+  public static async deletePreparedItem(itemId: string): Promise<void> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      const exists = reports.some((r) => (r.items ?? []).some((i: PreparedItem) => i.id === itemId));
+      if (!exists) {
+        throw new Error(`无法定位删除项ID: ${itemId}`);
+      }
+      const ok = await StorageService.saveInternal([{ entity: "preparedItem", op: "delete", key: itemId }]);
+      if (!ok) {
+        throw new Error("删除备餐条目失败");
+      }
+    });
+  }
+
+  /**
+   * @description 批量将某人群报表下某大类在某天的所有细项单价统一刷成同一数值（阶段C·业务规则迁移到后端）：
+   * 校验规则与错误文案与迁移前的前端实现逐字一致（含"只按 targetGroup 匹配第一份报表、不区分年月"的既有行为，
+   * 原样保留、不在本次迁移中修正）。
+   * @param {string} targetGroup 目标受众人群
+   * @param {string} category 食材大类
+   * @param {string} day 日索引
+   * @param {number} fixedPrice 统一设定的单价
+   * @returns {Promise<void>}
+   */
+  public static async batchUpdatePriceCol(targetGroup: string, category: string, day: string, fixedPrice: number): Promise<void> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      const report = reports.find((r) => r.targetGroup === targetGroup);
+      if (!report) {
+        throw new Error("该人群报表不存在");
+      }
+
+      const ops: SyncOp[] = [];
+      for (const item of (report.items ?? []) as PreparedItem[]) {
+        if (item.category !== category) continue;
+        const updatedDailyData: Record<string, DailyEntry> = { ...item.dailyData };
+        const entry: DailyEntry = updatedDailyData[day] ? { ...updatedDailyData[day] } : { quantity: 0, price: 0, amount: 0 };
+        entry.price = Math.max(0, fixedPrice);
+        entry.amount = Math.round(entry.quantity * entry.price * 100) / 100;
+        const hasMeaningful = entry.quantity > 0 || entry.price > 0 || entry.amount > 0;
+        if (hasMeaningful) {
+          ops.push({ entity: "preparedItemDailyData", op: "upsert", key: { itemId: item.id, date: day }, data: entry });
+        } else {
+          ops.push({ entity: "preparedItemDailyData", op: "delete", key: { itemId: item.id, date: day } });
+        }
+      }
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("批量调价失败");
+      }
+    });
+  }
+
+  /**
+   * @description 新增或编辑一级人群配置（阶段C·业务规则迁移到后端）：校验规则、isDefault 保留逻辑与
+   * 错误文案与迁移前的前端实现逐字一致。级联同步创建/改名对应的台账（对应此前
+   * LedgerService.syncLedgerFromGroup 的既有行为），与主体的 activeGroup upsert op 一起提交，
+   * 同一次持久化内完成。
+   * @param {string} key 人群标识键
+   * @param {string} label 显示中文标签
+   * @param {string} emoji 展现表情符号
+   * @returns {Promise<DynamicGroup>} 保存后的完整人群配置
+   */
+  public static async saveGroup(key: string, label: string, emoji: string): Promise<DynamicGroup> {
+    if (!key || !key.trim()) {
+      throw new Error("人群标识键不能为空");
+    }
+    if (!label || !label.trim()) {
+      throw new Error("人群名称标签不能为空");
+    }
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const upperKey = key.trim().toUpperCase();
+      const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
+      const existingIndex = activeGroups.findIndex((g) => g.key === upperKey);
+
+      const ops: SyncOp[] = [];
+      let savedGroup: DynamicGroup;
+      if (existingIndex > -1) {
+        savedGroup = {
+          key: upperKey, label: label.trim(), emoji: emoji.trim() || "🍽️",
+          isDefault: activeGroups[existingIndex].isDefault
+        };
+      } else {
+        savedGroup = { key: upperKey, label: label.trim(), emoji: emoji.trim() || "🍽️" };
+        const reports: GroupMonthlyReport[] = current.reports ?? [];
+        const reportExists = reports.some((r) => r.targetGroup === upperKey);
+        if (!reportExists) {
+          const currentYear = new Date().getFullYear();
+          const currentMonth = new Date().getMonth() + 1;
+          ops.push({ entity: "report", op: "upsert", key: { targetGroup: upperKey, year: currentYear, month: currentMonth } });
+        }
+      }
+      ops.push({ entity: "activeGroup", op: "upsert", key: upperKey, data: savedGroup });
+
+      const ledgers: Ledger[] = current.ledgers ?? [];
+      const existingLedger = ledgers.find((l) => l.id === upperKey);
+      if (existingLedger) {
+        if (existingLedger.name !== label.trim()) {
+          ops.push({ entity: "ledger", op: "upsert", key: upperKey, data: { ...existingLedger, name: label.trim() } });
+        }
+      } else {
+        ops.push({ entity: "ledger", op: "upsert", key: upperKey, data: { id: upperKey, name: label.trim(), createdAt: new Date().toISOString() } });
+      }
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("保存人群配置失败");
+      }
+      return savedGroup;
+    });
+  }
+
+  /**
+   * @description 删除一级人群配置及关联的所有报表（阶段C·业务规则迁移到后端）：系统默认人群禁止删除，
+   * 错误文案与迁移前的前端实现逐字一致。级联同步删除对应的台账（对应此前
+   * LedgerService.syncDeleteLedgerFromGroup 的既有行为），与主体的删除 op 一起提交，同一次持久化内完成。
+   * @param {string} key 人群标识键
+   * @returns {Promise<void>}
+   */
+  public static async deleteGroup(key: string): Promise<void> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const upperKey = key.toUpperCase();
+      const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
+      const target = activeGroups.find((g) => g.key.toUpperCase() === upperKey);
+      if (target?.isDefault) {
+        throw new Error(`「${target.label}」是系统默认人群，不允许删除，如需调整可编辑其名称或图标`);
+      }
+
+      const ops: SyncOp[] = [{ entity: "activeGroup", op: "delete", key: upperKey }];
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      reports.filter((r) => r.targetGroup.toUpperCase() === upperKey).forEach((report) => {
+        ops.push({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
+      });
+
+      const ledgers: Ledger[] = current.ledgers ?? [];
+      const ledger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
+      if (ledger) {
+        ops.push({ entity: "ledger", op: "delete", key: ledger.id });
+        const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+        ledgerItems.filter((item) => item.ledgerId.toUpperCase() === upperKey).forEach((item) => {
+          ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
+        });
+      }
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("删除人群配置失败");
+      }
+    });
+  }
+
+  /**
+   * @description 新增或编辑二级食材大类配置（阶段C·业务规则迁移到后端）：校验规则、isDefault 保留逻辑与
+   * 错误文案与迁移前的前端实现逐字一致。
+   * @param {string} key 大类标识键
+   * @param {string} label 大类名称显名
+   * @returns {Promise<DynamicCategory>} 保存后的完整大类配置
+   */
+  public static async saveCategory(key: string, label: string): Promise<DynamicCategory> {
+    if (!key || !key.trim()) {
+      throw new Error("大类标识键不能为空");
+    }
+    if (!label || !label.trim()) {
+      throw new Error("大类名称标签不能为空");
+    }
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const upperKey = key.trim().toUpperCase();
+      const activeCategories: DynamicCategory[] = current.activeCategories ?? [];
+      const existingIndex = activeCategories.findIndex((c) => c.key === upperKey);
+      const savedCategory: DynamicCategory = existingIndex > -1
+        ? { key: upperKey, label: label.trim(), isDefault: activeCategories[existingIndex].isDefault }
+        : { key: upperKey, label: label.trim() };
+
+      const ok = await StorageService.saveInternal([{ entity: "activeCategory", op: "upsert", key: upperKey, data: savedCategory }]);
+      if (!ok) {
+        throw new Error("保存大类配置失败");
+      }
+      return savedCategory;
+    });
+  }
+
+  /**
+   * @description 删除二级大类配置并清空所有报表里属于此大类的细分项（阶段C·业务规则迁移到后端）：
+   * 系统默认大类禁止删除，错误文案与迁移前的前端实现逐字一致。
+   * @param {string} key 大类标识键
+   * @returns {Promise<void>}
+   */
+  public static async deleteCategory(key: string): Promise<void> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const upperKey = key.toUpperCase();
+      const activeCategories: DynamicCategory[] = current.activeCategories ?? [];
+      const target = activeCategories.find((c) => c.key === upperKey);
+      if (target?.isDefault) {
+        throw new Error(`「${target.label}」是系统默认大类，不允许删除，如需调整可编辑其名称`);
+      }
+
+      const ops: SyncOp[] = [{ entity: "activeCategory", op: "delete", key: upperKey }];
+      const reports: GroupMonthlyReport[] = current.reports ?? [];
+      reports.forEach((report) => {
+        (report.items ?? []).filter((item: PreparedItem) => item.category === upperKey).forEach((item: PreparedItem) => {
+          ops.push({ entity: "preparedItem", op: "delete", key: item.id });
+        });
+      });
+
+      const ok = await StorageService.saveInternal(ops);
+      if (!ok) {
+        throw new Error("删除大类配置失败");
+      }
     });
   }
 }
