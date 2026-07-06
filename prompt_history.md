@@ -772,3 +772,9 @@ Fix bug：
 
 **Action:**
 - 修改了 LedgerSystem.tsx 中的 `handleDeleteMaterial` 函数。新增历史日期存在性检查。若原料在非当前日期有记录，则只清零当天的 record（更新属性为0/空）；若在其它天无记录，才触发物理删除 `deleteLedgerItem`，避免了跨日期的误删现象。
+
+## 2026-07-06 修复删除原料奔溃 Bug
+**User Prompt:** 在台账记录界面点击删除键时，报错：Uncaught TypeError: Cannot read properties of undefined (reading 'find')
+
+**Action:**
+- 修复了 LedgerSystem.tsx 中的变量引用错误，将不存在的 `activeLedger.items` 改为了作用域内正确的 `currentLedgerItems`。

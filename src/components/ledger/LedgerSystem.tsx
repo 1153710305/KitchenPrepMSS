@@ -468,7 +468,7 @@ export function LedgerSystem() {
    * @description 物理删除原料采购项目
    */
   const handleDeleteMaterial = (id: string) => {
-    const item = activeLedger?.items.find((i) => i.id === id);
+    const item = currentLedgerItems.find((i) => i.id === id);
     if (!item) return;
 
     const otherDatesWithRecords = Object.keys(item.dailyRecords).filter((date) => {
