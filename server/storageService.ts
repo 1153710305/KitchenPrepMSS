@@ -31,7 +31,7 @@ const HELPER_DICT_CATEGORIES = [
 
 /** 判断"当前规范化表结构是否完全为空"时需要检查的表清单 */
 const NORMALIZED_TABLES = [
-  "ledgers", "ledger_items", "reports", "active_groups",
+  "ledgers", "ledger_items", "active_groups",
   "active_categories", "raw_materials_dict", "ledger_helper_options"
 ] as const;
 
