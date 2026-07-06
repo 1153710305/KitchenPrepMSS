@@ -456,12 +456,10 @@ function PrintOutDoc({
 .ledger-print-doc-overlay thead th {
   background-color: #ffffff !important;
 }
-        /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        /* 强制允许换行，超出长度时在渲染节点内动态缩小字号 */
         .ledger-print-out-table td {
           word-break: break-all !important;
           white-space: normal !important;
-          font-size: 11px !important; 
-          line-height: 1.2 !important; 
         }
         @media print {
           .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
@@ -541,7 +539,7 @@ function PrintOutDoc({
                           .map(({ item }) => item.record.outHandler || "")
                           .filter(Boolean)
                       )
-                    ).join("、") || "-";
+                    ).join("、") || "";
 
                     const recipients = Array.from(
                       new Set(
@@ -550,6 +548,12 @@ function PrintOutDoc({
                           .filter(Boolean)
                       )
                     ).join("、") || "-";
+
+                    const handlersFontSize = handlers.length > 10 ? "11px" : LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize;
+                    const handlersLineHeight = handlers.length > 10 ? "1.2" : "normal";
+
+                    const recipientsFontSize = recipients.length > 15 ? "11px" : LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize;
+                    const recipientsLineHeight = recipients.length > 15 ? "1.2" : "normal";
 
                     return group.items.map(({ item, rowIndex }, idx) => {
                       const isFirstInGroup = idx === 0;
@@ -568,6 +572,10 @@ function PrintOutDoc({
                         ? Number((item.record.outQuantity * dictItem.conversionRatio).toFixed(2))
                         : (item.record.outQuantity || "");
 
+                      const nameText = `${displayName}（${displayPrintUnit}）`;
+                      const nameFontSize = nameText.length > 8 ? "11px" : LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize;
+                      const nameLineHeight = nameText.length > 8 ? "1.2" : "normal";
+
                       return (
                         <tr key={`${item.id}-p${pageIndex}g${groupIdx}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight }} className="text-center">
                           {isFirstInGroup && (
@@ -580,8 +588,8 @@ function PrintOutDoc({
                             </td>
                           )}
                           <td className="border border-black " style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
-                          <td className="border border-black text-center px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
-                            {displayName}（{displayPrintUnit}）
+                          <td className="border border-black text-center px-1" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>
+                            {nameText}
                           </td>
                           <td className="border border-black  " style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                             {displayPrintQty}
@@ -590,7 +598,7 @@ function PrintOutDoc({
                             <td
                               className="border border-black "
                               rowSpan={group.items.length}
-                              style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
+                              style={{ verticalAlign: "middle", fontSize: handlersFontSize, lineHeight: handlersLineHeight }}
                             >
                               {handlers}
                             </td>
@@ -599,7 +607,7 @@ function PrintOutDoc({
                             <td
                               className="border border-black "
                               rowSpan={group.items.length}
-                              style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
+                              style={{ verticalAlign: "middle", fontSize: recipientsFontSize, lineHeight: recipientsLineHeight }}
                             >
                               {recipients}
                             </td>

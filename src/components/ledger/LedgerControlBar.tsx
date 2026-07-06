@@ -82,13 +82,13 @@ export function LedgerControlBar({
     <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0 font-sans">
       {/* 顶层：页面 Tab 切换 + 核心说明 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div className="flex items-center bg-slate-200/60 p-1 rounded-xl w-fit">
+        <div className="flex items-center bg-slate-200 p-1 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("entry")}
             className={`px-4.5 py-1.5 text-[13px] font-bold rounded-lg cursor-pointer transition-all ${
               activeTab === "entry"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                : "text-slate-600 hover:bg-slate-300/50 hover:text-slate-900"
             }`}
           >
             📊 台账数据录入
@@ -97,8 +97,8 @@ export function LedgerControlBar({
             onClick={() => setActiveTab("invoice")}
             className={`px-4.5 py-1.5 text-[13px] font-bold rounded-lg cursor-pointer transition-all ${
               activeTab === "invoice"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                : "text-slate-600 hover:bg-slate-300/50 hover:text-slate-900"
             }`}
           >
             📋 当日出入库单归集
@@ -123,13 +123,13 @@ export function LedgerControlBar({
         {activeTab === "entry" ? (
           <div className="flex flex-wrap items-center gap-3 w-full">
             {/* 呈现样式选择：置于最左侧，先选好看哪种表再操作，逻辑顺序更清晰 */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5 order-0 shrink-0">
+            <div className="flex items-center bg-slate-100 border border-slate-300/60 rounded-lg p-0.5 order-0 shrink-0">
               <button
                 onClick={() => setLedgerStyle("style1")}
                 className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
                   ledgerStyle === "style1"
-                    ? "bg-white text-emerald-700 shadow-xs"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
                 }`}
               >
                 <LayoutGrid size={11} />
@@ -139,8 +139,8 @@ export function LedgerControlBar({
                 onClick={() => setLedgerStyle("style2")}
                 className={`flex items-center gap-1 px-3 py-1.5 text-[12px] font-bold rounded-md cursor-pointer transition-all ${
                   ledgerStyle === "style2"
-                    ? "bg-white text-emerald-700 shadow-xs"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
                 }`}
               >
                 <TrendingUp size={11} />
@@ -170,9 +170,9 @@ export function LedgerControlBar({
                       }
                     }}
                     disabled={ledgerItems.length === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 text-[13px] font-bold rounded-lg cursor-pointer transition-all"
+                    className="flex items-center gap-1.5 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 disabled:bg-slate-50 disabled:border-slate-200 disabled:text-slate-400 text-blue-700 text-[13px] font-bold rounded-lg cursor-pointer transition-all shadow-sm"
                   >
-                    <Printer size={13} className="text-slate-500" />
+                    <Printer size={13} className="text-blue-600" />
                     <span>打印记账登记表</span>
                   </button>
                 </>
