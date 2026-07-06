@@ -68,6 +68,39 @@ export class StorageService {
   private static localDataDir: string = path.resolve(process.env.LOCAL_DATA_DIR || "data");
 
   /**
+   * @description 一键清空所有台账流水记录（保留底表）
+   * @returns {boolean} 操作是否成功
+   */
+  public static async clearDailyRecords(): Promise<boolean> {
+    return StorageService.withWriteLock(async () => {
+      try {
+        if (StorageService.storageType === "local") {
+          const db = StorageService.getDb();
+          db.prepare("DELETE FROM ledger_item_daily_records").run();
+          return true;
+        } else {
+          // COS 模式下，直接修改全量数据并上传
+          const data = await StorageService.loadCosData();
+          if (data.ledgers) {
+            for (const ledger of data.ledgers) {
+              if (ledger.items) {
+                for (const item of ledger.items) {
+                  item.dailyRecords = {};
+                }
+              }
+            }
+          }
+          await StorageService.saveCosData(data);
+          return true;
+        }
+      } catch (err: any) {
+        console.error("[STORAGE ERROR] 清空台账记录失败:", err);
+        return false;
+      }
+    });
+  }
+
+  /**
    * @description 本地 SQLite 数据库文件路径
    */
   private static sqliteDbPath: string = path.join(StorageService.localDataDir, "kpmss.sqlite");
@@ -1545,6 +1578,52 @@ export class StorageService {
         throw new Error("保存出入库记录失败");
       }
       return { item: updatedItem, mergedRecord };
+    });
+  }
+
+  /**
+   * @description 批量更新指定台账下多个原料在指定日期的出入库字段，极大减少了多次单条 HTTP/SQLite 事务带来的性能延迟。
+   * (一次 WriteLock + 一次 SQLite 事务)。
+   * @param {string} dateStr 选中的日期 (格式如 "YYYY-MM-DD")
+   * @param {Record<string, Partial<DailyStockRecord>>} updates 多个原料的更新负载，键为 itemId
+   * @returns {Promise<{ updatedItems: LedgerItem[]; mergedRecords: Record<string, DailyStockRecord> }>}
+   */
+  public static async updateLedgerDailyRecordsBatch(
+    dateStr: string,
+    updates: Record<string, Partial<DailyStockRecord>>
+  ): Promise<{ updatedItems: LedgerItem[]; mergedRecords: Record<string, DailyStockRecord> }> {
+    return StorageService.withWriteLock(async () => {
+      const current = await StorageService.load();
+      const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+      
+      const updatedItems: LedgerItem[] = [];
+      const mergedRecords: Record<string, DailyStockRecord> = {};
+      const allOps: SyncOp[] = [];
+
+      for (const [itemId, fields] of Object.entries(updates)) {
+        const item = ledgerItems.find((i) => i.id === itemId);
+        if (!item) {
+          // 对找不到的原料忽略或抛错，这里选择直接抛错保证数据一致性
+          throw new Error(`找不到对应的采购原料项目(ID: ${itemId})`);
+        }
+
+        const { updatedItem, mergedRecord, ops } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
+        updatedItems.push(updatedItem);
+        mergedRecords[itemId] = mergedRecord;
+        allOps.push(...ops);
+        
+        // 关键：为了防止同一个批次里对其它项的查找受影响，实际上这里只需将 updatedItem 替换掉内存中的 item
+        // 但由于本批次修改的是不同的 itemId，直接 push ops 并不会互相冲突。
+      }
+
+      if (allOps.length > 0) {
+        const ok = await StorageService.saveInternal(allOps);
+        if (!ok) {
+          throw new Error("批量保存出入库记录失败");
+        }
+      }
+      
+      return { updatedItems, mergedRecords };
     });
   }
 

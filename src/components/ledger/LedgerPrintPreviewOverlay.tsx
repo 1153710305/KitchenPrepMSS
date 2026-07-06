@@ -10,6 +10,7 @@
 import { AlertCircle } from "lucide-react";
 import { Ledger, LedgerItem, FoodCategory } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
+import { createPortal } from "react-dom";
 import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
 import { LedgerPrintStyle2 } from "./LedgerPrintStyle2.tsx";
 
@@ -43,8 +44,23 @@ export function LedgerPrintPreviewOverlay({
   const isPrintStyle1 = printPreviewStyle === "style1";
   const dictItems = RawMaterialsDictService.getItems();
 
-  return (
-    <div className="fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+  return createPortal(
+    <div className="ledger-print-preview-overlay fixed inset-0 bg-white z-[9999] overflow-auto p-8 font-sans text-black leading-relaxed">
+      <style>{`
+        @media print {
+          #root {
+            display: none !important;
+          }
+          .ledger-print-preview-overlay {
+            position: static !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+          }
+        }
+      `}</style>
       {/* 顶部退出预览条 */}
       <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
         <span className="text-sm text-gray-600 flex items-center gap-2">
@@ -86,6 +102,7 @@ export function LedgerPrintPreviewOverlay({
           style2DatesArray={style2DatesArray}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
