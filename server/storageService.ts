@@ -80,22 +80,12 @@ export class StorageService {
         if (StorageService.storageType === "local") {
           const db = StorageService.getDb();
           db.prepare("DELETE FROM ledger_item_daily_records").run();
-          db.prepare("UPDATE ledger_items SET initial_stock = 0, current_stock = 0").run();
+          db.prepare("DELETE FROM ledger_items").run();
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
           const data = await StorageService.loadCurrentFromCos();
-          if (data.ledgerItems && Array.isArray(data.ledgerItems)) {
-            data.ledgerItems.forEach((item: any) => {
-              if (item.dailyRecords) {
-                // 清空每天的出入库数字流水，保留 item 基本信息
-                item.dailyRecords = {};
-              }
-              // 同时清空期初和当前库存
-              item.initialStock = 0;
-              item.currentStock = 0;
-            });
-          }
+          data.ledgerItems = [];
           // COS 模式下，直接移除不再使用的备餐冗余数据字段
           delete data.reports;
           delete data.preparedItems;
@@ -409,34 +399,6 @@ export class StorageService {
         );
         CREATE INDEX IF NOT EXISTS idx_ledger_daily_date ON ledger_item_daily_records(date);
 
-        CREATE TABLE IF NOT EXISTS reports (
-          target_group TEXT NOT NULL,
-          year INTEGER NOT NULL,
-          month INTEGER NOT NULL,
-          PRIMARY KEY (target_group, year, month)
-        );
-
-        CREATE TABLE IF NOT EXISTS prepared_items (
-          id TEXT PRIMARY KEY,
-          report_target_group TEXT NOT NULL,
-          report_year INTEGER NOT NULL,
-          report_month INTEGER NOT NULL,
-          name TEXT NOT NULL,
-          category TEXT NOT NULL,
-          target_group TEXT NOT NULL,
-          unit TEXT NOT NULL,
-          note TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_prepared_items_report ON prepared_items(report_target_group, report_year, report_month);
-
-        CREATE TABLE IF NOT EXISTS prepared_item_daily_data (
-          item_id TEXT NOT NULL,
-          date TEXT NOT NULL,
-          quantity REAL NOT NULL DEFAULT 0,
-          price REAL NOT NULL DEFAULT 0,
-          amount REAL NOT NULL DEFAULT 0,
-          PRIMARY KEY (item_id, date)
-        );
 
         CREATE TABLE IF NOT EXISTS active_groups (
           key TEXT PRIMARY KEY,
@@ -670,28 +632,7 @@ export class StorageService {
           conversion_unit_quantity=@conversionUnitQuantity, out_date=@outDate
       `));
       stmts.set("deleteDailyRecord", db.prepare("DELETE FROM ledger_item_daily_records WHERE item_id = ? AND date = ?"));
-      stmts.set("upsertReport", db.prepare("INSERT OR IGNORE INTO reports (target_group, year, month) VALUES (?, ?, ?)"));
-      stmts.set("deleteReport", db.prepare("DELETE FROM reports WHERE target_group = ? AND year = ? AND month = ?"));
-      stmts.set("selectPreparedItemIdsByReport", db.prepare(
-        "SELECT id FROM prepared_items WHERE report_target_group = ? AND report_year = ? AND report_month = ?"
-      ));
-      stmts.set("deletePreparedItemsByReport", db.prepare(
-        "DELETE FROM prepared_items WHERE report_target_group = ? AND report_year = ? AND report_month = ?"
-      ));
-      stmts.set("upsertPreparedItem", db.prepare(
-        "INSERT INTO prepared_items (id, report_target_group, report_year, report_month, name, category, target_group, unit, note) " +
-        "VALUES (@id, @reportTargetGroup, @reportYear, @reportMonth, @name, @category, @targetGroup, @unit, @note) " +
-        "ON CONFLICT(id) DO UPDATE SET report_target_group=@reportTargetGroup, report_year=@reportYear, " +
-        "report_month=@reportMonth, name=@name, category=@category, target_group=@targetGroup, unit=@unit, note=@note"
-      ));
-      stmts.set("deletePreparedItem", db.prepare("DELETE FROM prepared_items WHERE id = ?"));
-      stmts.set("deleteDailyDataByItem", db.prepare("DELETE FROM prepared_item_daily_data WHERE item_id = ?"));
-      stmts.set("upsertDailyData", db.prepare(
-        "INSERT INTO prepared_item_daily_data (item_id, date, quantity, price, amount) " +
-        "VALUES (@itemId, @date, @quantity, @price, @amount) " +
-        "ON CONFLICT(item_id, date) DO UPDATE SET quantity=@quantity, price=@price, amount=@amount"
-      ));
-      stmts.set("deleteDailyData", db.prepare("DELETE FROM prepared_item_daily_data WHERE item_id = ? AND date = ?"));
+
       stmts.set("upsertActiveGroup", db.prepare(
         "INSERT INTO active_groups (key, label, emoji, is_default) VALUES (@key, @label, @emoji, @isDefault) " +
         "ON CONFLICT(key) DO UPDATE SET label=@label, emoji=@emoji, is_default=@isDefault"
