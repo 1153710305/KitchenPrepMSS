@@ -80,14 +80,18 @@ export function LedgerPrintStyle1({
   /**
    * @description 渲染合并单元格内的多行文本，内容定位在单元格纵向前 1/3 处（而非居中），便于跨行阅读定位
    */
-  const renderMergedCell = (values: string[]) => {
+  const renderMergedCell = (values: string[], maxChars: number = 8) => {
     if (values.length === 0) return "-";
     return (
       <div
         className="flex flex-col items-center gap-0.5"
         style={{ height: `${mergedCellHeightPx}px`, paddingTop: `${mergedCellHeightPx / 5}px`, boxSizing: "border-box" }}
       >
-        {values.map((v, i) => <div key={i}>{v}</div>)}
+        {values.map((v, i) => {
+          const fs = v.length > maxChars ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+          const lh = v.length > maxChars ? "1.2" : "normal";
+          return <div key={i} style={{ fontSize: fs, lineHeight: lh }}>{v}</div>;
+        })}
       </div>
     );
   };
@@ -137,12 +141,10 @@ export function LedgerPrintStyle1({
             border-color: #000000 !important;
           }
         }
-        /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        /* 强制允许换行，超出长度时在渲染节点内动态缩小字号 */
         .ledger-print-style1-table td {
           word-break: break-all !important;
           white-space: normal !important;
-          font-size: 11px !important; 
-          line-height: 1.2 !important; 
         }
       `}</style>
       <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
@@ -221,36 +223,45 @@ export function LedgerPrintStyle1({
                   ? (hasConversion ? Number((record.inQuantity * dictItem.conversionRatio).toFixed(2)) : record.inQuantity)
                   : "";
 
+                const nameFontSize = item.name.length > 5 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                const nameLineHeight = item.name.length > 5 ? "1.2" : "normal";
+                const cert = record.certification || "";
+                const certFontSize = cert.length > 4 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                const certLineHeight = cert.length > 4 ? "1.2" : "normal";
+                const sensory = record.sensoryProperty || "";
+                const sensoryFontSize = sensory.length > 10 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                const sensoryLineHeight = sensory.length > 10 ? "1.2" : "normal";
+
                 return (
                   <tr key={item.id} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
-                    <td className="border border-black px-1 py-1 text-center ">{item.name}</td>
+                    <td className="border border-black px-1 py-1 text-center" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{item.name}</td>
                     <td className="border border-black px-1 py-1">
                       {displayQty !== "" ? `${displayQty}${displayUnit}` : ""}
                     </td>
-                    <td className="border border-black px-1 py-1">{record.certification || ""}</td>
-                    <td className="border border-black px-1 py-1">{record.sensoryProperty || ""}</td>
+                    <td className="border border-black px-1 py-1" style={{ fontSize: certFontSize, lineHeight: certLineHeight }}>{cert}</td>
+                    <td className="border border-black px-1 py-1" style={{ fontSize: sensoryFontSize, lineHeight: sensoryLineHeight }}>{sensory}</td>
                     {isFirstRow && (
                       <>
                         <td className="border border-black px-1 py-1 text-center align-top" rowSpan={totalRows}>
-                          {renderMergedCell(suppliers)}
+                          {renderMergedCell(suppliers, 10)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(purchaseDates)}
+                          {renderMergedCell(purchaseDates, 8)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(buyers)}
+                          {renderMergedCell(buyers, 5)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inspectors)}
+                          {renderMergedCell(inspectors, 5)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inDates)}
+                          {renderMergedCell(inDates, 8)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(outDates)}
+                          {renderMergedCell(outDates, 8)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(keepers)}
+                          {renderMergedCell(keepers, 5)}
                         </td>
                       </>
                     )}
