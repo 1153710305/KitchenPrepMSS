@@ -119,6 +119,22 @@ describe("StorageService (local mode, SQLite-backed, normalized schema)", () => 
       expect(data.rawMaterialsDict.length).toBeGreaterThan(0);
     });
 
+    it("REGRESSION: seeds each preparedItem's dailyData with bare day-of-month keys (\"1\".. \"31\"), not \"YYYY-MM-DD\" — must match the key format every other read/write site (App.tsx/TableGrid.tsx/updateCell/syncFromLedger 等) actually consumes", async () => {
+      delete process.env.SKIP_SEEDING;
+      vi.resetModules();
+      const mod = await import("./storageService.ts");
+      StorageService = mod.StorageService;
+
+      const data = await StorageService.load();
+      const firstItem = data.reports[0].items[0];
+      const dailyKeys = Object.keys(firstItem.dailyData);
+
+      expect(dailyKeys.length).toBeGreaterThan(0);
+      dailyKeys.forEach((key: string) => {
+        expect(key).toMatch(/^\d{1,2}$/);
+      });
+    });
+
     it("returns the full state after a save, including daily records reattached onto the matching ledgerItem", async () => {
       await saveFull({
         ledgers: [{ id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" }],
