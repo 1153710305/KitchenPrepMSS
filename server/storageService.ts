@@ -463,6 +463,13 @@ export class StorageService {
         INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
+      // 每次启动时清理历史残留的无效每日零数据（针对旧版预先用0塞满31天带来的垃圾数据）
+      try {
+        StorageService.db.prepare("DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0").run();
+      } catch (e) {
+        console.warn("Cleanup of daily zero data failed:", e);
+      }
+
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
         if (process.env.SKIP_SEEDING === "1") {
           console.log("[SYSTEM BOOT] 数据库全表空置，当前处于测试模式并设置了 SKIP_SEEDING，跳过自动注入种子数据...");
@@ -557,6 +564,8 @@ export class StorageService {
           );
           for (const [dateStr, entry] of Object.entries(item.dailyData ?? {}) as [string, any][]) {
             if (!dateStr || !entry) continue;
+            // 过滤无意义的0数据，数据库瘦身
+            if ((entry.quantity ?? 0) === 0 && (entry.amount ?? 0) === 0) continue;
             insertDailyData.run(item.id, dateStr, entry.quantity ?? 0, entry.price ?? 0, entry.amount ?? 0);
           }
         }
@@ -796,10 +805,10 @@ export class StorageService {
 
           case "preparedItemDailyData": {
             const key = op.key as { itemId: string; date: string };
-            if (op.op === "delete") {
+            const d = op.data ?? {};
+            if (op.op === "delete" || ((d.quantity ?? 0) === 0 && (d.amount ?? 0) === 0)) {
               stmts.get("deleteDailyData")!.run(key.itemId, key.date);
             } else {
-              const d = op.data ?? {};
               stmts.get("upsertDailyData")!.run({
                 itemId: key.itemId, date: key.date, quantity: d.quantity ?? 0, price: d.price ?? 0, amount: d.amount ?? 0
               });

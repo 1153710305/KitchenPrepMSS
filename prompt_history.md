@@ -811,3 +811,14 @@ Fix bug：
 - 修复了图一、图二以及消耗品流水打印时的 CSS 分页失效问题（脱离 `pageBreakAfter` 约束限制，采用独立的 `<div style={{ breakAfter: "page", pageBreakAfter: "always" }} />` 进行分页强制切断）。
 - 确认清空台账流水与导出数据库功能已实现。
 - 修复了开启 SQLite WAL 模式后直接下载 `.sqlite` 导致最新的 `shm/wal` 日志尚未合并入主文件的问题：改用 `better-sqlite3` 内置的 `db.backup()` 接口来生成临时的一致性全量备份文件再发送给前端，确保数据的完整性。
+
+## 2026-07-07 数据库0值瘦身优化
+**User Prompt:** 
+- 这个表数据增长很迅速，分析原因
+- 同意，但是要保证不要影响前端显示和数据保存，以及现有的各种功能
+
+**Action:**
+- 定位到前端新建报表/食材时预填满 31 天 `quantity:0` 的机制导致数据库 `prepared_item_daily_data` 爆炸式增长。
+- 在前端 `store.ts` 移除 31 天 0 值预占位，仅使用 `{}` 空对象；前端渲染层具备完善的 `?? { quantity: 0 }` 回退，不受影响。
+- 在后端 `storageService.ts` 的全量及增量保存环节增加过滤拦截：如果 `quantity=0` 且 `amount=0`，则跳过保存或执行 `DELETE`（在增量同步时），以支持用户将已有数值清零的场景。
+- 在后端启动 `init()` 阶段注入 `DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0`，自动清理历史沉积的数十万条垃圾脏数据。

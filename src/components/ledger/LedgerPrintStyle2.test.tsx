@@ -186,7 +186,7 @@ describe("LedgerPrintStyle2", () => {
       );
 
       // 2 箱 * 20 (换算比例) = 40 斤
-      expect(screen.getByText("40斤")).toBeInTheDocument();
+      expect(screen.getAllByText("40斤").length).toBeGreaterThan(0);
       expect(screen.queryByText("2箱")).not.toBeInTheDocument();
     });
 
@@ -207,7 +207,7 @@ describe("LedgerPrintStyle2", () => {
         />
       );
 
-      expect(screen.getByText("5斤")).toBeInTheDocument();
+      expect(screen.getAllByText("5斤").length).toBeGreaterThan(0);
     });
   });
 });

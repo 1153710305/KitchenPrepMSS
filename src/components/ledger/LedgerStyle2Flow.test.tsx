@@ -157,7 +157,13 @@ describe("LedgerStyle2Flow", () => {
   });
 
   it("renders the running stock balance from dailyStockBalances for each day", () => {
-    const item = makeItem();
+    const item = makeItem({
+      dailyRecords: {
+        "2026-07-01": { inQuantity: 5 },
+        "2026-07-02": { inQuantity: 3 },
+        "2026-07-03": { inQuantity: 0 }
+      }
+    });
     render(
       <LedgerStyle2Flow
         {...baseProps}
