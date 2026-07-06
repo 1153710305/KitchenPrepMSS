@@ -51,36 +51,21 @@ export function LedgerPrintStyle1({
     return !!record && (record.inQuantity > 0 || record.outQuantity > 0);
   });
 
-  const filledCount = toPrintItems.length;
-  const emptyRowsCount = Math.max(0, LEDGER_PRINT_STYLE1_CONFIG.minPrintRows - filledCount);
-  const totalRows = filledCount + emptyRowsCount;
-
-  /** 跨行合并单元格（供货商及地址/采购时间/采购员/检验员/出入库时间/保管员）的总高度 */
-  const mergedCellHeightPx = totalRows * DATA_ROW_HEIGHT_PX;
-
-  /**
-   * @description 提取各个列的去重非空值，供跨行合并单元格展示
-   */
-  const getUniqueFieldValues = (extractor: (record: any) => string) => {
-    const list = toPrintItems.map(item => {
-      const record = item.dailyRecords[selectedDate];
-      return record ? extractor(record) : "";
-    }).filter(Boolean);
-    return Array.from(new Set(list));
-  };
-
-  const suppliers = getUniqueFieldValues(r => r.supplier || "");
-  const purchaseDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
-  const buyers = getUniqueFieldValues(r => r.buyer || "");
-  const inspectors = getUniqueFieldValues(r => r.inspector || "");
-  const inDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
-  const outDates = getUniqueFieldValues(r => r.outQuantity > 0 ? (r.outDate || selectedDate) : "");
-  const keepers = getUniqueFieldValues(r => r.keeper || "");
+  const rowsPerPage = LEDGER_PRINT_STYLE1_CONFIG.minPrintRows;
+  const pages: Array<typeof toPrintItems> = [];
+  if (toPrintItems.length === 0) {
+    pages.push([]);
+  } else {
+    for (let i = 0; i < toPrintItems.length; i += rowsPerPage) {
+      pages.push(toPrintItems.slice(i, i + rowsPerPage));
+    }
+  }
+  const totalPages = pages.length;
 
   /**
    * @description 渲染合并单元格内的多行文本，内容定位在单元格纵向前 1/3 处（而非居中），便于跨行阅读定位
    */
-  const renderMergedCell = (values: string[], maxChars: number = 8) => {
+  const renderMergedCell = (values: string[], mergedCellHeightPx: number, maxChars: number = 8) => {
     if (values.length === 0) return "-";
     return (
       <div
@@ -102,38 +87,20 @@ export function LedgerPrintStyle1({
         fontFamily: LEDGER_PRINT_STYLE1_CONFIG.fontFamily,
         fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize,
         color: "#000",
-        // 左右两侧各收回 5mm，在当前打印容器边距基础上腾出装订空间
+        // 左右两侧各收回 6mm，在当前打印容器边距基础上腾出装订空间
         marginLeft: "6mm",
         marginRight: "6mm"
       }}
       className="text-center"
     >
-      {/* 大标题：去掉黑色边框，标题加下划线；受众台账名作为副标题放在标题下方 */}
-      <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
-        <tbody>
-          <tr>
-            <td style={{ border: "none", padding: "12px 0 4px", textAlign: "center" }}>
-              <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }}>
-                {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}
-              </div>
-              <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.subtitleFontSize, marginTop: "2px" }}>
-                {activeLedger?.name || ""}
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 主表格：线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一 */}
+      {/* 提取共有样式至全局 */}
       <style>{`
         .ledger-print-style1-table, .ledger-print-style1-table th, .ledger-print-style1-table td {
           border: 1px solid #000000 !important;
         }
-          /* 干掉 index.html 的表头全局灰色 */
-.ledger-print-style1-table thead th {
-  background-color: #ffffff !important;
-}
-
+        .ledger-print-style1-table thead th {
+          background-color: #ffffff !important;
+        }
         @media print {
           .ledger-print-style1-table, .ledger-print-style1-table th, .ledger-print-style1-table td {
             -webkit-print-color-adjust: exact !important;
@@ -141,49 +108,90 @@ export function LedgerPrintStyle1({
             border-color: #000000 !important;
           }
         }
-        /* 强制允许换行，超出长度时在渲染节点内动态缩小字号 */
         .ledger-print-style1-table td {
           word-break: break-all !important;
           white-space: normal !important;
         }
+        @page {
+          margin: 12mm 18mm;
+        }
       `}</style>
-      <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
-        <colgroup>
-          {/* "原材料名称"三字宽、"食品索证"两字宽：窄列腾出的空间分配给"感官性状"/"供货商及地址"两个长文本列 */}
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "6%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "8%" }} />
-        </colgroup>
+      {pages.map((pageItems, pageIndex) => {
+        const isLastPage = pageIndex === totalPages - 1;
+        const filledCount = pageItems.length;
+        const emptyRowsCount = Math.max(0, rowsPerPage - filledCount);
+        const totalRows = Math.max(rowsPerPage, filledCount + emptyRowsCount);
+        const mergedCellHeightPx = totalRows * DATA_ROW_HEIGHT_PX;
 
-        <thead>
-          <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品<br />索证</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
-            <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
-            <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
-          </tr>
-          <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
-            <th className="border border-black px-1 py-1 align-middle">入库</th>
-            <th className="border border-black px-1 py-1 align-middle">出库</th>
-          </tr>
-        </thead>
+        const getUniqueFieldValues = (extractor: (record: any) => string) => {
+          const list = pageItems.map(item => {
+            const record = item.dailyRecords[selectedDate];
+            return record ? extractor(record) : "";
+          }).filter(Boolean);
+          return Array.from(new Set(list));
+        };
 
-        <tbody>
-          {toPrintItems.length === 0 ? (
+        const suppliers = getUniqueFieldValues(r => r.supplier || "");
+        const purchaseDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
+        const buyers = getUniqueFieldValues(r => r.buyer || "");
+        const inspectors = getUniqueFieldValues(r => r.inspector || "");
+        const inDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
+        const outDates = getUniqueFieldValues(r => r.outQuantity > 0 ? (r.outDate || selectedDate) : "");
+        const keepers = getUniqueFieldValues(r => r.keeper || "");
+
+        return (
+          <div key={pageIndex} style={{ pageBreakAfter: isLastPage ? "auto" : "always", position: "relative" }}>
+            <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: "none", padding: "12px 0 4px", textAlign: "center" }}>
+                    <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }}>
+                      {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}
+                    </div>
+                    <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.subtitleFontSize, marginTop: "2px" }}>
+                      {activeLedger?.name || ""}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "7%" }} />
+                <col style={{ width: "7%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
+
+              <thead>
+                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品<br />索证</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
+                  <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
+                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
+                </tr>
+                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
+                  <th className="border border-black px-1 py-1 align-middle">入库</th>
+                  <th className="border border-black px-1 py-1 align-middle">出库</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {pageItems.length === 0 ? (
             /* 当无明细时，至少渲染 15 行空行，并且后 7 列合并为一个大空单元格 */
             Array.from({ length: LEDGER_PRINT_STYLE1_CONFIG.minPrintRows }).map((_, i) => (
               <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
@@ -205,9 +213,9 @@ export function LedgerPrintStyle1({
               </tr>
             ))
           ) : (
-            <>
-              {toPrintItems.map((item, idx) => {
-                const record = item.dailyRecords[selectedDate] || {
+                <>
+                  {pageItems.map((item, idx) => {
+                    const record = item.dailyRecords[selectedDate] || {
                   inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
                   certification: "", sensoryProperty: "", supplier: "",
                   purchaseDate: "", buyer: "", inspector: "", keeper: "", outDate: ""
@@ -243,25 +251,25 @@ export function LedgerPrintStyle1({
                     {isFirstRow && (
                       <>
                         <td className="border border-black px-1 py-1 text-center align-top" rowSpan={totalRows}>
-                          {renderMergedCell(suppliers, 10)}
+                          {renderMergedCell(suppliers, mergedCellHeightPx, 10)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(purchaseDates, 8)}
+                          {renderMergedCell(purchaseDates, mergedCellHeightPx, 8)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(buyers, 5)}
+                          {renderMergedCell(buyers, mergedCellHeightPx, 5)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inspectors, 5)}
+                          {renderMergedCell(inspectors, mergedCellHeightPx, 5)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inDates, 8)}
+                          {renderMergedCell(inDates, mergedCellHeightPx, 8)}
                         </td>
                         <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(outDates, 8)}
+                          {renderMergedCell(outDates, mergedCellHeightPx, 8)}
                         </td>
                         <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(keepers, 5)}
+                          {renderMergedCell(keepers, mergedCellHeightPx, 5)}
                         </td>
                       </>
                     )}
@@ -270,18 +278,32 @@ export function LedgerPrintStyle1({
               })}
 
               {/* 补充空行，只渲染前 4 列，后 7 列由首行 rowSpan 覆盖 */}
-              {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                </tr>
-              ))}
-            </>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+                {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                  <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
+                    <td className="border border-black"></td>
+                    <td className="border border-black"></td>
+                    <td className="border border-black"></td>
+                    <td className="border border-black"></td>
+                    {pageItems.length === 0 && i === 0 && (
+                      <>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  })}
+</div>
+);
 }

@@ -784,3 +784,9 @@ Fix bug：
 
 **Action:**
 - 修改了 LedgerSystem.tsx 中的 `handleDeleteMaterial` 弹窗文案，去掉了啰嗦的解释，回归简单直接的确认，同时排查确认无其他跨日期副作用操作。
+
+## 2026-07-06 修复图一打印分页失效 Bug
+**User Prompt:** 总表模式（图一）下的打印记账登记表的分页功能没有生效，三十多行的情况下还是只打印在一页里面
+
+**Action:**
+- 修改了 LedgerPrintStyle1.tsx，将原生渲染大量数据单一表格的方式，重构为拆分 pages 循环渲染多个独立 DOM 块的方式，并在每个 page 上附加 `pageBreakAfter: always`，完美实现分页与跨行合并单元格正确计算。
