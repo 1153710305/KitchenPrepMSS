@@ -173,14 +173,17 @@ export class StorageService {
     }));
     const ledgerItems: LedgerItem[] = []; // 台账内容保持为空，等用户自行录入
 
-    // 5. reports 
+    // 5. reports
     // 生成一个空的 31 天矩阵，确保数据结构连贯
+    // 键统一用当月内的裸日序号（"1".."31"），与 updateCell/batchUpdatePriceCol/addPreparedItem/
+    // syncFromLedger 等全部备餐报表读写点及前端所有渲染/统计逻辑（App.tsx、TableGrid.tsx 等）保持一致；
+    // 不同于台账 dailyRecords 用完整 YYYY-MM-DD——因为一个 PreparedItem 天生只属于单一月份的报表，
+    // 年月已由其所属 report 唯一确定，无需在每日键里重复携带
     const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
     const daysInMonth = getDaysInMonth(currentYear, currentMonth);
     const dailyData: Record<string, DailyEntry> = {};
     for (let day = 1; day <= daysInMonth; day++) {
-      const dayStr = day.toString().padStart(2, "0");
-      dailyData[`${currentYear}-${currentMonth.toString().padStart(2, "0")}-${dayStr}`] = { quantity: 0, price: 0, amount: 0 };
+      dailyData[String(day)] = { quantity: 0, price: 0, amount: 0 };
     }
 
     const reports: GroupMonthlyReport[] = activeGroups.map((group) => {
