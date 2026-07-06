@@ -80,6 +80,7 @@ export class StorageService {
         if (StorageService.storageType === "local") {
           const db = StorageService.getDb();
           db.prepare("DELETE FROM ledger_item_daily_records").run();
+          db.prepare("UPDATE ledger_items SET initial_stock = 0, current_stock = 0").run();
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
@@ -90,6 +91,9 @@ export class StorageService {
                 // 清空每天的出入库数字流水，保留 item 基本信息
                 item.dailyRecords = {};
               }
+              // 同时清空期初和当前库存
+              item.initialStock = 0;
+              item.currentStock = 0;
             });
           }
           // 保存回 COS
