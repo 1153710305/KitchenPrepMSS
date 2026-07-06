@@ -136,13 +136,9 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
           ? (FOOD_CATEGORY_LABELS[category] ?? "未知分类")
           : "未知分类";
 
-        // 计算历史入库/出库累计
-        let totalIn = 0;
-        let totalOut = 0;
-        Object.values(item.dailyRecords).forEach((rec) => {
-          totalIn += rec.inQuantity ?? 0;
-          totalOut += rec.outQuantity ?? 0;
-        });
+        // 读取后端直接发来的历史累计总和（不受懒加载被截断月份影响）
+        const totalIn = item.historicalTotalIn ?? 0;
+        const totalOut = item.historicalTotalOut ?? 0;
 
         // 台账名称
         const ledger = ledgers.find((l) => l.id === item.ledgerId);

@@ -53,6 +53,16 @@ export interface SyncOp {
  */
 export class SyncHelper {
   /**
+   * @description 当前前端所持有的全局数据库版本号（用于乐观锁校验防冲突）
+   */
+  public static currentDbVersion?: number;
+
+  /** 当前内存中缓存的每日流水/报表数据所属的起始日期 */
+  private static loadedStartDate?: string;
+  /** 当前内存中缓存的每日流水/报表数据所属的结束日期 */
+  private static loadedEndDate?: string;
+
+  /**
    * @description 全局初始化安全锁，只有在首屏 Promise.all 完美拉取就绪后才允许上传，防止引导时空内存覆盖服务器数据
    */
   private static isInitialized = false;
@@ -155,20 +165,76 @@ export class SyncHelper {
   }
 
   /**
-   * @description 从服务器拉取最新的完整数据并返回给调用层（读路径不受本次改造影响，GET /load 仍返回整体状态）
-   * @returns {Promise<BackendData | null>} 获取到的后端数据，若失败或无数据则返回 null
+   * @description 封装 fetch 请求，自动注入当前版本号，拦截并发冲突，并自动更新版本号
    */
-  public static async loadFromServer(): Promise<BackendData | null> {
+  public static async fetchWithVersion(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const headers = new Headers(init?.headers);
+    if (this.currentDbVersion !== undefined) {
+      headers.set("X-Base-Version", this.currentDbVersion.toString());
+    }
+
+    const response = await fetch(input, { ...init, headers });
+
+    if (response.status === 409) {
+      const errJson = await response.json().catch(() => ({}));
+      // 使用 window.alert 阻断当前操作，强制提醒用户
+      window.alert(`🚨 数据冲突保护\n\n${errJson.error || "数据已被其他设备修改！"}\n为防止覆盖他人数据，请立即刷新页面以获取最新数据。`);
+      throw new Error("VERSION_CONFLICT");
+    }
+
+    const newVersion = response.headers.get("X-New-Version");
+    if (newVersion) {
+      this.currentDbVersion = parseInt(newVersion, 10);
+    }
+
+    return response;
+  }
+
+  /**
+   * @description 从服务器拉取最新的完整数据并返回给调用层（包含按月懒加载逻辑）
+   * @param {string} [startDate] 可选。需要拉取流水的起始日期 (YYYY-MM-DD)
+   * @param {string} [endDate] 可选。需要拉取流水的结束日期 (YYYY-MM-DD)
+   * @returns {Promise<BackendData | null>} 获取到的后端数据，若返回 304 则返回 null (或特殊标记)
+   */
+  public static async loadFromServer(startDate?: string, endDate?: string): Promise<BackendData | null> {
     try {
-      const response = await fetch("/api/storage/load");
+      const isNewRange = startDate !== this.loadedStartDate || endDate !== this.loadedEndDate;
+      const params = new URLSearchParams();
+      if (startDate) params.append("start", startDate);
+      if (endDate) params.append("end", endDate);
+      if (isNewRange) params.append("bypassCache", "true");
+
+      const url = `/api/storage/load${params.toString() ? '?' + params.toString() : ''}`;
+      
+      // 使用 fetchWithVersion 以便在请求头带上 X-Base-Version 支持 304 判断，并自动更新返回的新版本号
+      const response = await this.fetchWithVersion(url);
+      
+      if (response.status === 304) {
+        console.log("[SYNC HELPER] 数据未修改 (304 Not Modified)，无需重新拉取");
+        return null;
+      }
+
       if (!response.ok) {
         throw new Error(`服务器拉取失败: ${response.statusText}`);
       }
+      
       const data: BackendData = await response.json();
 
+      // 更新当前已加载的日期区间缓存
+      if (startDate && endDate) {
+        this.loadedStartDate = startDate;
+        this.loadedEndDate = endDate;
+      }
+
       if (!data) return null;
+      
+      // 更新内存中的数据库版本号
+      if ((data as any).dbVersion !== undefined) {
+        this.currentDbVersion = (data as any).dbVersion;
+      }
+
       // 过滤掉只有 isFirstBoot 而无其他数据属性的空状态壳，使其能在首航返回 null 并加载本地默认种子
-      const hasRealPayload = Object.keys(data).some(k => k !== "isFirstBoot");
+      const hasRealPayload = Object.keys(data).some(k => k !== "isFirstBoot" && k !== "dbVersion");
       if (!hasRealPayload) {
         return { isFirstBoot: (data as any).isFirstBoot } as any;
       }
@@ -224,14 +290,14 @@ export class SyncHelper {
 
   /**
    * @description 拉取一次全量最新状态并立即应用（fetch + applyFreshData 的组合），不做任何竞态守卫。
-   * 供"某个操作已确定成功、且后端可能连带级联修改了其它实体"的场景在拿到成功响应后主动调用，
-   * 避免只能等最多 10 秒的心跳轮询才能感知级联结果。心跳轮询本身不用这个方法——它需要在 loadFromServer()
-   * 之后、应用之前插入 lastLocalMutationAt/hasPendingSync 竞态守卫，因此自行拉取后直接调用 applyFreshData()。
+   * 供"某个操作已确定成功、且后端可能连带级联修改了其它实体"的场景在拿到成功响应后主动调用。
+   * 也用于按需懒加载切换日期区间时，强制刷新数据。
    * @returns {Promise<boolean>} 本次是否真的检测到并应用了变化
    */
-  public static async refreshNow(): Promise<boolean> {
-    const freshData = await SyncHelper.loadFromServer();
+  public static async refreshNow(startDate?: string, endDate?: string): Promise<boolean> {
+    const freshData = await SyncHelper.loadFromServer(startDate, endDate);
     if (!freshData) {
+      // 可能是 304，也可能是错误
       return false;
     }
     return SyncHelper.applyFreshData(freshData);
@@ -289,7 +355,7 @@ export class SyncHelper {
 
     this.isFlushing = true;
     try {
-      const response = await fetch("/api/storage/save", {
+      const response = await this.fetchWithVersion("/api/storage/save", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

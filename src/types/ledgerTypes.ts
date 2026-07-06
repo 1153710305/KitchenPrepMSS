@@ -89,6 +89,10 @@ export interface LedgerItem {
   initialStock: number;
   /** 当前实时库存数量 (计算公式: 初始库存 + 历史所有天入库累加 - 历史所有天出库累加) */
   currentStock: number;
+  /** 服务端预计算的该原料所有的历史累计入库总量（不受前端拉取的月份日期区间影响） */
+  historicalTotalIn?: number;
+  /** 服务端预计算的该原料所有的历史累计出库总量（不受前端拉取的月份日期区间影响） */
+  historicalTotalOut?: number;
   /** 每日出入库及明细记录，以 YYYY-MM-DD 为 Key 进行索引 */
   dailyRecords: Record<string, DailyStockRecord>;
 }

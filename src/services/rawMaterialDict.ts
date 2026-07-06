@@ -244,7 +244,7 @@ export class RawMaterialsDictService {
     conversionRatio?: number
   ): Promise<void> {
     // 校验与级联规则已迁移到后端（阶段A，见 SQLite迁移规划.md），这里只负责发起请求并用响应更新内存缓存
-    const res = await fetch("/api/raw-materials", {
+    const res = await SyncHelper.fetchWithVersion("/api/raw-materials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, category, unit, remark, conversionUnit, conversionRatio })
@@ -278,7 +278,7 @@ export class RawMaterialsDictService {
   ): Promise<void> {
     // 校验、isDefault 保留、级联更新台账/备餐报表里的同名条目均已迁移到后端（阶段A，见 SQLite迁移规划.md），
     // 后端一次事务内完成级联，前端只负责发起请求、用响应更新内存缓存
-    const res = await fetch(`/api/raw-materials/${encodeURIComponent(oldName)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/raw-materials/${encodeURIComponent(oldName)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, category, unit, remark, conversionUnit, conversionRatio })
@@ -306,7 +306,7 @@ export class RawMaterialsDictService {
    */
   public static async deleteMaterial(name: string): Promise<void> {
     // 校验（isDefault 保护）与级联删除台账/备餐报表里的同名条目均已迁移到后端，前端只负责发起请求
-    const res = await fetch(`/api/raw-materials/${encodeURIComponent(name)}`, { method: "DELETE" });
+    const res = await SyncHelper.fetchWithVersion(`/api/raw-materials/${encodeURIComponent(name)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.error || "删除原料失败");

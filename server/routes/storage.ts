@@ -21,7 +21,22 @@ export const storageRouter = express.Router();
  */
 storageRouter.get("/load", async (req, res) => {
   try {
-    const data = await StorageService.load();
+    const { start, end, bypassCache } = req.query;
+    
+    // 如果没有明确要求绕过缓存，且前端携带了版本号，进行 304 判断
+    if (bypassCache !== "true") {
+      const baseVersionStr = req.header("X-Base-Version");
+      if (baseVersionStr) {
+        const baseVersion = parseInt(baseVersionStr, 10);
+        const currentVersion = StorageService.getDbVersion();
+        if (baseVersion === currentVersion) {
+          // 数据未发生任何改变，且前端请求的是与其当前内存一致的日期范围（由前端控制 bypassCache 保证），直接返回 304
+          return res.status(304).end();
+        }
+      }
+    }
+
+    const data = await StorageService.load(start as string, end as string);
     // 首次启动判定：直接看加载结果是否为空对象即可，无需探测某个具体存储引擎的内部文件/连接细节。
     // 这样无论本地 SQLite 阶段一迁移前后、还是云端 COS 模式，判定逻辑都是同一套，也不再需要越权访问私有字段
     const isFirstBoot = Object.keys(data).length === 0;

@@ -161,7 +161,7 @@ export class LedgerService {
     // 校验、级联同步餐位人群配置（此前的 PrepReportService.syncGroupFromLedger）均已迁移到后端一次事务完成
     // （阶段B，见 SQLite迁移规划.md），前端只负责发起请求、用响应更新内存缓存
     const oldName = this.ledgers.find((l) => l.id === id)?.name;
-    const res = await fetch(`/api/ledgers/${encodeURIComponent(id)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name })
@@ -192,7 +192,7 @@ export class LedgerService {
     // 校验、级联删除原料项目/对应餐位人群配置/月度报表（此前的 PrepReportService.syncDeleteGroupFromLedger）
     // 均已迁移到后端一次事务完成，前端只负责发起请求
     const ledger = this.ledgers.find((l) => l.id === id);
-    const res = await fetch(`/api/ledgers/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(id)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.error || "删除台账失败");
@@ -269,7 +269,7 @@ export class LedgerService {
     initialStock: number
   ): Promise<LedgerItem> {
     // 校验规则已迁移到后端（阶段B，见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存
-    const res = await fetch(`/api/ledgers/${encodeURIComponent(ledgerId)}/items`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(ledgerId)}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, unit, spec, initialStock })
@@ -300,7 +300,7 @@ export class LedgerService {
     initialStock: number
   ): Promise<void> {
     const oldName = this.ledgerItems.find((item) => item.id === id)?.name;
-    const res = await fetch(`/api/ledger-items/${encodeURIComponent(id)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/ledger-items/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, unit, spec, initialStock })
@@ -326,7 +326,7 @@ export class LedgerService {
    */
   public static async deleteLedgerItem(id: string): Promise<void> {
     const item = this.ledgerItems.find((i) => i.id === id);
-    const res = await fetch(`/api/ledger-items/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const res = await SyncHelper.fetchWithVersion(`/api/ledger-items/${encodeURIComponent(id)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.error || "删除原料失败");
@@ -389,7 +389,7 @@ export class LedgerService {
       throw new Error("找不到对应的采购原料项目");
     }
 
-    const res = await fetch(`/api/ledger-items/${encodeURIComponent(itemId)}/daily/${encodeURIComponent(dateStr)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/ledger-items/${encodeURIComponent(itemId)}/daily/${encodeURIComponent(dateStr)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(fields)
@@ -443,7 +443,7 @@ export class LedgerService {
     dateStr: string,
     updates: Record<string, Partial<DailyStockRecord>>
   ): Promise<void> {
-    const res = await fetch(`/api/ledger-items/batch-daily/${encodeURIComponent(dateStr)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/ledger-items/batch-daily/${encodeURIComponent(dateStr)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ updates })

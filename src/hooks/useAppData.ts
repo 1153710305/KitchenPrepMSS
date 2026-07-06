@@ -190,37 +190,6 @@ export function useAppData(): UseAppDataResult {
       }
     });
 
-    // 心跳静默同步：每 10 秒钟静默从服务器拉取一次最新状态覆盖内存并触发分发重绘（解决多浏览器并发操作数据冲突）
-    const syncInterval = setInterval(async () => {
-      try {
-        // 记录本次心跳请求发起的时刻，用于识别请求期间是否发生了更"新"的本地写入（竞态）
-        const requestStartedAt = Date.now();
-        const freshData = await SyncHelper.loadFromServer();
-
-        // 若本次心跳请求发出之后、响应返回之前，发生了真实的本地数据变更（如台账录入保存），
-        // 说明这份响应所携带的数据早于该次本地变更，直接覆盖内存会导致刚保存的数据在界面上"消失"。
-        // 另外，即便本地变更发生在心跳请求发出之前，只要它的增量同步还在 200ms 防抖排队或已发出请求尚未
-        // 收到服务器确认（hasPendingSync），这份心跳响应同样有可能早于该次本地变更真正落盘的时刻，
-        // 覆盖内存会导致刚保存的数据被短暂"冲掉"，要等下一轮心跳才重新出现。两种情况都丢弃本轮响应即可：
-        // 本地变更会通过自身的去抖动同步写入服务器，下一次心跳自然能拿到已确认落盘的最新状态。
-        // 守卫必须在 loadFromServer() 之后、应用之前检查（而不是在发起请求前检查），才能捕捉到"请求飞行期间
-        // 发生的竞态写入"——这也是心跳没有直接用共用的 SyncHelper.refreshNow() 的原因：refreshNow() 拿到数据后
-        // 立即应用、不做守卫，这里需要在"拉取"和"应用"之间插入这段守卫判断。
-        if (SyncHelper.getLastLocalMutationAt() > requestStartedAt || SyncHelper.hasPendingSync()) {
-          return;
-        }
-
-        if (freshData && active) {
-          const changed = SyncHelper.applyFreshData(freshData);
-          if (changed) {
-            LogBroker.publish("INFO", "App", "心跳同步成功，检测到服务器数据变化并完成多端数据静默对齐");
-          }
-        }
-      } catch (err) {
-        console.warn("[SILENT HEARTBEAT SYNC] 静默定时同步失败:", err);
-      }
-    }, 10000);
-
     // 监听前端浏览器全局未捕获 JS 运行时脚本错误
     const handleGlobalError = (event: ErrorEvent) => {
       const errMsg = `Message: ${event.message} | Source: ${event.filename} | Line: ${event.lineno}:${event.colno} | Stack: ${event.error?.stack || "No Stack"}`;
@@ -241,7 +210,6 @@ export function useAppData(): UseAppDataResult {
       active = false;
       unsubscribe();
       unsubscribeLedger();
-      clearInterval(syncInterval);
       window.removeEventListener("error", handleGlobalError);
       window.removeEventListener("unhandledrejection", handleGlobalRejection);
     };

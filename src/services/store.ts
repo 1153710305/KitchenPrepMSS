@@ -393,7 +393,7 @@ export class PrepReportService {
   public static async saveGroup(key: string, label: string, emoji: string): Promise<void> {
     // 校验、isDefault保留、级联同步创建/改名对应台账（此前的 LedgerService.syncLedgerFromGroup 调用）
     // 均已迁移到后端（阶段C，见 SQLite迁移规划.md）
-    const res = await fetch(`/api/groups/${encodeURIComponent(key)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/groups/${encodeURIComponent(key)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label, emoji })
@@ -424,7 +424,7 @@ export class PrepReportService {
   public static async deleteGroup(key: string): Promise<void> {
     // 校验、级联删除报表/对应台账（此前的 LedgerService.syncDeleteLedgerFromGroup 调用）均已迁移到后端
     const upperKey = key.toUpperCase();
-    const res = await fetch(`/api/groups/${encodeURIComponent(key)}`, { method: "DELETE" });
+    const res = await SyncHelper.fetchWithVersion(`/api/groups/${encodeURIComponent(key)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.error || "删除人群配置失败");
@@ -445,7 +445,7 @@ export class PrepReportService {
    */
   public static async saveCategory(key: string, label: string): Promise<void> {
     // 校验、isDefault保留已迁移到后端（阶段C，见 SQLite迁移规划.md）
-    const res = await fetch(`/api/categories/${encodeURIComponent(key)}`, {
+    const res = await SyncHelper.fetchWithVersion(`/api/categories/${encodeURIComponent(key)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label })
@@ -473,7 +473,7 @@ export class PrepReportService {
   public static async deleteCategory(key: string): Promise<void> {
     // 校验/级联清空报表里的对应细分项已迁移到后端
     const upperKey = key.toUpperCase();
-    const res = await fetch(`/api/categories/${encodeURIComponent(key)}`, { method: "DELETE" });
+    const res = await SyncHelper.fetchWithVersion(`/api/categories/${encodeURIComponent(key)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
       throw new Error(body.error || "删除大类配置失败");

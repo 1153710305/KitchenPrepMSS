@@ -15,6 +15,7 @@ import { LogBroker, getDaysInMonth } from "./utils.ts";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary.tsx";
 import { useAppAuth } from "./hooks/useAppAuth.ts";
 import { useAppData } from "./hooks/useAppData.ts";
+import { SyncHelper } from "./services/syncHelper.ts";
 
 const AdminBackend = lazy(() => import("./components/admin/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
 const LedgerSystem = lazy(() => import("./components/ledger/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
@@ -75,10 +76,6 @@ export default function App() {
     };
   }, []);
 
-  /** 当前备餐查看选中的年份与月份 */
-  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
-
   // 备餐报表/台账/原料字典三大服务的首屏加载、多端同步与心跳静默同步逻辑，统一由 useAppData 提供
   const {
     reports,
@@ -116,6 +113,25 @@ export default function App() {
     handleAdminAccessAttempt,
     handleVerifyPasswordSubmit
   } = useAppAuth();
+
+  /** 当前备餐查看选中的年份与月份 */
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
+
+  // ================= 按月懒加载触发器 (针对备餐报表) =================
+  useEffect(() => {
+    // 只有当 SyncHelper 初始化完成后（即跳过首屏初始化拉取），才因为账期变动而触发增量拉取
+    // 这里依赖 SyncHelper 的 loadedStartDate/End 判断是否真正发请求
+    const yStr = String(selectedYear);
+    const mStr = String(selectedMonth).padStart(2, "0");
+    const requiredStart = `${yStr}-${mStr}-01`;
+    const requiredEnd = `${yStr}-${mStr}-${new Date(selectedYear, selectedMonth, 0).getDate()}`;
+    
+    // 我们在此触发 refreshNow 即可，内部会校验缓存和 bypassCache
+    SyncHelper.refreshNow(requiredStart, requiredEnd).catch(err => {
+      console.error("切换备餐报表账期懒加载失败:", err);
+    });
+  }, [selectedYear, selectedMonth]);
 
   /** 库存总览面板显示状态 */
   const [isInventoryOpen, setIsInventoryOpen] = useState<boolean>(false);

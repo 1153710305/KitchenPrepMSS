@@ -26,6 +26,7 @@ import { LedgerSidebar } from "./LedgerSidebar.tsx";
 import { LedgerControlBar } from "./LedgerControlBar.tsx";
 import { useLedgerData } from "../../hooks/useLedgerData.ts";
 import { useLedgerRecording } from "../../hooks/useLedgerRecording.ts";
+import { SyncHelper } from "../../services/syncHelper.ts";
 import {
   Calendar,
   AlertCircle,
@@ -141,6 +142,32 @@ export function LedgerSystem() {
       category: item.category
     }));
   }, [editingMaterialId]);
+
+  // ================= 懒加载数据触发器 =================
+  useEffect(() => {
+    let requiredStart = selectedDate;
+    let requiredEnd = selectedDate;
+
+    if (ledgerStyle === "style1") {
+      // 样式一（总表）：默认拉取 selectedDate 所在自然月的所有数据
+      const parts = selectedDate.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        requiredStart = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+        requiredEnd = `${y}-${String(m + 1).padStart(2, "0")}-${new Date(y, m + 1, 0).getDate()}`;
+      }
+    } else if (ledgerStyle === "style2" && style2StartDate && style2EndDate) {
+      // 样式二（单原料流水）：如果有自定义日期范围，则拉取该范围
+      requiredStart = style2StartDate;
+      requiredEnd = style2EndDate;
+    }
+
+    // 触发刷新请求，SyncHelper 内部会自动判定是否与当前缓存的区间一致
+    SyncHelper.refreshNow(requiredStart, requiredEnd).catch(err => {
+      console.error("按需懒加载数据失败:", err);
+    });
+  }, [ledgerStyle, selectedDate, style2StartDate, style2EndDate]);
 
   // ================= 计算属性与动态过滤 =================
 
