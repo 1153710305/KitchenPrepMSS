@@ -1037,22 +1037,13 @@ export class StorageService {
     };
 
     const findLedgerItem = (id: string) => data.ledgerItems.find((i: any) => i.id === id);
-    const findReport = (tg: string, y: number, m: number) => data.reports.find((r: any) => r.targetGroup === tg && r.year === y && r.month === m);
-    const findPreparedItem = (id: string): { report: any; item: any } | null => {
-      for (const r of data.reports) {
-        const it = (r.items ?? []).find((i: any) => i.id === id);
-        if (it) return { report: r, item: it };
-      }
-      return null;
-    };
-
     for (const op of ops) {
       if (op.op === "replaceAll") {
         const rows = op.data ?? [];
         switch (op.entity) {
           case "ledger": data.ledgers = rows; break;
           case "ledgerItem": data.ledgerItems = rows.map((item: any) => ({ ...item, dailyRecords: item.dailyRecords ?? {} })); break;
-          case "report": data.reports = rows.map((r: any) => ({ ...r, items: (r.items ?? []).map((it: any) => ({ ...it, dailyData: it.dailyData ?? {} })) })); break;
+
           case "activeGroup": data.activeGroups = rows; break;
           case "activeCategory": data.activeCategories = rows; break;
           case "rawMaterial": data.rawMaterialsDict = rows; break;
@@ -1087,33 +1078,7 @@ export class StorageService {
           break;
         }
 
-        case "report": {
-          const key = op.key as { targetGroup: string; year: number; month: number };
-          const existingItems = findReport(key.targetGroup, key.year, key.month)?.items ?? [];
-          data.reports = data.reports.filter((r: any) => !(r.targetGroup === key.targetGroup && r.year === key.year && r.month === key.month));
-          if (op.op === "upsert") data.reports.push({ targetGroup: key.targetGroup, year: key.year, month: key.month, items: existingItems });
-          break;
-        }
 
-        case "preparedItem": {
-          for (const r of data.reports) r.items = (r.items ?? []).filter((i: any) => i.id !== op.key);
-          if (op.op === "upsert") {
-            const d = op.data;
-            const report = findReport(d.reportTargetGroup, d.reportYear, d.reportMonth);
-            if (report) report.items.push({ ...d, dailyData: {} });
-          }
-          break;
-        }
-
-        case "preparedItemDailyData": {
-          const key = op.key as { itemId: string; date: string };
-          const found = findPreparedItem(key.itemId);
-          if (found) {
-            if (op.op === "delete") delete found.item.dailyData[key.date];
-            else found.item.dailyData[key.date] = op.data;
-          }
-          break;
-        }
 
         case "activeGroup":
           data.activeGroups = data.activeGroups.filter((g: any) => g.key !== op.key);
@@ -1279,21 +1244,7 @@ export class StorageService {
           ops.push({ entity: "ledgerItem", op: "upsert", key: item.id, data: { ...item, name: trimmedName, unit: finalUnit, spec: finalRemark } });
         }
       }
-      // 级联：备餐报表里所有同名细项的 name/category/unit
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      for (const report of reports) {
-        for (const item of (report.items ?? []) as PreparedItem[]) {
-          if (item.name === oldName) {
-            ops.push({
-              entity: "preparedItem", op: "upsert", key: item.id,
-              data: {
-                id: item.id, reportTargetGroup: report.targetGroup, reportYear: report.year, reportMonth: report.month,
-                name: trimmedName, category: input.category, targetGroup: item.targetGroup, unit: finalUnit, note: (item as any).note
-              }
-            });
-          }
-        }
-      }
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1326,14 +1277,7 @@ export class StorageService {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
         }
       }
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      for (const report of reports) {
-        for (const item of (report.items ?? []) as PreparedItem[]) {
-          if (item.name === name) {
-            ops.push({ entity: "preparedItem", op: "delete", key: item.id });
-          }
-        }
-      }
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1378,13 +1322,7 @@ export class StorageService {
         // 极端情形：台账存在但对应的餐位人群配置尚不存在，补齐一份并按需补一份当月空报表，
         // 与迁移前 syncGroupFromLedger() 的"新建人群"分支保持一致
         ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { key: id, label: normalizedName, emoji: "🍽️" } });
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
-        const reports: GroupMonthlyReport[] = current.reports ?? [];
-        const reportExists = reports.some((r) => r.targetGroup === id && r.year === currentYear && r.month === currentMonth);
-        if (!reportExists) {
-          ops.push({ entity: "report", op: "upsert", key: { targetGroup: id, year: currentYear, month: currentMonth } });
-        }
+        // 此时已不再需要为其自动补充对应的备餐空报表（已弃用 physical tables）
       }
 
       const ok = await StorageService.saveInternal(ops);
@@ -1423,10 +1361,7 @@ export class StorageService {
       if (activeGroups.some((g) => g.key === upperId)) {
         ops.push({ entity: "activeGroup", op: "delete", key: upperId });
       }
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      reports.filter((r) => r.targetGroup === upperId).forEach((report) => {
-        ops.push({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
-      });
+
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
