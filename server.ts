@@ -16,6 +16,7 @@ import { miscRouter } from "./server/routes/misc.ts";
 import { rawMaterialsRouter } from "./server/routes/rawMaterials.ts";
 import { ledgersRouter, ledgerItemsRouter } from "./server/routes/ledgers.ts";
 import { groupsRouter, categoriesRouter } from "./server/routes/reports.ts";
+import { systemRouter } from "./server/routes/system.ts";
 
 // 加载环境变量
 dotenv.config();
@@ -62,6 +63,9 @@ app.use("/api/categories", categoriesRouter);
 
 // 挂载杂项路由 (/api/log、/api/health)
 app.use("/api", miscRouter);
+
+// 挂载系统维护路由 (/api/system)
+app.use("/api/system", systemRouter);
 
 /**
  * @description 是否为开发模式：必须显式设置 NODE_ENV=development 才会进入开发模式（由 npm run dev 通过 cross-env 设置）。

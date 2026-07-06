@@ -14,6 +14,7 @@ import { LogBroker } from "../../utils.ts";
 import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
 import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
+import { AdminSystemTab } from "./AdminSystemTab.tsx";
 import {
   Users,
   Settings,
@@ -27,7 +28,8 @@ import {
   Sparkles,
   ChevronLeft,
   FileSpreadsheet,
-  Lock
+  Lock,
+  Database
 } from "lucide-react";
 
 /**
@@ -67,9 +69,9 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
   // --- 导航状态 ---
   /**
-   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'ledger_helpers'代表台账常用字典配置
+   * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'ledger_helpers'代表台账常用字典配置，'system'代表系统维护
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "ledger_helpers">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "ledger_helpers" | "system">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -313,6 +315,16 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 <span>台账人员与供货商</span>
               </button>
 
+              <button
+                onClick={() => setActiveTab("system")}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${activeTab === "system"
+                  ? "bg-red-50 border-red-500 text-red-700 font-bold"
+                  : "text-slate-600 hover:bg-slate-50 border-transparent"
+                  }`}
+              >
+                <Database size={15} className="mr-3 shrink-0" />
+                <span>系统维护</span>
+              </button>
             </nav>
           </div>
 
@@ -327,13 +339,10 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
 
         {/* 右侧核心功能工作盘 */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-6 bg-slate-50">
-
-          {/* 一级人群管理 Tab 页 */}
-          {activeTab === "groups" && (
-            <AdminGroupsTab />
-          )}
-
-          {/* 食材大类管理 Tab 页 */}
+          {activeTab === "groups" && <AdminGroupsTab />}
+          {activeTab === "dictionary" && <AdminDictTab showConfirm={showConfirm} />}
+          {activeTab === "ledger_helpers" && <AdminLedgerHelpersTab showConfirm={showConfirm} />}
+          {activeTab === "system" && <AdminSystemTab showConfirm={showConfirm} />}
           {activeTab === "categories" && (
             <div className="space-y-6 max-w-4xl animate-fade-in">
               <section className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">

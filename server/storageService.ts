@@ -68,6 +68,39 @@ export class StorageService {
   private static localDataDir: string = path.resolve(process.env.LOCAL_DATA_DIR || "data");
 
   /**
+   * @description 一键清空所有台账流水记录（保留底表）
+   * @returns {boolean} 操作是否成功
+   */
+  public static async clearDailyRecords(): Promise<boolean> {
+    return StorageService.withWriteLock(async () => {
+      try {
+        if (StorageService.storageType === "local") {
+          const db = StorageService.getDb();
+          db.prepare("DELETE FROM ledger_item_daily_records").run();
+          return true;
+        } else {
+          // COS 模式下，直接修改全量数据并上传
+          const data = await StorageService.loadCosData();
+          if (data.ledgers) {
+            for (const ledger of data.ledgers) {
+              if (ledger.items) {
+                for (const item of ledger.items) {
+                  item.dailyRecords = {};
+                }
+              }
+            }
+          }
+          await StorageService.saveCosData(data);
+          return true;
+        }
+      } catch (err: any) {
+        console.error("[STORAGE ERROR] 清空台账记录失败:", err);
+        return false;
+      }
+    });
+  }
+
+  /**
    * @description 本地 SQLite 数据库文件路径
    */
   private static sqliteDbPath: string = path.join(StorageService.localDataDir, "kpmss.sqlite");
