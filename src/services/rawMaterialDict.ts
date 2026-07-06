@@ -176,7 +176,7 @@ export class RawMaterialsDictService {
 
       // 低耗品 (LOW_CONSUMP)
       { name: "中袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "" },
-      { name: "黑袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "" },
+      { name: "黑袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "40x65" },
       { name: "一次性手套", category: FoodCategory.LOW_CONSUMP, unit: "袋", remark: "" },
       // 水果 (FRUIT)
       { name: "沃柑", category: FoodCategory.FRUIT, unit: "斤", remark: "" },
