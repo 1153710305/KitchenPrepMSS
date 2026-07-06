@@ -124,7 +124,13 @@ export function LedgerPrintStyle2({
 .ledger-print-style2-table thead th {
   background-color: #ffffff !important;
 }
-
+        /* 强制允许换行，并压缩字号行高防止撑开固定行高 */
+        .ledger-print-style2-table td {
+          word-break: break-all !important;
+          white-space: normal !important;
+          font-size: 11px !important; 
+          line-height: 1.2 !important; 
+        }
         @media print {
           .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
             -webkit-print-color-adjust: exact !important;
