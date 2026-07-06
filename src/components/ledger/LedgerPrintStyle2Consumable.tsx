@@ -198,7 +198,8 @@ export function LedgerPrintStyle2Consumable({
                       <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
                     </tr>
                   );
-                })();}
+                });
+              })()}
 
                 {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
