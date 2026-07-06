@@ -790,3 +790,9 @@ Fix bug：
 
 **Action:**
 - 修改了 LedgerPrintStyle1.tsx，将原生渲染大量数据单一表格的方式，重构为拆分 pages 循环渲染多个独立 DOM 块的方式，并在每个 page 上附加 `pageBreakAfter: always`，完美实现分页与跨行合并单元格正确计算。
+
+## 2026-07-06 修复原生打印机预览分页失效 Bug
+**User Prompt:** 系统预览下已经分页了，但是打印机预览下还是一页。
+
+**Action:**
+- 修复了 LedgerPrintPreviewOverlay 组件未脱离 React 根容器导致打印引擎视窗裁剪的 Bug，采用 `createPortal` 将遮罩挂载到 `document.body`，并通过 `@media print` 隐藏了 `#root`，确保底层原生打印机正确识别并分割纸张页数。
