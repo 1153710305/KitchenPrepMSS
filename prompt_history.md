@@ -822,3 +822,15 @@ Fix bug：
 - 在前端 `store.ts` 移除 31 天 0 值预占位，仅使用 `{}` 空对象；前端渲染层具备完善的 `?? { quantity: 0 }` 回退，不受影响。
 - 在后端 `storageService.ts` 的全量及增量保存环节增加过滤拦截：如果 `quantity=0` 且 `amount=0`，则跳过保存或执行 `DELETE`（在增量同步时），以支持用户将已有数值清零的场景。
 - 在后端启动 `init()` 阶段注入 `DELETE FROM prepared_item_daily_data WHERE quantity = 0 AND amount = 0`，自动清理历史沉积的数十万条垃圾脏数据。
+
+## 2026-07-07 系统超级复位(大扫除)功能升级
+**User Prompt:** 
+- 一键清理流水记录也要清理库存吧。prepared_item_daily_data、prepared_items、sys_config这个表不用清理么？reports是干嘛的用不用清理
+- 没看懂，curront_stock不应该清零么？reports清空会怎样
+- 库存不对啊，
+- 肯定要都清理啊，你这么清理，当月受众全采购支出也不对啊
+
+**Action:**
+- 修复了此前清空流水但遗漏了清空 `ledger_items` 里的 `initial_stock` 和 `current_stock`，导致库存总览显示异常的 Bug。
+- 应用户要求，将原“一键清空台账流水”功能全面升级为“**系统大扫除（清空流水与报表）**”的超级复位键。
+- 除了清空台账明细与库存，现在还会连带执行 `DELETE FROM reports`、`prepared_items` 以及 `prepared_item_daily_data`，彻底清空以往所有的备餐历史记录，方便学期初从零开始（但依然保留各项食材的字典、供货商等基本配置）。

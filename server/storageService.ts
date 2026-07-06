@@ -1018,9 +1018,8 @@ export class StorageService {
       FROM prepared_items
     `).all() as any[];
     
-    let dailyDataRowsSql = "SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data WHERE date >= ? AND date <= ?";
-    const dailyDataRowsParams = [filterStart, filterEnd];
-    const dailyDataRows = db.prepare(dailyDataRowsSql).all(...dailyDataRowsParams) as any[];
+    let dailyDataRowsSql = "SELECT item_id as itemId, date, quantity, price, amount FROM prepared_item_daily_data";
+    const dailyDataRows = db.prepare(dailyDataRowsSql).all() as any[];
     const dailyDataByItem: Record<string, Record<string, any>> = {};
     for (const row of dailyDataRows) {
       if (!dailyDataByItem[row.itemId]) dailyDataByItem[row.itemId] = {};
