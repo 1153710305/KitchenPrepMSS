@@ -197,10 +197,9 @@ export function LedgerStyle1Table({
         </span>
       </div>
 
-      <div className="relative">
-        {/* 左右移动导航栏：粘性定位配合向下偏移，使其始终悬浮在可视区域的两侧居中位置 */}
-        <div className="sticky top-0 z-20 h-0 pointer-events-none">
-          <div className="flex justify-between px-1.5 translate-y-[35vh]">
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* 左右移动导航栏：绝对定位，始终悬浮在表格内部垂直居中的两侧 */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 z-20 pointer-events-none flex justify-between px-1.5">
             <button
               type="button"
               onClick={() => scrollTable(-1)}
@@ -218,11 +217,10 @@ export function LedgerStyle1Table({
               <ChevronRight size={16} />
             </button>
           </div>
-        </div>
-        <div ref={tableScrollRef} className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-[13px] min-w-[1380px]">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase">
+        <div ref={tableScrollRef} className="overflow-auto flex-1 bg-white">
+          <table className="w-full text-left border-collapse text-[13px] min-w-[1380px] relative">
+            <thead className="sticky top-0 z-10 shadow-sm">
+              <tr className="bg-white border-b border-slate-200 text-slate-500 font-bold uppercase">
                 <th className="px-4 py-2.5 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
                 <th className="px-3 py-2.5 text-center text-violet-700 font-bold bg-violet-50/40 whitespace-nowrap">二级品类</th>
                 <th className="px-3 py-2.5 text-center text-slate-600 font-bold w-20">单位</th>

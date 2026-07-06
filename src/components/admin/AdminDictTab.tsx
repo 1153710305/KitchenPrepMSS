@@ -56,10 +56,15 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
       return;
     }
 
-    const conversionRatio = dictConversionRatioInput.trim() ? Number(dictConversionRatioInput) : undefined;
-    if (dictConversionRatioInput.trim() && isNaN(Number(dictConversionRatioInput))) {
-      setDictError("换算比例必须是有效的数值！");
-      return;
+    let conversionRatio: number | undefined = undefined;
+    const rawRatio = dictConversionRatioInput.trim();
+    if (rawRatio !== "" && rawRatio !== "NaN") {
+      const parsed = Number(rawRatio);
+      if (isNaN(parsed)) {
+        setDictError("换算比例必须是有效的数值！");
+        return;
+      }
+      conversionRatio = parsed;
     }
 
     try {

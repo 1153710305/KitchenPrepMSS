@@ -712,3 +712,15 @@
 
 - **实现方案**：详见 [readme_zh.md] 中 [V5.99.0] 条目——讨论"能否派生展示、不单独存表"这个架构问题时排查现存写路径，发现 `handleBatchPriceUpdate`/`batchUpdatePriceCol`（一键批量调价）与 [V5.95.0] 清理的 `addPreparedItem`/`updateCell`/`deletePreparedItem` 同属一类死代码，从未被任何按钮触发过。用户确认"先删除冗余逻辑"，删除该功能链路全部四层（`App.tsx`/`store.ts`/`storageService.ts`/`routes/reports.ts`），顺带清理两处 [V5.95.0] 当时遗漏的连带死代码（`App.tsx` 的 `getGroupLabel`/`getCategoryLabel`、`store.ts` 的 `RawMaterialsDictService` 引用）及因此变成孤儿的 `calculateEntryAmount`（`utils.ts`）。
 - **验证**：同步删除对应测试用例；全量 409 个用例通过；`tsc --noEmit` 报错数保持 18；构建成功。
+
+### 🚀 2026-07-06 - [V5.99.0] Bug Fix：换算比例置空报错处理与台账导航按钮遮挡修复
+- **提示词原文**：
+
+```markdown
+换算比例还是不允许空，为空会提示"换算比例必须是有效的数值"
+台账录入界面的左右移动的点击按钮随着上下滑动隐藏消失了
+```
+
+- **实现方案**：
+  1. **换算比例置空报错**：当使用 `<input type="number">` 且绑定的 React state 为特殊字符如 `"NaN"`（历史脏数据引发）时，输入框视觉显示为空，但提交时会因为 `trim()` 取到 `"NaN"` 进而触发 `isNaN` 的无效数值报错。在 `AdminDictTab.tsx` 表单提交校验逻辑中增加针对 `"NaN"` 的专项忽略与安全拦截，将其视同于无内容 (`undefined`)，确保表单能顺利置空提交。
+  2. **台账悬浮按钮消失**：原实现由于垂直滚动条落在 `#ledger-detail-scroll-container` 上，导致 `LedgerStyle1Table` 作为其子元素整体被卷动，`sticky` 方案失效。本次重构了台账主体表单组件的 Flex 布局，把 `overflow-x-auto` 升级为 `overflow-auto flex-1`，将垂直与水平滚动条收敛至表格组件内部；原左右导航按钮改用 `absolute top-1/2` 并在父级增加 `relative flex-1 min-h-0`，从而使得表头能做到真正吸顶（`sticky top-0 z-10`），且导航按钮始终保持在表格框内的绝对居中，完美解决了随上下滑动消失的问题。
