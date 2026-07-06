@@ -760,3 +760,15 @@ Fix bug：
 - 在 LedgerPrintStyle1、LedgerPrintStyle2、LedgerPrintStyle2Consumable 中移除了 CSS 的全局 !important 限制。
 - 为各表格数据列与表头增加按字符长度阈值智能缩小字号至 11px 并调整行高至 1.2 的逻辑。
 - 为图二及衍生低耗品打印模板的外层包裹 div 加入 marginLeft/marginRight: 6mm 约束，对齐图一样式，彻底消除横向撑满引发的细微垂直滚动条偏置。
+
+## 2026-07-06 修复出库应用联动 Bug
+**User Prompt:** 当一键应用出库人姓名时，采购员的姓名也被改了
+
+**Action:**
+- 修改了 LedgerSystem.tsx 中的 `handleApplyBatchSignatures` 函数，去除了其中关于 `buyer`、`inspector` 和 `keeper` 的硬编码联动赋值，确保出库批量填报仅作用于 `outHandler` 和 `outRecipient`。
+
+## 2026-07-06 修复原料删除级联 Bug
+**User Prompt:** 当删除6号的土豆记录时，5号等其他日期的的土豆记录也被删除了
+
+**Action:**
+- 修改了 LedgerSystem.tsx 中的 `handleDeleteMaterial` 函数。新增历史日期存在性检查。若原料在非当前日期有记录，则只清零当天的 record（更新属性为0/空）；若在其它天无记录，才触发物理删除 `deleteLedgerItem`，避免了跨日期的误删现象。
