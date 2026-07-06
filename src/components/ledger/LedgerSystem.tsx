@@ -491,12 +491,9 @@ export function LedgerSystem() {
         const fieldsToUpdate: Partial<DailyStockRecord> = {};
         if (batchOutHandler.trim()) {
           fieldsToUpdate.outHandler = batchOutHandler.trim();
-          fieldsToUpdate.buyer = batchOutHandler.trim(); // 采购员与出库发料人联动
         }
         if (batchOutRecipient.trim()) {
           fieldsToUpdate.outRecipient = batchOutRecipient.trim();
-          fieldsToUpdate.inspector = batchOutRecipient.trim(); // 检验员与接收人联动
-          fieldsToUpdate.keeper = batchOutRecipient.trim(); // 保管员接收联动
         }
         
         if (Object.keys(fieldsToUpdate).length > 0) {
