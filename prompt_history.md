@@ -805,7 +805,9 @@ Fix bug：
 **User Prompt:** 
 - 打印分页的问题
 - 继续下一项开发
+- 备份文件不全,kpmss.sqlite  kpmss.sqlite-shm  kpmss.sqlite-wal
 
 **Action:**
 - 修复了图一、图二以及消耗品流水打印时的 CSS 分页失效问题（脱离 `pageBreakAfter` 约束限制，采用独立的 `<div style={{ breakAfter: "page", pageBreakAfter: "always" }} />` 进行分页强制切断）。
-- 确认“在管理增加一个一键清空所有台账记录的功能... 密码配置在.env中...”已在之前的提交中通过 `AdminSystemTab.tsx` 和 `server/routes/system.ts` 实现。
+- 确认清空台账流水与导出数据库功能已实现。
+- 修复了开启 SQLite WAL 模式后直接下载 `.sqlite` 导致最新的 `shm/wal` 日志尚未合并入主文件的问题：改用 `better-sqlite3` 内置的 `db.backup()` 接口来生成临时的一致性全量备份文件再发送给前端，确保数据的完整性。
