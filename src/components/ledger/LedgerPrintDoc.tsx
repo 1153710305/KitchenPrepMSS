@@ -60,7 +60,7 @@ function PrintInDoc({
         <div className="flex justify-between text-xs mt-3 px-1">
           <span>日期：<strong className="underline">{selectedDate}</strong></span>
           <span>台账类别：<strong className="underline">{activeLedger?.name}</strong></span>
-          <span>单据编号：<strong className="underline font-mono">NO.{selectedDate.replace(/-/g, "")}01</strong></span>
+          <span>单据编号：<strong className="underline ">NO.{selectedDate.replace(/-/g, "")}01</strong></span>
         </div>
       </div>
 
@@ -68,18 +68,18 @@ function PrintInDoc({
       <table className="w-full text-left border-collapse border border-black text-xs mb-8">
         <thead>
           <tr className="bg-gray-100 text-center">
-            <th className="border border-black px-2 py-2.5 w-12 font-bold">序号</th>
-            <th className="border border-black px-3 py-2.5 font-bold">食品原材料品名</th>
-            <th className="border border-black px-3 py-2.5 font-bold">规格描述</th>
-            <th className="border border-black px-2 py-2.5 w-16 font-bold">单位</th>
-            <th className="border border-black px-3 py-2.5 w-24 font-bold">今日入库数</th>
-            <th className="border border-black px-3 py-2.5 w-24 font-bold">单价(元)</th>
-            <th className="border border-black px-3 py-2.5 w-28 font-bold">金额(元)</th>
-            <th className="border border-black px-3 py-2.5 w-24 font-bold">发料出库人</th>
-            <th className="border border-black px-3 py-2.5 w-24 font-bold">接收领料人</th>
-            <th className="border border-black px-3 py-2.5 w-20 font-bold">食品索证</th>
-            <th className="border border-black px-3 py-2.5 w-20 font-bold">感官性状</th>
-            <th className="border border-black px-3 py-2.5 font-bold">备注说明/去处</th>
+            <th className="border border-black px-2 py-2.5 w-12 ">序号</th>
+            <th className="border border-black px-3 py-2.5 ">食品原材料品名</th>
+            <th className="border border-black px-3 py-2.5 ">规格描述</th>
+            <th className="border border-black px-2 py-2.5 w-16 ">单位</th>
+            <th className="border border-black px-3 py-2.5 w-24 ">今日入库数</th>
+            <th className="border border-black px-3 py-2.5 w-24 ">单价(元)</th>
+            <th className="border border-black px-3 py-2.5 w-28 ">金额(元)</th>
+            <th className="border border-black px-3 py-2.5 w-24 ">发料出库人</th>
+            <th className="border border-black px-3 py-2.5 w-24 ">接收领料人</th>
+            <th className="border border-black px-3 py-2.5 w-20 ">食品索证</th>
+            <th className="border border-black px-3 py-2.5 w-20 ">感官性状</th>
+            <th className="border border-black px-3 py-2.5 ">备注说明/去处</th>
           </tr>
         </thead>
         <tbody>
@@ -91,9 +91,9 @@ function PrintInDoc({
             </tr>
           ) : (
             dailyInwardItems.map((item, index) => (
-              <tr key={item.id} className="hover:bg-gray-50 text-center">
-                <td className="border border-black px-2 py-2 font-mono">{index + 1}</td>
-                <td className="border border-black px-3 py-2 text-left font-bold">
+              <tr key={item.id} className="hover:bg-white text-center">
+                <td className="border border-black px-2 py-2 ">{index + 1}</td>
+                <td className="border border-black px-3 py-2 text-left ">
                   {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.name ?? item.name}
                 </td>
                 <td className="border border-black px-3 py-2 text-left">
@@ -102,9 +102,9 @@ function PrintInDoc({
                 <td className="border border-black px-2 py-2">
                   {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit ?? item.unit}
                 </td>
-                <td className="border border-black px-3 py-2 text-right font-mono font-bold">{item.record.inQuantity}</td>
-                <td className="border border-black px-3 py-2 text-right font-mono">¥{item.record.inPrice.toFixed(2)}</td>
-                <td className="border border-black px-3 py-2 text-right font-mono font-bold">¥{item.record.inAmount.toFixed(2)}</td>
+                <td className="border border-black px-3 py-2 text-right  ">{item.record.inQuantity}</td>
+                <td className="border border-black px-3 py-2 text-right ">¥{item.record.inPrice.toFixed(2)}</td>
+                <td className="border border-black px-3 py-2 text-right  ">¥{item.record.inAmount.toFixed(2)}</td>
                 <td className="border border-black px-3 py-2">{item.record.outHandler || item.record.buyer || "-"}</td>
                 <td className="border border-black px-3 py-2">{item.record.outRecipient || item.record.inspector || "-"}</td>
                 <td className="border border-black px-3 py-2">{item.record.certification || "-"}</td>
@@ -113,13 +113,13 @@ function PrintInDoc({
               </tr>
             ))
           )}
-          
+
           {/* 入库单合计行 */}
           {dailyInwardItems.length > 0 && (
-            <tr className="bg-gray-50">
-              <td colSpan={5} className="border border-black px-3 py-2.5 font-bold text-center">合计金额 (大写)：{new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(dailyInTotalAmount)}</td>
-              <td colSpan={1} className="border border-black px-3 py-2.5 font-bold text-right">小写合计:</td>
-              <td className="border border-black px-3 py-2.5 text-right font-mono font-black text-sm text-red-600">
+            <tr className="bg-white">
+              <td colSpan={5} className="border border-black px-3 py-2.5  text-center">合计金额 (大写)：{new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(dailyInTotalAmount)}</td>
+              <td colSpan={1} className="border border-black px-3 py-2.5  text-right">小写合计:</td>
+              <td className="border border-black px-3 py-2.5 text-right  font-black text-sm text-red-600">
                 ¥{dailyInTotalAmount.toFixed(2)}
               </td>
               <td colSpan={5} className="border border-black px-3 py-2"></td>
@@ -305,11 +305,11 @@ function PrintOutDoc({
   const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
   const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
   const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + maxSuppliersPerPage;
-  
+
   // 获取最后一页的已用记录行数（如果是空表，则已用行数为 0）
   const lastRowPage = rowPages[rowPages.length - 1];
   const rowsUsedOnLastPage = lastRowPage ? lastRowPage.reduce((sum, g) => sum + g.items.length, 0) : 0;
-  
+
   // 首个供货商块能容纳的数量：最大极限容量 - 已使用的记录行数（最少为 maxSuppliersPerPage）
   const firstChunkCapacity = Math.max(maxSuppliersPerPage, maxCapacity - rowsUsedOnLastPage);
 
@@ -354,7 +354,7 @@ function PrintOutDoc({
             <div
               style={{
                 position: "absolute",
-                right: 0,
+                right: "4em",
                 bottom: "2px",
                 fontSize: LEDGER_PRINT_OUT_CONFIG.outDocSubTitleFontSize,
                 fontWeight: "bold"
@@ -428,7 +428,7 @@ function PrintOutDoc({
         <col style={{ width: "33%" }} />
       </colgroup>
       <thead>
-        <tr className="bg-gray-50 text-center font-bold" style={{ height: "28px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
+        <tr className="bg-white text-center " style={{ height: "42px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
           <th className="border border-black px-1">类别</th>
           <th className="border border-black px-1">序号</th>
           <th className="border border-black px-1">品名</th>
@@ -450,8 +450,13 @@ function PrintOutDoc({
         }
         @page {
           size: A4;
-          margin: 12mm;
+          margin: 20mm 12mm 12mm 12mm;
         }
+          /* 干掉 index.html 的表头全局灰色 */
+.ledger-print-doc-overlay thead th {
+  background-color: #ffffff !important;
+}
+
         @media print {
           .ledger-print-out-table, .ledger-print-out-table th, .ledger-print-out-table td {
             -webkit-print-color-adjust: exact !important;
@@ -561,23 +566,23 @@ function PrintOutDoc({
                         <tr key={`${item.id}-p${pageIndex}g${groupIdx}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight }} className="text-center">
                           {isFirstInGroup && (
                             <td
-                              className="border border-black font-bold"
+                              className="border border-black "
                               rowSpan={group.items.length}
                               style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                             >
                               {group.categoryLabel}{group.continued ? "（续）" : ""}
                             </td>
                           )}
-                          <td className="border border-black font-mono" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
+                          <td className="border border-black " style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>{rowIndex}</td>
                           <td className="border border-black text-center px-1" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                             {displayName}（{displayPrintUnit}）
                           </td>
-                          <td className="border border-black font-mono font-bold" style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
+                          <td className="border border-black  " style={{ fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}>
                             {displayPrintQty}
                           </td>
                           {isFirstInGroup && (
                             <td
-                              className="border border-black font-bold"
+                              className="border border-black "
                               rowSpan={group.items.length}
                               style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                             >
@@ -586,7 +591,7 @@ function PrintOutDoc({
                           )}
                           {isFirstInGroup && (
                             <td
-                              className="border border-black font-bold"
+                              className="border border-black "
                               rowSpan={group.items.length}
                               style={{ verticalAlign: "middle", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }}
                             >
@@ -693,7 +698,7 @@ export function LedgerPrintDoc({
         </span>
         <button
           onClick={onClose}
-          className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded cursor-pointer transition-all"
+          className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs  rounded cursor-pointer transition-all"
         >
           返回台账主页
         </button>

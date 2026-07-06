@@ -155,7 +155,7 @@ export const LEDGER_PRINT_OUT_CONFIG = {
   /**
    * 出库单表格每页固定行数：不足时以空行填充到该行数，超出时按此上限触发分页（对应实际 A4 纸一页最多能放的行数）
    */
-  minPrintRows: 24,
+  minPrintRows: 23,
 
   /**
    * 出库单底部供货商信息每页最多展示的条数，超出部分另起一页续排

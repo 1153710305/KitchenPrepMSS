@@ -105,10 +105,10 @@ export function LedgerPrintStyle2({
           {/* 日期与受众副标题同一行：justify-content: space-between 使受众副标题贴到本行右边缘，
               而本行宽度继承自上方标题行（作为本区块内最宽的一行），故受众副标题的最后一个字恰好与标题的最后一个字对齐 */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "2px" }}>
-            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold" }}>
+            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.dateFontSize, fontWeight: "bold", marginLeft: "28px" }}>
               日期：（  {style2StartDate} 至 {style2EndDate}  ）
             </div>
-            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginLeft: "12px" }}>
+            <div style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginRight: "52px" }}>
               {activeLedger?.name || ""}
             </div>
           </div>
@@ -120,12 +120,20 @@ export function LedgerPrintStyle2({
         .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
           border: 1px solid #000000 !important;
         }
+        /* 干掉 index.html 的表头全局灰色 */
+.ledger-print-style2-table thead th {
+  background-color: #ffffff !important;
+}
+
         @media print {
           .ledger-print-style2-table, .ledger-print-style2-table th, .ledger-print-style2-table td {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             border-color: #000000 !important;
           }
+        }
+        @page {
+          margin: 12mm 18mm; /* 上下保持 12mm 不变，左右 1.5 倍变为 18mm */
         }
       `}</style>
       <table className="ledger-print-style2-table w-full text-center border-collapse mb-6" style={{ tableLayout: "fixed" }}>
@@ -135,41 +143,53 @@ export function LedgerPrintStyle2({
           <col style={{ width: "7%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "6%" }} />
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "17%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "7%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "5%" }} />
+          <col style={{ width: "5%" }} />
           <col style={{ width: "25%" }} />
         </colgroup>
 
         <thead style={{ fontSize: LEDGER_PRINT_STYLE2_CONFIG.headerFontSize }}>
           {/* 表头第一行：基础信息 */}
           <tr style={{ height: "28px" }}>
-            <th className="border border-black px-1 font-bold bg-gray-50">采购项目</th>
-            <th colSpan={2} className="border border-black px-1 font-bold text-center">{activeItem.name}</th>
-            <th className="border border-black px-1 font-bold bg-gray-50">经销商</th>
-            <th colSpan={3} className="border border-black px-1 font-normal text-left">{printSupplier}</th>
-            <th className="border border-black px-1 font-bold bg-gray-50">索证索票</th>
+            <th className="border border-black px-1  bg-white">采购项目</th>
+            <th colSpan={2} className="border border-black px-1  text-center">{activeItem.name}</th>
+            <th className="border border-black px-1  bg-white">经销商</th>
+            <th colSpan={3} className="border border-black px-1 font-normal text-center">{printSupplier}</th>
+            <th className="border border-black px-1  bg-white">索证索票</th>
             <th colSpan={2} className="border border-black px-1 font-normal text-center">{printCert}</th>
           </tr>
 
           {/* 表头第二行：大分类（入库/出库） */}
-          <tr style={{ height: "24px" }} className="bg-gray-50 font-bold">
+          <tr style={{ height: "24px" }} className="bg-white ">
             <th colSpan={7} className="border border-black">入库</th>
             <th colSpan={3} className="border border-black">出库</th>
           </tr>
 
           {/* 表头第三行：明细列头 */}
-          <tr style={{ height: "24px" }} className="bg-gray-50 font-bold">
+          <tr style={{ height: "24px" }} className="bg-white ">
             <th className="border border-black">日期</th>
-            <th className="border border-black">采购数量</th>
+            <th className="border border-black">
+              <div>采购</div>
+              <div>数量</div>
+            </th>
             <th className="border border-black">采购员</th>
-            <th className="border border-black">生产日期</th>
+            <th className="border border-black">
+              <div>生产</div>
+              <div>日期</div>
+            </th>
             <th className="border border-black">保质期</th>
             <th className="border border-black">感官性状</th>
             <th className="border border-black">检验员</th>
-            <th className="border border-black">出库数量</th>
-            <th className="border border-black">当日库存</th>
+            <th className="border border-black">
+              <div>出库</div>
+              <div>数量</div>
+            </th>
+            <th className="border border-black">
+              <div>当日</div>
+              <div>库存</div>
+            </th>
             <th className="border border-black">保管员</th>
           </tr>
         </thead>
@@ -193,15 +213,15 @@ export function LedgerPrintStyle2({
 
               return (
                 <tr key={dStr} style={{ height: "28px", fontSize: LEDGER_PRINT_STYLE2_CONFIG.dataFontSize }}>
-                  <td className="border border-black font-mono text-[10px]">{dStr}</td>
-                  <td className="border border-black font-mono">{displayQty !== "" ? `${displayQty}${displayUnit}` : ""}</td>
+                  <td className="border border-black  ">{dStr}</td>
+                  <td className="border border-black ">{displayQty !== "" ? `${displayQty}${displayUnit}` : ""}</td>
                   <td className="border border-black">{record.buyer || ""}</td>
-                  <td className="border border-black font-mono text-[10px]">{record.produceDate || ""}</td>
-                  <td className="border border-black text-[10px]">{record.shelfLife || ""}</td>
+                  <td className="border border-black  ">{record.produceDate || ""}</td>
+                  <td className="border border-black ">{record.shelfLife || ""}</td>
                   <td className="border border-black">{record.sensoryProperty || ""}</td>
                   <td className="border border-black">{record.inspector || ""}</td>
-                  <td className="border border-black font-mono">{record.outQuantity || ""}</td>
-                  <td className="border border-black font-mono font-bold">{balance}</td>
+                  <td className="border border-black ">{record.outQuantity || ""}</td>
+                  <td className="border border-black  ">{balance}</td>
                   <td className="border border-black">{record.keeper || ""}</td>
                 </tr>
               );
