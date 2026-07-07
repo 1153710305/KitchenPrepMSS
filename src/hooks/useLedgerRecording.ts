@@ -79,7 +79,17 @@ export function useLedgerRecording({
 
     if (cached) {
       try {
-        initialDraft = JSON.parse(cached);
+        const parsedDraft = JSON.parse(cached);
+        const currentItemsMap = new Set(ledgerItems.filter(i => i.ledgerId === activeLedgerId).map(i => i.id));
+        
+        initialDraft = {};
+        for (const [key, value] of Object.entries(parsedDraft)) {
+          // 如果是临时创建的原料ID，或者该ID仍然存在于后台正式数据中，则保留
+          if (key.startsWith("temp_") || currentItemsMap.has(key)) {
+            initialDraft[key] = value as DailyStockRecord;
+          }
+        }
+        
         LogBroker.publish("INFO", "LedgerSystem", `成功加载本地未提交的台账录入缓存: ${draftKey}`);
         onSaveToast("已恢复未提交的本地缓存数据", 2500);
       } catch (err) {

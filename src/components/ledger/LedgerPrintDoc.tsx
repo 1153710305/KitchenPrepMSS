@@ -105,8 +105,8 @@ function PrintInDoc({
                 <td className="border border-black px-3 py-2 text-right  ">{item.record.inQuantity}</td>
                 <td className="border border-black px-3 py-2 text-right ">¥{item.record.inPrice.toFixed(2)}</td>
                 <td className="border border-black px-3 py-2 text-right  ">¥{item.record.inAmount.toFixed(2)}</td>
-                <td className="border border-black px-3 py-2">{item.record.outHandler || item.record.buyer || "-"}</td>
-                <td className="border border-black px-3 py-2">{item.record.outRecipient || item.record.inspector || "-"}</td>
+                <td className="border border-black px-3 py-2">{item.record.outHandler || item.record.buyer || ""}</td>
+                <td className="border border-black px-3 py-2">{item.record.outRecipient || item.record.inspector || ""}</td>
                 <td className="border border-black px-3 py-2">{item.record.certification || "-"}</td>
                 <td className="border border-black px-3 py-2">{item.record.sensoryProperty || "-"}</td>
                 <td className="border border-black px-3 py-2 text-left">{item.record.note || "-"}</td>
@@ -547,7 +547,7 @@ function PrintOutDoc({
                           .map(({ item }) => item.record.outRecipient || "")
                           .filter(Boolean)
                       )
-                    ).join("、") || "-";
+                    ).join("、") || "";
 
                     const handlersFontSize = handlers.length > 10 ? "11px" : LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize;
                     const handlersLineHeight = handlers.length > 10 ? "1.2" : "normal";

@@ -1532,8 +1532,10 @@ export class StorageService {
       for (const [itemId, fields] of Object.entries(updates)) {
         const item = ledgerItems.find((i) => i.id === itemId);
         if (!item) {
-          // 对找不到的原料忽略或抛错，这里选择直接抛错保证数据一致性
-          throw new Error(`找不到对应的采购原料项目(ID: ${itemId})`);
+          // 找不到对应的原料说明它可能已被删除。我们选择忽略并记录警告，而非抛出异常，
+          // 因为抛出异常会导致整个批量提交失败，同时可能导致前端在缓存草稿时陷入无限失败循环。
+          console.warn(`[WARN] 找不到对应的采购原料项目(ID: ${itemId})，跳过该项的更新`);
+          continue;
         }
 
         const { updatedItem, mergedRecord, ops } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
