@@ -113,8 +113,8 @@ export function LedgerInvoiceTab({
                   <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.inQuantity}</td>
                   <td className="px-3 py-2 font-mono text-slate-600">¥{item.record.inPrice.toFixed(2)}</td>
                   <td className="px-3 py-2 font-mono font-bold text-emerald-800">¥{item.record.inAmount.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.outHandler || item.record.buyer || "-"}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || item.record.inspector || "-"}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.outHandler || item.record.buyer || ""}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || item.record.inspector || ""}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.certification || "-"}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || "-"}</td>
                   <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || "-"}</td>

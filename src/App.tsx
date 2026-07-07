@@ -252,8 +252,7 @@ export default function App() {
    * @description 计算原料购销台账所有原料在当前自然月内的累计入库总额
    */
   const currentMonthLedgersTotalAmount = useMemo(() => {
-    const now = new Date();
-    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
     return ledgerItemsList.reduce((sum, item) => {
       let itemSum = 0;
       Object.entries(item.dailyRecords || {}).forEach(([dateStr, record]: [string, any]) => {
@@ -263,7 +262,7 @@ export default function App() {
       });
       return sum + itemSum;
     }, 0);
-  }, [ledgerItemsList]);
+  }, [ledgerItemsList, selectedYear, selectedMonth]);
 
   /** 侧边栏"台账原料累计入库"统计的展示范围：默认当前自然月，用户可手动切换为全部账期累计 */
   const [ledgerAmountScope, setLedgerAmountScope] = useState<"month" | "all">("month");
