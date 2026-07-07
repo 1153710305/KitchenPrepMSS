@@ -157,14 +157,14 @@ export function TableGridMatrixView({
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-black">
+            <tbody className="">
               {filteredItems.map((item) => {
                 const monthlySummary = getItemMonthlySummary(item, days);
                 return (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
 
                     {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                    <td className="p-3 sticky left-0 bg-green-600 border border-black z-10 font-extrabold text-black flex justify-between items-center group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <td className="p-3 sticky left-0 bg-green-600 border border-black z-10 font-extrabold text-black group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       <span className="truncate max-w-[110px] text-[13px] font-bold" title={item.name}>
                         {(() => {
                           const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
