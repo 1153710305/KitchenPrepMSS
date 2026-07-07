@@ -27,6 +27,10 @@ interface TableGridFocusViewProps {
   focusDay: string;
   /** 切换聚焦日期的回调 */
   setFocusDay: (day: string) => void;
+  /** 报表所在年份 */
+  reportYear: number;
+  /** 报表所在月份 */
+  reportMonth: number;
 }
 
 /**
@@ -38,8 +42,16 @@ export function TableGridFocusView({
   dayTotals,
   activeTheme,
   focusDay,
-  setFocusDay
+  setFocusDay,
+  reportYear,
+  reportMonth
 }: TableGridFocusViewProps) {
+  const getWeekday = (year: number, month: number, dayStr: string) => {
+    const d = new Date(year, month - 1, parseInt(dayStr, 10));
+    const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    return weekdays[d.getDay()];
+  };
+
   return (
     <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-4">
 
@@ -63,7 +75,7 @@ export function TableGridFocusView({
                     : "bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100"
                   }`}
               >
-                <div className="text-[11px] opacity-75 font-normal">周天</div>
+                <div className="text-[11px] opacity-75 font-normal">{getWeekday(reportYear, reportMonth, day)}</div>
                 <div>{day}号</div>
                 {hasDataOnDay && (
                   <div className={`w-1.5 h-1.5 rounded-full mx-auto mt-1 ${isSelected ? "bg-white" : "bg-emerald-500"}`} />

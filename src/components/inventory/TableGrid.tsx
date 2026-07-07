@@ -395,6 +395,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
               activeTheme={activeTheme}
               focusDay={focusDay}
               setFocusDay={setFocusDay}
+              reportYear={report.year}
+              reportMonth={report.month}
             />
           )}
         </>
