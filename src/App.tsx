@@ -94,6 +94,8 @@ export default function App() {
 
   /** 移动端侧边栏开启状态 */
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  /** 当前处于激活状态的台账ID（通过子组件冒泡获取，用于底部分类统计汇总） */
+  const [appActiveLedgerId, setAppActiveLedgerId] = useState<string>("");
 
   // 首页登录态与管理员后台密码校验逻辑，统一由 useAppAuth 提供
   const {
@@ -114,9 +116,15 @@ export default function App() {
     handleVerifyPasswordSubmit
   } = useAppAuth();
 
-  /** 当前备餐查看选中的年份与月份 */
-  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
+  // ================= 状态声明：全局日期范围 =================
+  /** 全局当前选择进行数据同步的日期 (格式 YYYY-MM-DD，默认今天) */
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  });
+
+  const selectedYear = parseInt(selectedDate.split("-")[0], 10);
+  const selectedMonth = parseInt(selectedDate.split("-")[1], 10);
 
   // ================= 按月懒加载触发器 (针对备餐报表) =================
   useEffect(() => {
@@ -240,13 +248,14 @@ export default function App() {
    */
   const allLedgersTotalAmount = useMemo(() => {
     return ledgerItemsList.reduce((sum, item) => {
+      if (item.ledgerId !== appActiveLedgerId) return sum;
       let itemSum = 0;
       Object.values(item.dailyRecords || {}).forEach((record: any) => {
         itemSum += record.inAmount || 0;
       });
       return sum + itemSum;
     }, 0);
-  }, [ledgerItemsList]);
+  }, [ledgerItemsList, appActiveLedgerId]);
 
   /**
    * @description 计算原料购销台账所有原料在当前自然月内的累计入库总额
@@ -254,6 +263,7 @@ export default function App() {
   const currentMonthLedgersTotalAmount = useMemo(() => {
     const monthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
     return ledgerItemsList.reduce((sum, item) => {
+      if (item.ledgerId !== appActiveLedgerId) return sum;
       let itemSum = 0;
       Object.entries(item.dailyRecords || {}).forEach(([dateStr, record]: [string, any]) => {
         if (dateStr.startsWith(monthPrefix)) {
@@ -262,7 +272,7 @@ export default function App() {
       });
       return sum + itemSum;
     }, 0);
-  }, [ledgerItemsList, selectedYear, selectedMonth]);
+  }, [ledgerItemsList, selectedYear, selectedMonth, appActiveLedgerId]);
 
   /** 侧边栏"台账原料累计入库"统计的展示范围：默认当前自然月，用户可手动切换为全部账期累计 */
   const [ledgerAmountScope, setLedgerAmountScope] = useState<"month" | "all">("month");
@@ -489,7 +499,7 @@ export default function App() {
           {/* 会话控制：安全登出 */}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[11px] sm:text-[13px] text-slate-300 hover:text-rose-200 rounded cursor-pointer transition-all shadow-sm"
+            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-900/60 font-bold text-[11px] sm:text-[13px] text-slate-300 hover:rose-200 rounded cursor-pointer transition-all shadow-sm"
             title="安全退出当前食堂记账系统并锁定首页面"
           >
             <LogOut size={11} />
@@ -647,7 +657,11 @@ export default function App() {
               </div>
             }>
               <ErrorBoundary fallbackTitle="台账系统模块运行异常">
-                <LedgerSystem />
+                <LedgerSystem 
+                  onActiveLedgerChange={setAppActiveLedgerId}
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                />
               </ErrorBoundary>
             </Suspense>
           ) : (
@@ -700,13 +714,17 @@ export default function App() {
                       type="month"
                       value={`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`}
                       onChange={(e) => {
-                        if (e.target.value) {
-                          const [y, m] = e.target.value.split("-").map(Number);
-                          setSelectedYear(y);
-                          setSelectedMonth(m);
-                          LogBroker.publish("INFO", "App", `切换账期至: ${y}年${m}月`);
-                        }
-                      }}
+                      const val = e.target.value;
+                      if (val) {
+                        const [y, m] = val.split("-");
+                        const currentDay = selectedDate.split("-")[2];
+                        const daysInNewMonth = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+                        const validDay = Math.min(parseInt(currentDay, 10), daysInNewMonth);
+                        const newDate = `${y}-${m}-${String(validDay).padStart(2, "0")}`;
+                        setSelectedDate(newDate);
+                        LogBroker.publish("INFO", "App", `全局报表时间切换为: ${y}年${m}月`);
+                      }
+                    }}
                       className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded px-2.5 py-1 text-[13px] font-bold text-slate-700 outline-none cursor-pointer focus:bg-white focus:border-emerald-500 transition-all"
                     />
                   </div>
