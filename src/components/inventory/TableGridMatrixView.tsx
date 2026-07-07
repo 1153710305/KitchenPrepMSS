@@ -168,7 +168,7 @@ export function TableGridMatrixView({
                   <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${useNewStyle ? "" : "border-b-2 border-black"}`}>
 
                     {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                    <td className={`p-3 sticky left-0 z-10 font-extrabold group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${useNewStyle ? "bg-green-600 border border-black text-black" : "bg-white border-r-2 border-black text-slate-900 flex justify-between items-center"}`}>
+                    <td className={`p-3 sticky left-0 z-10 font-extrabold group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${useNewStyle ? "bg-green-600 border border-black text-black" : "bg-white border-r-2 border-black text-slate-900"}`}>
                       <span className="truncate max-w-[110px] text-[13px] font-bold" title={item.name}>
                         {(() => {
                           const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
