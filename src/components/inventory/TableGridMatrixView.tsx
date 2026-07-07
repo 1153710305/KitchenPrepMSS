@@ -125,8 +125,8 @@ export function TableGridMatrixView({
           <table className={`w-full border-collapse text-left text-[13px] text-gray-500 ${useNewStyle ? "matrix-table" : ""}`}>
             <thead className="text-[12px] font-semibold">
               {/* 一级头: 日期编号 */}
-              <tr className={useNewStyle ? "bg-green-600 text-white" : "bg-slate-50 text-slate-800 border-b-2 border-black"}>
-                <th className={`p-3 sticky left-0 z-20 min-w-[124px] ${useNewStyle ? "border border-black bg-green-600" : "border-r-2 border-black bg-slate-100"}`}>日期/品类</th>
+              <tr className={useNewStyle ? "bg-[#75BD42] text-white" : "bg-slate-50 text-slate-800 border-b-2 border-black"}>
+                <th className={`p-3 sticky left-0 z-20 min-w-[124px] ${useNewStyle ? "border border-black bg-[#75BD42]" : "border-r-2 border-black bg-slate-100"}`}>日期/品类</th>
                 {days.map((day) => {
                   return (
                     <th
@@ -144,8 +144,8 @@ export function TableGridMatrixView({
               </tr>
 
               {/* 二级头: [数量/单价/金额] 三胞胎 */}
-              <tr className={useNewStyle ? "bg-green-600 text-white text-[11px] font-bold" : "bg-slate-100 text-[11px] text-slate-700 font-bold border-b-2 border-black"}>
-                <th className={`p-2.5 sticky left-0 z-20 ${useNewStyle ? "border border-black bg-green-600" : "border-r-2 border-black bg-slate-200"}`}>食材细分项目</th>
+              <tr className={useNewStyle ? "bg-[#75BD42] text-white text-[11px] font-bold" : "bg-slate-100 text-[11px] text-slate-700 font-bold border-b-2 border-black"}>
+                <th className={`p-2.5 sticky left-0 z-20 ${useNewStyle ? "border border-black bg-[#75BD42]" : "border-r-2 border-black bg-slate-200"}`}>食材细分项目</th>
                 {days.map((day) => {
                   const isOdd = parseInt(day, 10) % 2 !== 0;
                   return (
@@ -168,7 +168,7 @@ export function TableGridMatrixView({
                   <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${useNewStyle ? "" : "border-b-2 border-black"}`}>
 
                     {/* 粘性冷冻首列：细分菜名，高负荷滑动不丢失行上下文 */}
-                    <td className={`p-3 sticky left-0 z-10 font-extrabold group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${useNewStyle ? "bg-green-600 border border-black text-black" : "bg-white border-r-2 border-black text-slate-900"}`}>
+                    <td className={`px-3 py-1.5 sticky left-0 z-10 font-extrabold group/cell min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${useNewStyle ? "bg-[#75BD42] border border-black text-black" : "bg-white border-r-2 border-black text-slate-900"}`}>
                       <span className="truncate max-w-[110px] text-[13px] font-bold" title={item.name}>
                         {(() => {
                           const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
@@ -193,13 +193,13 @@ export function TableGridMatrixView({
                       const isOdd = parseInt(day, 10) % 2 !== 0;
                       return (
                         <React.Fragment key={`cell-${item.id}-${day}`}>
-                          <td className={`p-1.5 text-center font-mono text-[13px] font-semibold text-slate-900 ${useNewStyle ? "border border-black bg-white" : `border-b-2 border-r border-slate-300 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}`}>
+                          <td className={`px-2 py-1 min-w-[48px] text-center font-mono text-[13px] font-semibold text-slate-900 ${useNewStyle ? "border border-black bg-white" : `border-b-2 border-r border-slate-300 ${isOdd ? "bg-amber-50" : "bg-teal-50"}`}`}>
                             {entry.quantity || ""}
                           </td>
-                          <td className={`p-1.5 text-center font-mono text-[13px] font-semibold text-slate-900 ${useNewStyle ? "border border-black bg-white" : `border-b-2 border-r border-slate-300 ${isOdd ? "bg-amber-100/50" : "bg-teal-100/50"}`}`}>
+                          <td className={`px-2 py-1 min-w-[48px] text-center font-mono text-[13px] font-semibold text-slate-900 ${useNewStyle ? "border border-black bg-white" : `border-b-2 border-r border-slate-300 ${isOdd ? "bg-amber-100/50" : "bg-teal-100/50"}`}`}>
                             {entry.price ? `¥${entry.price}` : ""}
                           </td>
-                          <td className={`p-1.5 text-center text-[13px] font-black font-mono ${useNewStyle ? "border border-black bg-green-200 text-green-950" : `border-b-2 border-r-2 border-black ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}`}>
+                          <td className={`px-2 py-1 min-w-[56px] text-center text-[13px] font-black font-mono ${useNewStyle ? "border border-black bg-green-200 text-green-950" : `border-b-2 border-r-2 border-black ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}`}>
                             {entry.amount > 0 ? `¥${entry.amount}` : ""}
                           </td>
                         </React.Fragment>
@@ -220,7 +220,7 @@ export function TableGridMatrixView({
 
               {/* 表底累加汇总：各单日大类整体耗资 */}
               <tr className={`font-extrabold text-slate-900 ${useNewStyle ? "bg-gray-100 border-t-2 border-black" : "bg-slate-200 border-t-2 border-black"}`}>
-                <td className={`p-3 sticky left-0 font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-[13px] ${useNewStyle ? "bg-green-600 text-black border border-black" : "bg-slate-200 text-slate-900 border-r-2 border-black"}`}>
+                <td className={`px-3 py-1.5 sticky left-0 font-black shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] text-[13px] ${useNewStyle ? "bg-[#75BD42] text-black border border-black" : "bg-slate-200 text-slate-900 border-r-2 border-black"}`}>
                   【{PrepReportService.getActiveCategories().find(c => c.key === selectedCategory)?.label || selectedCategory}】每日开支合计
                 </td>
                 {days.map((day) => {

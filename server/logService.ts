@@ -92,13 +92,27 @@ export class LogService {
    * 写入一条带标准格式时间戳的日志行到本地物理日志文件（自动按日期+体积归档）
    */
   public static write(level: string, category: string, message: string): void {
-    try {
+    const writeLog = () => {
       const filePath = LogService.resolveActiveLogFilePath();
       const timeStr = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
       const logLine = `[${timeStr}] [${level}] [${category}] ${message}\n`;
       fs.appendFileSync(filePath, logLine, "utf8");
-    } catch (err) {
-      console.error("[LOG SERVICE ERROR] 写入本地日志文件失败:", err);
+    };
+
+    try {
+      writeLog();
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        try {
+          // 如果目录被人为删除了，尝试重新创建目录并重试一次
+          fs.mkdirSync(LogService.logDir, { recursive: true });
+          writeLog();
+        } catch (retryErr) {
+          console.error("[LOG SERVICE ERROR] 重建日志目录并重试写入失败:", retryErr);
+        }
+      } else {
+        console.error("[LOG SERVICE ERROR] 写入本地日志文件失败:", err);
+      }
     }
   }
 }

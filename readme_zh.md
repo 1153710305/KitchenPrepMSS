@@ -384,8 +384,8 @@ pause
 ##### (4) 云端生产环境 PM2 守护启动命令
 在 `.env` 完成端口和存储选择、并由 Nginx 配置好反向代理后，执行以下命令在后台独立守护启动：
 ```bash
-# 使用 PM2 启动生产环境并命名为 kitchen-prep-system
-pm2 start dist/server.cjs --name "kitchen-prep-system"
+# 使用 PM2 启动生产环境并命名为 kitchen-prep-system（加上 --time 参数为日志附加时间戳）
+pm2 start dist/server.cjs --name "kitchen-prep-system" --time
 
 # 固化 PM2 运行列表并设置服务器开机自动拉起进程
 pm2 save
