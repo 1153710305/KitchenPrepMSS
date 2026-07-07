@@ -27,16 +27,24 @@ import { LedgerControlBar } from "./LedgerControlBar.tsx";
 import { useLedgerData } from "../../hooks/useLedgerData.ts";
 import { useLedgerRecording } from "../../hooks/useLedgerRecording.ts";
 import { SyncHelper } from "../../services/syncHelper.ts";
+import React, { useState, useMemo, lazy, Suspense, useEffect } from "react";
 import {
   Calendar,
   AlertCircle,
   FileText
 } from "lucide-react";
 
+interface LedgerSystemProps {
+  onActiveLedgerChange?: (id: string) => void;
+  selectedDate?: string;
+  onDateChange?: (date: string) => void;
+}
+
 /**
  * @description 原料购销台账及库存仓储系统主面板组件
  */
-export function LedgerSystem() {
+export function LedgerSystem(props: LedgerSystemProps = {}) {
+  const { onActiveLedgerChange } = props;
   // ================= 状态声明部分 =================
 
   // 台账列表、原料项目列表及当前选中台账ID的加载与订阅逻辑，统一由 useLedgerData 提供
@@ -48,15 +56,25 @@ export function LedgerSystem() {
   const [activeItemId, setActiveItemId] = useState<string>("");
 
   /** 当前选择进行数据同步的日期 (格式 YYYY-MM-DD，默认今天) */
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [internalSelectedDate, setInternalSelectedDate] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   });
+
+  const selectedDate = props.selectedDate || internalSelectedDate;
+  const setSelectedDate = props.onDateChange || setInternalSelectedDate;
 
   /** 样式二（单原料日流水）自定义时间段 - 开始日期 */
   const [style2StartDate, setStyle2StartDate] = useState<string>("");
   /** 样式二（单原料日流水）自定义时间段 - 结束日期 */
   const [style2EndDate, setStyle2EndDate] = useState<string>("");
+
+  // 当 activeLedgerId 变化时通知父组件
+  useEffect(() => {
+    if (onActiveLedgerChange && activeLedgerId) {
+      onActiveLedgerChange(activeLedgerId);
+    }
+  }, [activeLedgerId, onActiveLedgerChange]);
 
   /** 界面操作的当前选项卡: "entry" | "invoice" */
   const [activeTab, setActiveTab] = useState<"entry" | "invoice">("entry");
@@ -317,27 +335,27 @@ export function LedgerSystem() {
   const availableBuyers = useMemo(() => {
     const set = new Set<string>();
     currentLedgerItems.forEach(item => {
-      Object.values(item.dailyRecords).forEach(rec => { if (rec.buyer?.trim()) set.add(rec.buyer.trim()); });
+      Object.values(item.dailyRecords || {}).forEach((rec: any) => { if (rec.buyer?.trim()) set.add(rec.buyer.trim()); });
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [currentLedgerItems]);
 
   /** 检验员候选列表 */
   const availableInspectors = useMemo(() => {
     const set = new Set<string>();
     currentLedgerItems.forEach(item => {
-      Object.values(item.dailyRecords).forEach(rec => { if (rec.inspector?.trim()) set.add(rec.inspector.trim()); });
+      Object.values(item.dailyRecords || {}).forEach((rec: any) => { if (rec.inspector?.trim()) set.add(rec.inspector.trim()); });
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [currentLedgerItems]);
 
   /** 保管员候选列表 */
   const availableKeepers = useMemo(() => {
     const set = new Set<string>();
     currentLedgerItems.forEach(item => {
-      Object.values(item.dailyRecords).forEach(rec => { if (rec.keeper?.trim()) set.add(rec.keeper.trim()); });
+      Object.values(item.dailyRecords || {}).forEach((rec: any) => { if (rec.keeper?.trim()) set.add(rec.keeper.trim()); });
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [currentLedgerItems]);
 
   /** 是否有任何筛选条件正处于激活状态 */
@@ -519,11 +537,10 @@ export function LedgerSystem() {
           produceDate: "",
           shelfLife: "",
           inspector: "",
-          outDate: "",
+          keeper: "",
           outHandler: "",
           outRecipient: "",
-          keeper: "",
-          remark: ""
+          note: ""
         }).catch((err) => triggerError(err.message));
       }
     } else {
