@@ -50,6 +50,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 主题样式管理，统一由 useTableTheme 提供
   const { theme, activeTheme, handleThemeChange } = useTableTheme();
 
+  // 新旧样式切换开关
+  const [useNewStyle, setUseNewStyle] = useState<boolean>(true);
+
   // 聚焦日的索引状态，默认聚焦 1 号
   const [focusDay, setFocusDay] = useState<string>("1");
 
@@ -313,30 +316,22 @@ export const TableGrid: React.FC<TableGridProps> = ({
             <span>{showSpendingChart ? "隐藏花销趋势图" : "本月花销趋势图"}</span>
           </button>
 
-          {/* 细表主题样式选择器 */}
+          {/* 细表样式版本切换 */}
           <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-1.5 text-[13px] select-none">
-            <span className="text-[11px] text-gray-400 font-bold shrink-0">表格主题:</span>
-            <div className="flex gap-1.5">
+            <span className="text-[11px] text-gray-400 font-bold shrink-0">样式版本:</span>
+            <div className="flex gap-1.5 bg-gray-100 rounded-lg p-0.5">
               <button
-                type="button" onClick={() => handleThemeChange("sky")}
-                className={`w-3.5 h-3.5 rounded-full bg-sky-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "sky" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
-                title="天空蓝主题"
-              />
+                type="button" onClick={() => setUseNewStyle(true)}
+                className={`px-2 py-1 rounded-md transition-all text-[11px] font-bold ${useNewStyle ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                当前样式
+              </button>
               <button
-                type="button" onClick={() => handleThemeChange("emerald")}
-                className={`w-3.5 h-3.5 rounded-full bg-emerald-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "emerald" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
-                title="翡翠绿主题"
-              />
-              <button
-                type="button" onClick={() => handleThemeChange("purple")}
-                className={`w-3.5 h-3.5 rounded-full bg-violet-500 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "purple" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
-                title="丁香紫主题"
-              />
-              <button
-                type="button" onClick={() => handleThemeChange("charcoal")}
-                className={`w-3.5 h-3.5 rounded-full bg-slate-600 cursor-pointer border-2 transition-all hover:scale-110 ${theme === "charcoal" ? "border-slate-800 scale-105 shadow-xs" : "border-transparent"}`}
-                title="典雅暗灰主题"
-              />
+                type="button" onClick={() => setUseNewStyle(false)}
+                className={`px-2 py-1 rounded-md transition-all text-[11px] font-bold ${!useNewStyle ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                经典样式
+              </button>
             </div>
           </div>
 
@@ -387,6 +382,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
               dayTotals={dayTotals}
               activeTheme={activeTheme}
               selectedCategory={selectedCategory}
+              useNewStyle={useNewStyle}
             />
           )}
 
