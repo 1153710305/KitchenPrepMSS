@@ -80,11 +80,10 @@
       background: #64748b;
     }
 
-    /* 全局明细表格线及色彩对比度强补丁 */
+    /* 全局明细表格线及色彩对比度强补丁 (仅影响台账等其他表格) */
     table td,
     table th {
       border-color: #cbd5e1 !important;
-      /* 加深单元格灰色边框线，实现强力横竖线效果 */
     }
 
     thead th {
@@ -92,7 +91,18 @@
       color: #1e293b !important;
       font-weight: 700 !important;
       border-bottom: 2px solid #94a3b8 !important;
-      /* 加重表头底部分界 */
+    }
+
+    /* 专门针对备餐本月细表 (矩阵视图) 的绿色与实线黑框样式 */
+    table.matrix-table td,
+    table.matrix-table th {
+      border-color: #000000 !important;
+    }
+
+    table.matrix-table thead th {
+      background-color: #16a34a !important;
+      color: #000000 !important;
+      border: 1px solid #000000 !important;
     }
 
     /* 输入框聚焦和高反差 */
