@@ -199,7 +199,7 @@ export function TableGridMatrixView({
                           <td className={`p-1.5 text-center font-mono text-[13px] font-semibold text-slate-900 ${useNewStyle ? "border border-black bg-white" : `border-b-2 border-r border-slate-300 ${isOdd ? "bg-amber-100/50" : "bg-teal-100/50"}`}`}>
                             {entry.price ? `¥${entry.price}` : ""}
                           </td>
-                          <td className={`p-1.5 text-center text-[13px] font-black font-mono ${useNewStyle ? "border border-black bg-green-50 text-green-900" : `border-b-2 border-r-2 border-black ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}`}>
+                          <td className={`p-1.5 text-center text-[13px] font-black font-mono ${useNewStyle ? "border border-black bg-green-200 text-green-950" : `border-b-2 border-r-2 border-black ${isOdd ? "bg-amber-200/50 text-amber-950" : "bg-teal-200/50 text-teal-950"}`}`}>
                             {entry.amount > 0 ? `¥${entry.amount}` : ""}
                           </td>
                         </React.Fragment>
