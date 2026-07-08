@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SyncHelper } from "./syncHelper.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
 
 function resetSyncHelper() {
   (SyncHelper as any).isInitialized = false;

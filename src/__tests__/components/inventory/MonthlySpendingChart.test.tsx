@@ -11,8 +11,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MonthlySpendingChart } from "./MonthlySpendingChart.tsx";
-import { THEME_MAP } from "../../hooks/useTableTheme.ts";
+import { MonthlySpendingChart } from "@/src/components/inventory/MonthlySpendingChart.tsx";
+import { THEME_MAP } from "@/src/hooks/useTableTheme.ts";
 
 const days = ["1", "2", "3"];
 

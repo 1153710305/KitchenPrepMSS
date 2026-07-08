@@ -15,7 +15,7 @@ import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
 import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
 import { AdminSystemTab } from "./AdminSystemTab.tsx";
-import { AdminStressTestTab } from "./AdminStressTestTab.tsx";
+import { AdminStressTestTab } from "../../test-components/AdminStressTestTab.tsx";
 import {
   Users,
   Settings,

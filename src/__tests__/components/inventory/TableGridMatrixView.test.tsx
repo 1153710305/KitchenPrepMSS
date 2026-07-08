@@ -10,12 +10,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TableGridMatrixView } from "./TableGridMatrixView.tsx";
-import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
-import { PrepReportService } from "../../services/store.ts";
-import { FoodCategory, TargetGroup } from "../../types/types.ts";
-import { THEME_MAP } from "../../hooks/useTableTheme.ts";
-import type { PreparedItem } from "../../types/types.ts";
+import { TableGridMatrixView } from "@/src/components/inventory/TableGridMatrixView.tsx";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { PrepReportService } from "@/src/services/store.ts";
+import { FoodCategory, TargetGroup } from "@/src/types/types.ts";
+import { THEME_MAP } from "@/src/hooks/useTableTheme.ts";
+import type { PreparedItem } from "@/src/types/types.ts";
 
 const days = ["1", "2"];
 

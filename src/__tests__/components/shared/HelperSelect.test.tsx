@@ -11,7 +11,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HelperSelect } from "./HelperSelect.tsx";
+import { HelperSelect } from "@/src/components/shared/HelperSelect.tsx";
 
 describe("HelperSelect", () => {
   describe("disabled (read-only) state", () => {

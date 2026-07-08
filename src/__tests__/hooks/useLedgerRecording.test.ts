@@ -9,11 +9,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useLedgerRecording } from "./useLedgerRecording.ts";
-import { LedgerService } from "../services/ledgerStore.ts";
-import { SyncHelper } from "../services/syncHelper.ts";
-import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
-import type { LedgerItem } from "../types/ledgerTypes.ts";
+import { useLedgerRecording } from "@/src/hooks/useLedgerRecording.ts";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import type { LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 const makeItem = (id: string, name: string, dailyRecords: LedgerItem["dailyRecords"] = {}): LedgerItem => ({
   id,

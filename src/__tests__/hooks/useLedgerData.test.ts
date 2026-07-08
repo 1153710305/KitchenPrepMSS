@@ -9,9 +9,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useLedgerData } from "./useLedgerData.ts";
-import { LedgerService } from "../services/ledgerStore.ts";
-import type { Ledger } from "../types/ledgerTypes.ts";
+import { useLedgerData } from "@/src/hooks/useLedgerData.ts";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import type { Ledger } from "@/src/types/ledgerTypes.ts";
 
 const makeLedger = (id: string, name: string): Ledger => ({ id, name, createdAt: "2026-01-01T00:00:00.000Z" });
 
