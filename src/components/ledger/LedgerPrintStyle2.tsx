@@ -52,7 +52,7 @@ export function LedgerPrintStyle2({
 
   // 所选采购项目属于"低耗品"大类时，改用贴合纸质消耗品台账格式的专属打印模板，不与其余大类共用本样式
   const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name);
-  if (dictItem?.category === FoodCategory.LOW_CONSUMP) {
+  if (dictItem?.category === "LOW_CONSUMP") {
     return (
       <LedgerPrintStyle2Consumable
         activeLedger={activeLedger}

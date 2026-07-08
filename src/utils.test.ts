@@ -109,8 +109,8 @@ describe("getItemMonthlySummary", () => {
   const makeItem = (dailyData: PreparedItem["dailyData"]): PreparedItem => ({
     id: "item_1",
     name: "土豆",
-    category: FoodCategory.VEGETABLE,
-    targetGroup: TargetGroup.KID,
+    category: "VEGETABLE",
+    targetGroup: "KID",
     unit: "斤",
     dailyData
   });
@@ -161,8 +161,8 @@ describe("convertItemsToCsv", () => {
   const makeItem = (name: string, dailyData: PreparedItem["dailyData"]): PreparedItem => ({
     id: `item_${name}`,
     name,
-    category: FoodCategory.VEGETABLE,
-    targetGroup: TargetGroup.KID,
+    category: "VEGETABLE",
+    targetGroup: "KID",
     unit: "斤",
     dailyData
   });

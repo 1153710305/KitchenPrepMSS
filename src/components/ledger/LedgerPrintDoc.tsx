@@ -224,12 +224,12 @@ function PrintOutDoc({
   let globalIndex = 1;
   // 按照 FoodCategory 枚举顺序排列输出，保证类别顺序稳定
   const categoryOrder = [
-    FoodCategory.VEGETABLE,
-    FoodCategory.GRAIN_OIL,
-    FoodCategory.SEASONING,
-    FoodCategory.MEAT,
-    FoodCategory.LOW_CONSUMP,
-    FoodCategory.FRUIT
+    "VEGETABLE",
+    "GRAIN_OIL",
+    "SEASONING",
+    "MEAT",
+    "LOW_CONSUMP",
+    "FRUIT"
   ];
 
   categoryOrder.forEach(catKey => {

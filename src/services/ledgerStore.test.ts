@@ -173,7 +173,7 @@ describe("LedgerService", () => {
     vi.spyOn(PrepReportService, "syncGroupFromLedger").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "syncDeleteGroupFromLedger").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "cascadeDeleteLedgerItem").mockImplementation(() => {});
-    vi.spyOn(RawMaterialsDictService, "getCategoryForMaterial").mockReturnValue(FoodCategory.VEGETABLE);
+    vi.spyOn(RawMaterialsDictService, "getCategoryForMaterial").mockReturnValue("VEGETABLE");
     vi.spyOn(SyncHelper, "refreshNow").mockResolvedValue(false);
     vi.stubGlobal("fetch", vi.fn(fakeLedgerFetch));
   });
@@ -557,7 +557,7 @@ describe("LedgerService", () => {
         7,
         "3",
         "土豆",
-        FoodCategory.VEGETABLE,
+        "VEGETABLE",
         "斤",
         3,
         0

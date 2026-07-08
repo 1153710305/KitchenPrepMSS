@@ -80,8 +80,8 @@ describe("LedgerPrintDoc [V5.75.0] renders via a portal directly under document.
 describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" },
-      { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" },
+      { name: "大黑袋", category: "LOW_CONSUMP", unit: "捆", remark: "" }
     ]);
   });
 
@@ -153,7 +153,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单)", () => {
 
   it("shows the converted quantity and conversion unit when the dictionary defines a conversion ratio", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "香梨", category: FoodCategory.FRUIT, unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
+      { name: "香梨", category: "FRUIT", unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
     ]);
     const pear = makeOutwardItem("香梨", { outQuantity: 2, supplier: "合作基地直供" });
 
@@ -181,7 +181,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
 
   it("does not show a page indicator when everything fits on a single page (existing single-page behavior unaffected)", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
     const item = makeOutwardItem("土豆", { supplier: "合作基地直供" });
 
@@ -206,7 +206,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     // 不应该仅仅因为供货商数量超过 maxSuppliersPerPage 就把多余的供货商挤到续页
     const names = ["土豆", "柿子", "黄瓜", "胡萝卜", "青椒"];
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
-      names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
+      names.map((name) => ({ name, category: "VEGETABLE", unit: "斤", remark: "" }))
     );
     const suppliers = ["合作基地直供", "宏发粮油批发", "绿野蔬菜配送", "科尔沁肉业"];
     const items = names.map((name, i) => makeOutwardItem(name, { supplier: suppliers[i % suppliers.length] }));
@@ -274,8 +274,8 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     const vegNames = Array.from({ length: 20 }, (_, i) => `蔬菜${i + 1}`);
     const meatNames = Array.from({ length: 10 }, (_, i) => `肉类${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      ...vegNames.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" })),
-      ...meatNames.map((name) => ({ name, category: FoodCategory.MEAT, unit: "斤", remark: "" }))
+      ...vegNames.map((name) => ({ name, category: "VEGETABLE", unit: "斤", remark: "" })),
+      ...meatNames.map((name) => ({ name, category: "MEAT", unit: "斤", remark: "" }))
     ]);
     const items = [...vegNames, ...meatNames].map((name) => makeOutwardItem(name, { supplier: "合作基地直供" }));
 
@@ -314,7 +314,7 @@ describe("LedgerPrintDoc > PrintOutDoc (出库单) [V5.73.0] 超出单页容量�
     const supplierCount = maxPerPage + 3;
     const names = Array.from({ length: supplierCount }, (_, i) => `原料${i + 1}`);
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue(
-      names.map((name) => ({ name, category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }))
+      names.map((name) => ({ name, category: "VEGETABLE", unit: "斤", remark: "" }))
     );
     const items = names.map((name, i) => makeOutwardItem(name, { supplier: `供货商${i + 1}` }));
 

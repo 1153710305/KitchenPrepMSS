@@ -8,36 +8,14 @@
  */
 
 /**
- * @description 备餐目标受众人群枚举
+ * @description 备餐目标受众人群标识符
  */
-export enum TargetGroup {
-  /** 教师 */
-  TEACHER = "TEACHER",
-  /** 幼儿 */
-  KID = "KID",
-  /** 低年级学生 */
-  LOW_GRADE = "LOW_GRADE",
-  /** 高年级学生 */
-  HIGH_GRADE = "HIGH_GRADE"
-}
+export type TargetGroup = string;
 
 /**
- * @description 食品与辅料主要分类枚举
+ * @description 食品与辅料主要分类标识符
  */
-export enum FoodCategory {
-  /** 蔬菜类 */
-  VEGETABLE = "VEGETABLE",
-  /** 粮油类 */
-  GRAIN_OIL = "GRAIN_OIL",
-  /** 调料类 */
-  SEASONING = "SEASONING",
-  /** 肉类 */
-  MEAT = "MEAT",
-  /** 低耗品（一次性用品、纸巾等） */
-  LOW_CONSUMP = "LOW_CONSUMP",
-  /** 水果类 */
-  FRUIT = "FRUIT"
-}
+export type FoodCategory = string;
 
 /**
  * @description 每日具体配餐录入项

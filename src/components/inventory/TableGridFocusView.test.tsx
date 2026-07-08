@@ -22,8 +22,8 @@ const days = ["1", "2"];
 const makeItem = (): PreparedItem => ({
   id: "item_1",
   name: "土豆",
-  category: FoodCategory.VEGETABLE,
-  targetGroup: TargetGroup.KID,
+  category: "VEGETABLE",
+  targetGroup: "KID",
   unit: "斤",
   dailyData: {
     "1": { quantity: 3, price: 2, amount: 6 },
@@ -34,7 +34,7 @@ const makeItem = (): PreparedItem => ({
 describe("TableGridFocusView", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
   });
 

@@ -142,12 +142,12 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   const [printModalOpen, setPrintModalOpen] = useState<boolean>(false);
   /** 总表打印预览下选中的二级食材分类（默认包含全部大类） */
   const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>([
-    FoodCategory.VEGETABLE,
-    FoodCategory.GRAIN_OIL,
-    FoodCategory.SEASONING,
-    FoodCategory.MEAT,
-    FoodCategory.LOW_CONSUMP,
-    FoodCategory.FRUIT
+    "VEGETABLE",
+    "GRAIN_OIL",
+    "SEASONING",
+    "MEAT",
+    "LOW_CONSUMP",
+    "FRUIT"
   ]);
 
   /** 从全局原料大字典获取的可供选择下拉项 */

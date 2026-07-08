@@ -31,7 +31,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
   
   // Inputs
   const [dictNameInput, setDictNameInput] = useState<string>("");
-  const [dictCategoryInput, setDictCategoryInput] = useState<FoodCategory>(FoodCategory.VEGETABLE);
+  const [dictCategoryInput, setDictCategoryInput] = useState<FoodCategory>("VEGETABLE");
   const [dictUnitInput, setDictUnitInput] = useState<string>("斤");
   const [dictRemarkInput, setDictRemarkInput] = useState<string>("");
   const [dictConversionUnitInput, setDictConversionUnitInput] = useState<string>("");
@@ -94,7 +94,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
       setDictRemarkInput("");
       setDictConversionUnitInput("");
       setDictConversionRatioInput("");
-      setDictCategoryInput(FoodCategory.VEGETABLE);
+      setDictCategoryInput("VEGETABLE");
       setEditingDictName(null);
     } catch (err: any) {
       setDictError(err.message || "保存原料时发生错误");
@@ -124,7 +124,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
           setDictRemarkInput("");
           setDictConversionUnitInput("");
           setDictConversionRatioInput("");
-          setDictCategoryInput(FoodCategory.VEGETABLE);
+          setDictCategoryInput("VEGETABLE");
         }
       } catch (err: any) {
         alert(err.message || "删除失败");
@@ -363,7 +363,7 @@ export function AdminDictTab({ activeCategoriesList }: AdminDictTabProps) {
                   setDictRemarkInput("");
                   setDictConversionUnitInput("");
                   setDictConversionRatioInput("");
-                  setDictCategoryInput(FoodCategory.VEGETABLE);
+                  setDictCategoryInput("VEGETABLE");
                 }}
                 className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer font-bold transition-all"
               >

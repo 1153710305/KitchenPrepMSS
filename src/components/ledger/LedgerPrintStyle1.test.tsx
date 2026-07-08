@@ -28,8 +28,8 @@ const makeItem = (id: string, name: string, dailyRecords: LedgerItem["dailyRecor
 });
 
 const dictItems = [
-  { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤" },
-  { name: "精肉", category: FoodCategory.MEAT, unit: "斤" }
+  { name: "土豆", category: "VEGETABLE", unit: "斤" },
+  { name: "精肉", category: "MEAT", unit: "斤" }
 ];
 
 describe("LedgerPrintStyle1", () => {
@@ -44,7 +44,7 @@ describe("LedgerPrintStyle1", () => {
           activeLedger={ledger}
           selectedDate="2026-07-03"
           // 只勾选肉类，但本台账下唯一的原料"土豆"属于蔬菜类，不存在任何肉类原料
-          selectedPrintCategories={[FoodCategory.MEAT]}
+          selectedPrintCategories={["MEAT"]}
           currentLedgerItems={[potato]}
           dictItems={dictItems}
         />
@@ -72,7 +72,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[potato]}
         dictItems={dictItems}
       />
@@ -97,7 +97,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[potato, meat]}
         dictItems={dictItems}
       />
@@ -121,11 +121,11 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-02"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[cabbage, potato]}
         dictItems={[
-          { name: "白菜", category: FoodCategory.VEGETABLE, unit: "斤" },
-          { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤" }
+          { name: "白菜", category: "VEGETABLE", unit: "斤" },
+          { name: "土豆", category: "VEGETABLE", unit: "斤" }
         ]}
       />
     );
@@ -144,7 +144,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-02"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[potato]}
         dictItems={dictItems}
       />
@@ -158,7 +158,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[]}
         dictItems={dictItems}
       />
@@ -171,7 +171,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[]}
         dictItems={dictItems}
       />
@@ -190,10 +190,10 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.FRUIT]}
+        selectedPrintCategories={["FRUIT"]}
         currentLedgerItems={[pear]}
         dictItems={[
-          { name: "香梨", category: FoodCategory.FRUIT, unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
+          { name: "香梨", category: "FRUIT", unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
         ]}
       />
     );
@@ -212,7 +212,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[potato]}
         dictItems={dictItems}
       />
@@ -226,7 +226,7 @@ describe("LedgerPrintStyle1", () => {
       <LedgerPrintStyle1
         activeLedger={ledger}
         selectedDate="2026-07-03"
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         currentLedgerItems={[]}
         dictItems={dictItems}
       />

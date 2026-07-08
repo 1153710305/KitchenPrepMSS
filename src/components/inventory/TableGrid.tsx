@@ -115,7 +115,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         return {
           id: item.id,
           name: item.name,
-          category: dictItem ? dictItem.category : FoodCategory.VEGETABLE,
+          category: dictItem ? dictItem.category : "VEGETABLE",
           targetGroup: report.targetGroup,
           unit: item.unit,
           dailyData: alignedDailyData
