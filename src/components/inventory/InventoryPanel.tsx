@@ -12,7 +12,6 @@ import { LedgerItem, Ledger } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { matchPinyin } from "../../utils.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { FoodCategory } from "../../types/types.ts";
 import {
@@ -135,7 +134,7 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
         const category = dictEntry?.category ?? null;
         const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === category)?.label;
         const categoryLabel = category
-          ? (dynamicLabel || FOOD_CATEGORY_LABELS[category] || "未知分类")
+          ? (dynamicLabel || "未知分类")
           : "未知分类";
 
         // 读取后端直接发来的历史累计总和（不受懒加载被截断月份影响）

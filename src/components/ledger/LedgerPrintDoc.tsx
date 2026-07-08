@@ -12,7 +12,6 @@ import { createPortal } from "react-dom";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { FoodCategory } from "../../types/types.ts";
 import { LEDGER_PRINT_OUT_CONFIG } from "../../constants/ledgerConstants.ts";
@@ -238,7 +237,7 @@ function PrintOutDoc({
     if (items && items.length > 0) {
       const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === catKey)?.label;
       groupedByCategory.push({
-        categoryLabel: dynamicLabel || FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey,
+        categoryLabel: dynamicLabel || catKey,
         items: items.map(item => ({ item, rowIndex: globalIndex++ }))
       });
     }
@@ -283,7 +282,7 @@ function PrintOutDoc({
     const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
     if (!dictItem) return;
     const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === dictItem.category)?.label;
-    const catLabel = dynamicLabel || FOOD_CATEGORY_LABELS[dictItem.category] || dictItem.category;
+    const catLabel = dynamicLabel || dictItem.category;
 
     if (!supplierToCategoriesMap.has(supplier)) {
       supplierToCategoriesMap.set(supplier, []);

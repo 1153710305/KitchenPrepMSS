@@ -10,7 +10,7 @@
 import React, { useState, useMemo } from "react";
 import { FoodCategory, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
-import { FOOD_CATEGORY_LABELS, UI_TEXT } from "../../constants/constants.ts";
+import { UI_TEXT } from "../../constants/constants.ts";
 import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
 import { Grid, Search, CalendarDays, Check, Flame, Download, TrendingUp } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
@@ -156,7 +156,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   const getCategoryLabel = (catKey: string) => {
     const c = activeCategoriesList.find((c) => c.key === catKey);
-    return c ? c.label : (FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey);
+    return c ? c.label : catKey;
   };
 
   /**

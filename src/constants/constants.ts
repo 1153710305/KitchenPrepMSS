@@ -11,18 +11,6 @@
 import { FoodCategory } from "../types/types.ts";
 
 /**
- * @description 食物品类的中文字典映射
- */
-export const FOOD_CATEGORY_LABELS: Record<FoodCategory, string> = {
-  [FoodCategory.VEGETABLE]: "蔬菜",
-  [FoodCategory.GRAIN_OIL]: "粮油",
-  [FoodCategory.SEASONING]: "调料",
-  [FoodCategory.MEAT]: "肉类",
-  [FoodCategory.LOW_CONSUMP]: "低耗品",
-  [FoodCategory.FRUIT]: "水果"
-};
-
-/**
  * @description 每个基本品类默认的单位映射
  */
 export const CATEGORY_DEFAULT_UNITS: Record<FoodCategory, string> = {
