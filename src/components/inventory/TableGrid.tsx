@@ -260,7 +260,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         <div className="mt-8 p-4 bg-yellow-50/50 border border-yellow-10 border-dashed rounded-xl flex items-start gap-2 text-[13px] text-yellow-800">
           <Check size={16} className="text-yellow-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong>合计表业务说明：</strong>该表自动归集了当前目标受众分类（教师、幼儿、低/高年级）在各分食材（蔬菜、粮油、调料、肉类、低耗品、水果）卡片里的金额输入流。如果您需要增删或微调，请点击对应类目的标签即可下潜编辑。所有的修改都将完美自动向本表累合并瞬间落盘。
+            <strong>合计表业务说明：</strong>该表自动归集了当前目标受众分类（{activeGroupsList.map(g => g.label).join("、")}）在各分食材（{activeCategoriesList.map(c => c.label).join("、")}）卡片里的金额输入流。如果您需要增删或微调，请点击对应类目的标签即可下潜编辑。所有的修改都将完美自动向本表累合并瞬间落盘。
           </p>
         </div>
       </div>
