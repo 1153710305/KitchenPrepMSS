@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { LedgerService } from "../../services/ledgerStore.ts";
-import { PrepReportService } from "../../services/store.ts";
+import { LedgerService } from "../services/ledgerStore.ts";
+import { PrepReportService } from "../services/store.ts";
+import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
 import { Play, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { DailyStockRecord } from "../types/ledgerTypes.ts";
 
 export function AdminStressTestTab() {
   const [isRunning, setIsRunning] = useState(false);
@@ -15,7 +16,7 @@ export function AdminStressTestTab() {
 
   const runTest = async () => {
     if (isRunning) return;
-    
+
     // 安全校验
     const pwd = window.prompt("【系统安全】请输入管理员密码以执行极限压测（这将在数据库产生大量垃圾数据）：");
     if (!pwd) return;
@@ -30,21 +31,25 @@ export function AdminStressTestTab() {
 
     try {
       addLog("开始极限压测，测试目标：30个不同原料，连续录入30天的出入库数据，并验证汇总精度...");
-      
+
       const ledgerId = "KID"; // 假设KID一定存在（因为有默认种子数据）
       const testItemsCount = 30;
       const testDays = 30;
       const baseYear = 2026;
       const baseMonth = 7;
-      
+
       addLog(`[第一步] 模拟创建 ${testItemsCount} 个测试专用原料...`);
       const createdItemIds: string[] = [];
       const startTime = performance.now();
       for (let i = 0; i < testItemsCount; i++) {
-        const item = await LedgerService.addLedgerItem(ledgerId, `极限测试土豆_${Date.now()}_${i}`, "斤", "压测", 0);
+        const itemName = `极限测试土豆_${Date.now()}_${i}`;
+        // 关键修复：必须先在全系统的“原料大字典”里注册这个食材，否则 UI 层（台账页面和明细报表）的“防脏数据校验”会自动将其隐藏过滤掉
+        await RawMaterialsDictService.addMaterial(itemName, "VEGETABLE" as any, "斤", "压测自动生成");
+        // 然后再给特定台账挂载该食材记录
+        const item = await LedgerService.addLedgerItem(ledgerId, itemName, "斤", "压测", 0);
         createdItemIds.push(item.id);
       }
-      addLog(`创建完毕！耗时: ${((performance.now() - startTime)/1000).toFixed(2)}s`);
+      addLog(`创建完毕！耗时: ${((performance.now() - startTime) / 1000).toFixed(2)}s`);
 
       addLog(`[第二步] 构建为期 ${testDays} 天的海量出入库有效负载（每条同时包含浮点入库和出库）...`);
       let totalExpectedInQty = 0;
@@ -56,39 +61,39 @@ export function AdminStressTestTab() {
       for (let day = 1; day <= testDays; day++) {
         const dateStr = `${baseYear}-0${baseMonth}-${day.toString().padStart(2, '0')}`;
         const updates: Record<string, Partial<DailyStockRecord>> = {};
-        
+
         for (const itemId of createdItemIds) {
           // 伪随机生成带有小数的单价和数量
           const inQty = parseFloat((Math.random() * 100 + 1).toFixed(2));
           const inPrice = parseFloat((Math.random() * 20 + 0.5).toFixed(2));
           const outQty = parseFloat((Math.random() * 50 + 1).toFixed(2));
-          
+
           totalExpectedInQty += inQty;
           totalExpectedOutQty += outQty;
-          
+
           // 严格模拟底层单笔记录的就地四舍五入，防止 JS 累加浮点精度爆炸导致报表金额对不齐
           const dailyInAmount = Math.round(inQty * inPrice * 100) / 100;
           totalExpectedInAmount += dailyInAmount;
-          
+
           // 根据目前的机制，如果当天只有 inQty 和 inPrice，同步到报表时使用 inQty * inPrice; 
           // 但真实场景如果出入库全有，出入单价一样。系统自动推导出的消耗金额是基于报表逻辑。
           // 此处我们严格记录入库的汇总值用于下面与报表的对账验证。
-          
+
           updates[itemId] = {
             inQuantity: inQty,
             inPrice: inPrice,
             outQuantity: outQty
           };
         }
-        
+
         // 调用批量前端接口更新，它会自动同步到后台并且反向触发 PrepReportService 的同步
         await LedgerService.updateDailyRecordsBatch(dateStr, updates);
       }
-      const batchElapsed = ((performance.now() - batchStartTime)/1000).toFixed(2);
+      const batchElapsed = ((performance.now() - batchStartTime) / 1000).toFixed(2);
       addLog(`[完成录入] ${testDays * testItemsCount} 个每日节点全部录入成功，全程无卡顿！耗时: ${batchElapsed}s`);
 
       addLog(`[第三步] 对比底层聚合数据进行严格算力核验...`);
-      
+
       let actualCurrentStockSum = 0;
       const allItems = LedgerService.getLedgerItems(ledgerId);
       for (const itemId of createdItemIds) {
@@ -102,7 +107,7 @@ export function AdminStressTestTab() {
       const expectedStockSum = Math.round((totalExpectedInQty - totalExpectedOutQty) * 100) / 100;
       const actualRoundedSum = Math.round(actualCurrentStockSum * 100) / 100;
       const stockDiff = Math.abs(actualRoundedSum - expectedStockSum);
-      
+
       if (stockDiff > 0.01) {
         addLog(`❌ [核对失败] 台账结余计算出现偏差！期望: ${expectedStockSum}, 实际: ${actualRoundedSum}`);
         setResult("fail");
@@ -114,9 +119,9 @@ export function AdminStressTestTab() {
 
       // 2. 报表同步正确性核算
       const allReports = PrepReportService.getReports();
-      const testReport = allReports.find(r => r.targetGroup === ledgerId && r.year === baseYear && r.month === baseMonth); 
+      const testReport = allReports.find(r => r.targetGroup === ledgerId && r.year === baseYear && r.month === baseMonth);
       let actualReportTotalAmount = 0;
-      
+
       if (testReport) {
         for (const reportItem of testReport.items) {
           // 判断是否是我们本次创建的测试项目
@@ -136,9 +141,9 @@ export function AdminStressTestTab() {
       // 所以我们把两边的总数都做一次常规的四舍五入。
       const finalActualAmount = Math.round(actualReportTotalAmount * 100) / 100;
       const finalExpectedAmount = Math.round(totalExpectedInAmount * 100) / 100;
-      
+
       const amountDiff = Math.abs(finalActualAmount - finalExpectedAmount);
-      if (amountDiff > 0.1) { 
+      if (amountDiff > 0.1) {
         addLog(`❌ [核对失败] 备餐月度报表金额联动同步出现严重偏离！期望总金额: ${finalExpectedAmount.toFixed(2)}, 报表统计: ${finalActualAmount.toFixed(2)}`);
         setResult("fail");
       } else {
@@ -146,7 +151,7 @@ export function AdminStressTestTab() {
         addLog(`🎉 极限压测及校验完美通过！`);
         setResult("success");
       }
-      
+
     } catch (e: any) {
       addLog(`❌ [抛出异常] 压测过程遭遇报错: ${e.message}`);
       setResult("fail");
@@ -159,7 +164,7 @@ export function AdminStressTestTab() {
     <div className="p-6 bg-white rounded-lg shadow-sm">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">在前端进行接口级海量数据极限压测</h2>
+          <h2 className="text-lg font-bold text-slate-800">在前端进行接口级海量数据极限压测（非开发者勿点，会污染现有数据！）</h2>
           <p className="text-xs text-slate-500 mt-1">
             通过调用前端聚合接口，模拟人类录入操作快速插入大量测试数据并即时验证前后端数据状态一致性。
           </p>

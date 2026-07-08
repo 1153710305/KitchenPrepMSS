@@ -11,8 +11,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
-import { LedgerService } from "../../services/ledgerStore.ts";
+import { AdminLedgerHelpersTab } from "@/src/components/admin/AdminLedgerHelpersTab.tsx";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
 
 const baseDict = {
   suppliers: [] as string[],

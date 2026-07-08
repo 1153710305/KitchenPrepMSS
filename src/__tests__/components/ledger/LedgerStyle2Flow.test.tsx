@@ -11,9 +11,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LedgerStyle2Flow } from "./LedgerStyle2Flow.tsx";
-import { LedgerService } from "../../services/ledgerStore.ts";
-import type { LedgerItem } from "../../types/ledgerTypes.ts";
+import { LedgerStyle2Flow } from "@/src/components/ledger/LedgerStyle2Flow.tsx";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import type { LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 const makeItem = (dailyRecords: LedgerItem["dailyRecords"] = {}): LedgerItem => ({
   id: "item_1",

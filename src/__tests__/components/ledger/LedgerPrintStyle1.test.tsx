@@ -10,9 +10,9 @@
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
-import { FoodCategory } from "../../types/types.ts";
-import type { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { LedgerPrintStyle1 } from "@/src/components/ledger/LedgerPrintStyle1.tsx";
+import { FoodCategory } from "@/src/types/types.ts";
+import type { Ledger, LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 const ledger: Ledger = { id: "KID", name: "幼儿备餐", createdAt: "2026-01-01T00:00:00.000Z" };
 

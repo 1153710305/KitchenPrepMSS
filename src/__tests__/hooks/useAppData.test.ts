@@ -10,11 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useAppData } from "./useAppData.ts";
-import { PrepReportService } from "../services/store.ts";
-import { LedgerService } from "../services/ledgerStore.ts";
-import { SyncHelper } from "../services/syncHelper.ts";
-import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
+import { useAppData } from "@/src/hooks/useAppData.ts";
+import { PrepReportService } from "@/src/services/store.ts";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
 
 function resetAllServices() {
   PrepReportService.setReportsInMemory([]);

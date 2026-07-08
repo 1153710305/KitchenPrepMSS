@@ -12,9 +12,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { RawMaterialsDictService, RawMaterialDictItem } from "./rawMaterialDict.ts";
-import { SyncHelper } from "./syncHelper.ts";
-import { FoodCategory } from "../types/types.ts";
+import { RawMaterialsDictService, RawMaterialDictItem } from "@/src/services/rawMaterialDict.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
+import { FoodCategory } from "@/src/types/types.ts";
 
 function resetDict() {
   RawMaterialsDictService.setRawMaterialsDictInMemory([]);

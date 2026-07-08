@@ -17,11 +17,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { PrepReportService } from "./store.ts";
-import { SyncHelper } from "./syncHelper.ts";
-import { LedgerService } from "./ledgerStore.ts";
-import { RawMaterialsDictService } from "./rawMaterialDict.ts";
-import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem } from "../types/types.ts";
+import { PrepReportService } from "@/src/services/store.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem } from "@/src/types/types.ts";
 
 function resetPrepReportService() {
   PrepReportService.setReportsInMemory([]);

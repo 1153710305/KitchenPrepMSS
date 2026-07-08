@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useTableTheme, THEME_MAP } from "./useTableTheme.ts";
+import { useTableTheme, THEME_MAP } from "@/src/hooks/useTableTheme.ts";
 
 describe("useTableTheme", () => {
   beforeEach(() => {

@@ -13,12 +13,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { LedgerService } from "./ledgerStore.ts";
-import { SyncHelper } from "./syncHelper.ts";
-import { PrepReportService } from "./store.ts";
-import { RawMaterialsDictService } from "./rawMaterialDict.ts";
-import { FoodCategory } from "../types/types.ts";
-import type { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { SyncHelper } from "@/src/services/syncHelper.ts";
+import { PrepReportService } from "@/src/services/store.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { FoodCategory } from "@/src/types/types.ts";
+import type { Ledger, LedgerItem, DailyStockRecord } from "@/src/types/ledgerTypes.ts";
 
 function resetLedgerService() {
   LedgerService.setLedgersInMemory([]);

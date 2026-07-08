@@ -11,8 +11,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LedgerPrintModal } from "./LedgerPrintModal.tsx";
-import { FoodCategory } from "../../types/types.ts";
+import { LedgerPrintModal } from "@/src/components/ledger/LedgerPrintModal.tsx";
+import { FoodCategory } from "@/src/types/types.ts";
 
 const baseProps = {
   isOpen: true,

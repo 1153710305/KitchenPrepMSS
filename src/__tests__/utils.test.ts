@@ -16,8 +16,8 @@ import {
   createSystemLog,
   convertItemsToCsv,
   LogBroker
-} from "./utils.ts";
-import { PreparedItem, FoodCategory, TargetGroup } from "./types/types.ts";
+} from "@/src/utils.ts";
+import { PreparedItem, FoodCategory, TargetGroup } from "@/src/types/types.ts";
 
 describe("getDaysInMonth", () => {
   it("returns 31 days for January", () => {

@@ -9,8 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useAppAuth } from "./useAppAuth.ts";
-import { ADMIN_PASSWORD, LOGIN_PASSWORD } from "../constants/constants.ts";
+import { useAppAuth } from "@/src/hooks/useAppAuth.ts";
+import { ADMIN_PASSWORD, LOGIN_PASSWORD } from "@/src/constants/constants.ts";
 
 describe("useAppAuth", () => {
   beforeEach(() => {

@@ -11,8 +11,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { SensorySelector } from "./SensorySelector.tsx";
-import { LedgerService } from "../../services/ledgerStore.ts";
+import { SensorySelector } from "@/src/components/shared/SensorySelector.tsx";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
 
 describe("SensorySelector", () => {
   beforeEach(() => {

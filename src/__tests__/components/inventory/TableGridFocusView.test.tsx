@@ -11,11 +11,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TableGridFocusView } from "./TableGridFocusView.tsx";
-import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
-import { FoodCategory, TargetGroup } from "../../types/types.ts";
-import { THEME_MAP } from "../../hooks/useTableTheme.ts";
-import type { PreparedItem } from "../../types/types.ts";
+import { TableGridFocusView } from "@/src/components/inventory/TableGridFocusView.tsx";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { FoodCategory, TargetGroup } from "@/src/types/types.ts";
+import { THEME_MAP } from "@/src/hooks/useTableTheme.ts";
+import type { PreparedItem } from "@/src/types/types.ts";
 
 const days = ["1", "2"];
 

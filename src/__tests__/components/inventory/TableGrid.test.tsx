@@ -11,13 +11,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TableGrid } from "./TableGrid.tsx";
-import { LedgerService } from "../../services/ledgerStore.ts";
-import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
-import { PrepReportService } from "../../services/store.ts";
-import { FoodCategory, TargetGroup } from "../../types/types.ts";
-import type { GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
-import type { LedgerItem } from "../../types/ledgerTypes.ts";
+import { TableGrid } from "@/src/components/inventory/TableGrid.tsx";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { PrepReportService } from "@/src/services/store.ts";
+import { FoodCategory, TargetGroup } from "@/src/types/types.ts";
+import type { GroupMonthlyReport, DynamicGroup, DynamicCategory } from "@/src/types/types.ts";
+import type { LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 const report: GroupMonthlyReport = {
   targetGroup: "KID",

@@ -11,11 +11,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";
-import { LedgerService } from "../../services/ledgerStore.ts";
-import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
-import { FoodCategory } from "../../types/types.ts";
-import type { LedgerItem } from "../../types/ledgerTypes.ts";
+import { LedgerStyle1Table } from "@/src/components/ledger/LedgerStyle1Table.tsx";
+import { LedgerService } from "@/src/services/ledgerStore.ts";
+import { RawMaterialsDictService } from "@/src/services/rawMaterialDict.ts";
+import { FoodCategory } from "@/src/types/types.ts";
+import type { LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 const makeItem = (id: string, name: string, dailyRecords: LedgerItem["dailyRecords"] = {}): LedgerItem => ({
   id,
