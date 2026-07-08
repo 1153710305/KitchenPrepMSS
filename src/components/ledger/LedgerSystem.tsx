@@ -15,7 +15,6 @@ import { LogBroker, matchPinyin, getDatesBetween } from "../../utils.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
 import { LedgerPrintPreviewOverlay } from "./LedgerPrintPreviewOverlay.tsx";
 import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";

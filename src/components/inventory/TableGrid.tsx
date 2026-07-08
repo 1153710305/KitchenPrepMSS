@@ -163,7 +163,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
    * @description 导出当前餐位二级分组在当月的采购明细表
    */
   const handleExportCsv = () => {
-    const catLabel = selectedCategory ? (FOOD_CATEGORY_LABELS[selectedCategory] || selectedCategory) : "汇总合计";
+    const catLabel = selectedCategory ? getCategoryLabel(selectedCategory) : "汇总合计";
     const groupLabel = getGroupLabel(report.targetGroup);
 
     // 生成 CSV 内容

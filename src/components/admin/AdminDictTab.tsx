@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { matchPinyin } from "../../utils.ts";
 
 interface AdminDictTabProps {
