@@ -15,6 +15,7 @@ import { AdminDictTab } from "./AdminDictTab.tsx";
 import { AdminGroupsTab } from "./AdminGroupsTab.tsx";
 import { AdminLedgerHelpersTab } from "./AdminLedgerHelpersTab.tsx";
 import { AdminSystemTab } from "./AdminSystemTab.tsx";
+import { AdminStressTestTab } from "./AdminStressTestTab.tsx";
 import {
   Users,
   Settings,
@@ -72,7 +73,7 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
   /**
    * @description 当前激活的子功能页面。'groups'代表客群管理，'categories'代表大类管理，'dictionary'代表字典管理，'ledger_helpers'代表台账常用字典配置
    */
-  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "ledger_helpers" | "system">("groups");
+  const [activeTab, setActiveTab] = useState<"groups" | "categories" | "dictionary" | "ledger_helpers" | "system" | "stress">("groups");
 
   // --- 自定义确认弹窗状态 ---
   /** 
@@ -328,6 +329,18 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 <span>系统维护</span>
               </button>
 
+              <button
+                onClick={() => setActiveTab("stress")}
+                className={`w-full flex items-center px-4 py-3 text-xs font-semibold cursor-pointer transition-all border-r-4 ${
+                  activeTab === "stress"
+                    ? "bg-purple-50 border-purple-500 text-purple-700 font-bold"
+                    : "text-slate-600 hover:bg-slate-50 border-transparent"
+                }`}
+              >
+                <Database size={15} className="mr-3 shrink-0" />
+                <span>极限压测</span>
+              </button>
+
             </nav>
           </div>
 
@@ -363,27 +376,41 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
                 </div>
 
                 {/* 品类列表 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                  {activeCategoriesList.map((cat) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {activeCategoriesList.map((cat, index) => {
                     const isUnderEdit = editingCatKey === cat.key;
+                    
+                    // 为不同品类分配不同的亮眼颜色主题
+                    const colorSets = [
+                      { border: "border-l-rose-500", text: "text-rose-600", bg: "hover:bg-rose-50" },
+                      { border: "border-l-blue-500", text: "text-blue-600", bg: "hover:bg-blue-50" },
+                      { border: "border-l-emerald-500", text: "text-emerald-600", bg: "hover:bg-emerald-50" },
+                      { border: "border-l-amber-500", text: "text-amber-600", bg: "hover:bg-amber-50" },
+                      { border: "border-l-purple-500", text: "text-purple-600", bg: "hover:bg-purple-50" },
+                      { border: "border-l-cyan-500", text: "text-cyan-600", bg: "hover:bg-cyan-50" },
+                    ];
+                    const theme = colorSets[index % colorSets.length];
+
                     return (
                       <div
                         key={cat.key}
-                        className={`flex items-center justify-between p-3 rounded-lg border text-xs transition-all ${isUnderEdit
-                          ? "bg-teal-50/50 border-teal-300 shadow-xs"
-                          : "bg-slate-50 border-slate-150 hover:bg-slate-100"
-                          }`}
+                        className={`flex items-center justify-between p-3.5 rounded-r-lg border-y border-r border-l-4 text-xs transition-all shadow-sm ${
+                          isUnderEdit
+                            ? `bg-teal-50/50 ${theme.border} border-y-teal-300 border-r-teal-300`
+                            : `bg-white ${theme.border} border-y-slate-200 border-r-slate-200 ${theme.bg}`
+                        }`}
                       >
                         <div>
-                          <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                          <span className={`font-black flex items-center gap-2 text-[13px] ${theme.text}`}>
+                            <span className="w-2 h-2 rounded-full currentColor opacity-60 bg-current"></span>
                             {cat.label}类
                             {cat.isDefault && (
-                              <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-bold" title="系统默认大类，不允许删除">
+                              <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-bold border border-slate-200" title="系统默认大类，不允许删除">
                                 默认
                               </span>
                             )}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400 block mt-0.5">ID: {cat.key}</span>
+                          <span className="text-[10px] font-mono text-slate-400 block mt-1 ml-4">ID: {cat.key}</span>
                         </div>
 
                         <div className="flex items-center space-x-1.5">
@@ -490,6 +517,11 @@ export const AdminBackend: React.FC<AdminBackendProps> = ({
           {/* 系统维护 Tab 页 */}
           {activeTab === "system" && (
             <AdminSystemTab showConfirm={showConfirm} />
+          )}
+
+          {/* 压测 Tab 页 */}
+          {activeTab === "stress" && (
+            <AdminStressTestTab />
           )}
 
         </main>
