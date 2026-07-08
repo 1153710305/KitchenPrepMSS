@@ -8,7 +8,6 @@
  * @description 备餐系统专属的常量字典：一二级人群/食材大类的中文名映射、默认单位、预设食材种子数据、登录与管理员密码（来自环境变量）以及界面通用中文文案集中管理。
  */
 
-import { FoodCategory } from "../types/types.ts";
 
 
 
