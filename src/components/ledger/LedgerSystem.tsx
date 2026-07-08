@@ -7,7 +7,7 @@
  * @description 原料购销台账及库存仓储系统主面板组件：编排台账的筛选、样式一/样式二切换、录入模式、原料增删改、批量签字与打印导出等各子组件；数据加载与录入模式状态机已分别抽取到 useLedgerData/useLedgerRecording 两个自定义 Hook 中。
  */
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Ledger, LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
@@ -15,7 +15,7 @@ import { LogBroker, matchPinyin, getDatesBetween } from "../../utils.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
 import { LedgerPrintPreviewOverlay } from "./LedgerPrintPreviewOverlay.tsx";
 import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";
@@ -27,7 +27,7 @@ import { LedgerControlBar } from "./LedgerControlBar.tsx";
 import { useLedgerData } from "../../hooks/useLedgerData.ts";
 import { useLedgerRecording } from "../../hooks/useLedgerRecording.ts";
 import { SyncHelper } from "../../services/syncHelper.ts";
-import React, { useState, useMemo, lazy, Suspense, useEffect } from "react";
+
 import {
   Calendar,
   AlertCircle,
@@ -142,14 +142,9 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   /** 二级分类勾选打印控制弹窗 */
   const [printModalOpen, setPrintModalOpen] = useState<boolean>(false);
   /** 总表打印预览下选中的二级食材分类（默认包含全部大类） */
-  const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>([
-    FoodCategory.VEGETABLE,
-    FoodCategory.GRAIN_OIL,
-    FoodCategory.SEASONING,
-    FoodCategory.MEAT,
-    FoodCategory.LOW_CONSUMP,
-    FoodCategory.FRUIT
-  ]);
+  const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>(() =>
+    PrepReportService.getActiveCategories().map(c => c.key)
+  );
 
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {

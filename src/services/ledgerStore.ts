@@ -411,7 +411,7 @@ export class LedgerService {
       const inPr = mergedRecord.inPrice ?? 0;
 
       // 从原料库字典中根据原料名称查询二级分类和默认单位
-      const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || FoodCategory.VEGETABLE;
+      const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || PrepReportService.getActiveCategories()[0]?.key || "";
       const unit = item.unit || "斤";
 
       // 从 YYYY-MM-DD 提取年、月、日
@@ -472,7 +472,7 @@ export class LedgerService {
       if (mergedRecord && (updates[updatedItem.id]?.inQuantity !== undefined || updates[updatedItem.id]?.inPrice !== undefined)) {
         const inQty = mergedRecord.inQuantity ?? 0;
         const inPr = mergedRecord.inPrice ?? 0;
-        const category = RawMaterialsDictService.getCategoryForMaterial(updatedItem.name) || FoodCategory.VEGETABLE;
+        const category = RawMaterialsDictService.getCategoryForMaterial(updatedItem.name) || PrepReportService.getActiveCategories()[0]?.key || "";
         const unit = updatedItem.unit || "斤";
         const [yearStr, monthStr, dayStr] = dateStr.split("-");
         const year = parseInt(yearStr || "2026");

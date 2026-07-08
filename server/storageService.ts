@@ -18,7 +18,7 @@ import crypto from "crypto";
 import { AsyncLocalStorage } from "async_hooks";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
-import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../src/constants/constants.ts";
+// Constants previously here were removed
 import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem, DynamicGroup, DynamicCategory, DailyEntry } from "../src/types/types.ts";
 import { Ledger, LedgerItem, DailyStockRecord } from "../src/types/ledgerTypes.ts";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
@@ -282,19 +282,31 @@ export class StorageService {
 
     const reports: GroupMonthlyReport[] = activeGroups.map((group) => {
       const items: PreparedItem[] = [];
-      Object.entries(PRESET_ITEMS_BY_CATEGORY).forEach(([categoryStr, defaultNames]) => {
-        const cat = categoryStr as FoodCategory;
-        const defaultUnit = CATEGORY_DEFAULT_UNITS[cat] || "个";
-        defaultNames.forEach((name) => {
+      activeCategories.forEach((catInfo) => {
+        const cat = catInfo.key as FoodCategory;
+        const dictItems = rawMaterialsDict.filter(i => i.category === cat);
+        
+        if (dictItems.length > 0) {
+          dictItems.forEach((dictItem) => {
+            items.push({
+              id: crypto.randomUUID(),
+              name: dictItem.name,
+              category: cat,
+              targetGroup: group.key as TargetGroup,
+              unit: dictItem.unit || "斤",
+              dailyData: { ...dailyData }
+            });
+          });
+        } else {
           items.push({
             id: crypto.randomUUID(),
-            name,
+            name: "预设原料",
             category: cat,
             targetGroup: group.key as TargetGroup,
-            unit: defaultUnit,
+            unit: "斤",
             dailyData: { ...dailyData }
           });
-        });
+        }
       });
 
       return {

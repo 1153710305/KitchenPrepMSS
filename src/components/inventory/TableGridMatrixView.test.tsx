@@ -22,8 +22,8 @@ const days = ["1", "2"];
 const makeItem = (): PreparedItem => ({
   id: "item_1",
   name: "土豆",
-  category: FoodCategory.VEGETABLE,
-  targetGroup: TargetGroup.KID,
+  category: "VEGETABLE",
+  targetGroup: "KID",
   unit: "斤",
   dailyData: {
     "1": { quantity: 3, price: 2, amount: 6 },
@@ -34,7 +34,7 @@ const makeItem = (): PreparedItem => ({
 describe("TableGridMatrixView", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
     vi.spyOn(PrepReportService, "getActiveCategories").mockReturnValue([
       { key: "VEGETABLE", label: "蔬菜", isDefault: true }
@@ -52,7 +52,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 
@@ -72,7 +72,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 
@@ -86,7 +86,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 
@@ -104,7 +104,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 
@@ -120,7 +120,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 
@@ -137,7 +137,7 @@ describe("TableGridMatrixView", () => {
         filteredItems={[makeItem()]}
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
-        selectedCategory={FoodCategory.VEGETABLE}
+        selectedCategory={"VEGETABLE"}
       />
     );
 

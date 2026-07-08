@@ -33,14 +33,14 @@ function resetPrepReportService() {
 const makeItem = (overrides: Partial<PreparedItem> = {}): PreparedItem => ({
   id: overrides.id || "item_1",
   name: overrides.name || "土豆",
-  category: overrides.category || FoodCategory.VEGETABLE,
-  targetGroup: overrides.targetGroup || TargetGroup.KID,
+  category: overrides.category || "VEGETABLE",
+  targetGroup: overrides.targetGroup || "KID",
   unit: overrides.unit || "斤",
   dailyData: overrides.dailyData || {}
 });
 
 const makeReport = (overrides: Partial<GroupMonthlyReport> = {}): GroupMonthlyReport => ({
-  targetGroup: overrides.targetGroup || TargetGroup.KID,
+  targetGroup: overrides.targetGroup || "KID",
   year: overrides.year ?? 2026,
   month: overrides.month ?? 7,
   items: overrides.items || []
@@ -160,7 +160,7 @@ describe("PrepReportService", () => {
     });
 
     it("creates a new item row on first sync for a not-yet-tracked material", async () => {
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", FoodCategory.VEGETABLE, "斤", 5, 2);
+      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 5, 2);
 
       const report = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
       const item = report.items.find((i) => i.name === "土豆")!;
@@ -169,8 +169,8 @@ describe("PrepReportService", () => {
     });
 
     it("is idempotent: syncing the same material/day twice updates in place rather than duplicating rows", async () => {
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", FoodCategory.VEGETABLE, "斤", 5, 2);
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", FoodCategory.VEGETABLE, "斤", 8, 3);
+      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 5, 2);
+      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 8, 3);
 
       const report = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
       const matches = report.items.filter((i) => i.name === "土豆");
@@ -180,7 +180,7 @@ describe("PrepReportService", () => {
 
     it("lazily creates the monthly report if it does not exist yet", async () => {
       expect(PrepReportService.getReports()).toHaveLength(0);
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "1", "土豆", FoodCategory.VEGETABLE, "斤", 1, 1);
+      await PrepReportService.syncFromLedger("KID", 2026, 7, "1", "土豆", "VEGETABLE", "斤", 1, 1);
       expect(PrepReportService.getReports().some((r) => r.targetGroup === "KID" && r.year === 2026 && r.month === 7)).toBe(true);
     });
   });
@@ -208,7 +208,7 @@ describe("PrepReportService", () => {
 
     it("removes the group and all of its reports on delete-sync", () => {
       PrepReportService.setActiveGroupsInMemory([{ key: "TEACHER", label: "教师备餐" } as any]);
-      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.TEACHER })]);
+      PrepReportService.setReportsInMemory([makeReport({ targetGroup: "TEACHER" })]);
 
       PrepReportService.syncDeleteGroupFromLedger("teacher");
 
@@ -281,7 +281,7 @@ describe("PrepReportService", () => {
     it("deletes a non-default category and strips matching items from every report", async () => {
       PrepReportService.setActiveCategoriesInMemory([{ key: "CUSTOM", label: "自定义大类", isDefault: false } as any]);
       PrepReportService.setReportsInMemory([
-        makeReport({ items: [makeItem({ id: "a", category: "CUSTOM" as FoodCategory }), makeItem({ id: "b", category: FoodCategory.VEGETABLE })] })
+        makeReport({ items: [makeItem({ id: "a", category: "CUSTOM" as FoodCategory }), makeItem({ id: "b", category: "VEGETABLE" })] })
       ]);
 
       await PrepReportService.deleteCategory("CUSTOM");
@@ -297,11 +297,11 @@ describe("PrepReportService", () => {
     // 一次事务完成），本描述块直接测试方法本身的纯内存行为，与迁移前完全一致
     it("renames matching items across every report and updates their category/unit", () => {
       PrepReportService.setReportsInMemory([
-        makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ name: "土豆" })] }),
-        makeReport({ targetGroup: TargetGroup.TEACHER, items: [makeItem({ id: "item_2", name: "土豆" })] })
+        makeReport({ targetGroup: "KID", items: [makeItem({ name: "土豆" })] }),
+        makeReport({ targetGroup: "TEACHER", items: [makeItem({ id: "item_2", name: "土豆" })] })
       ]);
 
-      PrepReportService.cascadeUpdateMaterial("土豆", "马铃薯", FoodCategory.VEGETABLE, "公斤");
+      PrepReportService.cascadeUpdateMaterial("土豆", "马铃薯", "VEGETABLE", "公斤");
 
       const allItems = PrepReportService.getReports().flatMap((r) => r.items);
       expect(allItems.every((i) => i.name === "马铃薯" && i.unit === "公斤")).toBe(true);
@@ -311,7 +311,7 @@ describe("PrepReportService", () => {
       PrepReportService.setReportsInMemory([makeReport({ items: [makeItem({ name: "土豆" })] })]);
       const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
 
-      PrepReportService.cascadeUpdateMaterial("不存在", "新名字", FoodCategory.VEGETABLE, "斤");
+      PrepReportService.cascadeUpdateMaterial("不存在", "新名字", "VEGETABLE", "斤");
 
       expect(queueChangeSpy).not.toHaveBeenCalled();
     });
@@ -339,8 +339,8 @@ describe("PrepReportService", () => {
     // （含其全部逐日数量/单价/金额），否则左下角"当月采购支出"与花销趋势图会继续包含已删除原料的历史入库金额
     it("removes the matching item only from reports belonging to the same target group", () => {
       PrepReportService.setReportsInMemory([
-        makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ id: "a", name: "土豆", targetGroup: TargetGroup.KID })] }),
-        makeReport({ targetGroup: TargetGroup.TEACHER, items: [makeItem({ id: "b", name: "土豆", targetGroup: TargetGroup.TEACHER })] })
+        makeReport({ targetGroup: "KID", items: [makeItem({ id: "a", name: "土豆", targetGroup: "KID" })] }),
+        makeReport({ targetGroup: "TEACHER", items: [makeItem({ id: "b", name: "土豆", targetGroup: "TEACHER" })] })
       ]);
 
       PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
@@ -353,8 +353,8 @@ describe("PrepReportService", () => {
 
     it("removes the matching item across every month's report for that target group", () => {
       PrepReportService.setReportsInMemory([
-        makeReport({ targetGroup: TargetGroup.KID, month: 6, items: [makeItem({ id: "a", name: "土豆" })] }),
-        makeReport({ targetGroup: TargetGroup.KID, month: 7, items: [makeItem({ id: "b", name: "土豆" })] })
+        makeReport({ targetGroup: "KID", month: 6, items: [makeItem({ id: "a", name: "土豆" })] }),
+        makeReport({ targetGroup: "KID", month: 7, items: [makeItem({ id: "b", name: "土豆" })] })
       ]);
 
       PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
@@ -363,7 +363,7 @@ describe("PrepReportService", () => {
     });
 
     it("is a no-op notify when no item matches", () => {
-      PrepReportService.setReportsInMemory([makeReport({ targetGroup: TargetGroup.KID, items: [makeItem({ name: "土豆" })] })]);
+      PrepReportService.setReportsInMemory([makeReport({ targetGroup: "KID", items: [makeItem({ name: "土豆" })] })]);
       const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
 
       PrepReportService.cascadeDeleteLedgerItem("KID", "不存在");

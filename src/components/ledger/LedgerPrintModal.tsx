@@ -9,7 +9,7 @@
 
 import { Printer, X } from "lucide-react";
 import { FoodCategory } from "../../types/types.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { PrepReportService } from "../../services/store.ts";
 
 interface LedgerPrintModalProps {
   isOpen: boolean;
@@ -54,8 +54,8 @@ export function LedgerPrintModal({
               <button
                 type="button"
                 onClick={() => setSelectedPrintCategories([
-                  FoodCategory.VEGETABLE, FoodCategory.GRAIN_OIL, FoodCategory.SEASONING,
-                  FoodCategory.MEAT, FoodCategory.LOW_CONSUMP, FoodCategory.FRUIT
+                  "VEGETABLE", "GRAIN_OIL", "SEASONING",
+                  "MEAT", "LOW_CONSUMP", "FRUIT"
                 ].filter((cat) => printableCategories.has(cat)))}
                 className="text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
               >
@@ -75,12 +75,12 @@ export function LedgerPrintModal({
           {/* 多选勾选区 */}
           <div className="grid grid-cols-2 gap-3 py-2">
             {[
-              { key: FoodCategory.VEGETABLE, label: FOOD_CATEGORY_LABELS[FoodCategory.VEGETABLE], color: "accent-green-600" },
-              { key: FoodCategory.GRAIN_OIL, label: FOOD_CATEGORY_LABELS[FoodCategory.GRAIN_OIL], color: "accent-amber-600" },
-              { key: FoodCategory.SEASONING, label: FOOD_CATEGORY_LABELS[FoodCategory.SEASONING], color: "accent-orange-600" },
-              { key: FoodCategory.MEAT, label: FOOD_CATEGORY_LABELS[FoodCategory.MEAT], color: "accent-red-600" },
-              { key: FoodCategory.LOW_CONSUMP, label: FOOD_CATEGORY_LABELS[FoodCategory.LOW_CONSUMP], color: "accent-slate-600" },
-              { key: FoodCategory.FRUIT, label: FOOD_CATEGORY_LABELS[FoodCategory.FRUIT], color: "accent-pink-600" }
+              { key: "VEGETABLE", label: PrepReportService.getActiveCategories().find(c => c.key === "VEGETABLE")?.label || "VEGETABLE", color: "accent-green-600" },
+              { key: "GRAIN_OIL", label: PrepReportService.getActiveCategories().find(c => c.key === "GRAIN_OIL")?.label || "GRAIN_OIL", color: "accent-amber-600" },
+              { key: "SEASONING", label: PrepReportService.getActiveCategories().find(c => c.key === "SEASONING")?.label || "SEASONING", color: "accent-orange-600" },
+              { key: "MEAT", label: PrepReportService.getActiveCategories().find(c => c.key === "MEAT")?.label || "MEAT", color: "accent-red-600" },
+              { key: "LOW_CONSUMP", label: PrepReportService.getActiveCategories().find(c => c.key === "LOW_CONSUMP")?.label || "LOW_CONSUMP", color: "accent-slate-600" },
+              { key: "FRUIT", label: PrepReportService.getActiveCategories().find(c => c.key === "FRUIT")?.label || "FRUIT", color: "accent-pink-600" }
             ].map((item) => {
               const isChecked = selectedPrintCategories.includes(item.key);
               const isPrintable = printableCategories.has(item.key);

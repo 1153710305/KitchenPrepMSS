@@ -10,7 +10,7 @@
 import React, { useState, useMemo } from "react";
 import { FoodCategory, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
-import { FOOD_CATEGORY_LABELS, UI_TEXT } from "../../constants/constants.ts";
+import { UI_TEXT } from "../../constants/constants.ts";
 import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
 import { Grid, Search, CalendarDays, Check, Flame, Download, TrendingUp } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
@@ -115,7 +115,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         return {
           id: item.id,
           name: item.name,
-          category: dictItem ? dictItem.category : FoodCategory.VEGETABLE,
+          category: dictItem ? dictItem.category : (activeCategoriesList[0]?.key || ""),
           targetGroup: report.targetGroup,
           unit: item.unit,
           dailyData: alignedDailyData
@@ -156,14 +156,14 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   const getCategoryLabel = (catKey: string) => {
     const c = activeCategoriesList.find((c) => c.key === catKey);
-    return c ? c.label : (FOOD_CATEGORY_LABELS[catKey as FoodCategory] || catKey);
+    return c ? c.label : catKey;
   };
 
   /**
    * @description 导出当前餐位二级分组在当月的采购明细表
    */
   const handleExportCsv = () => {
-    const catLabel = selectedCategory ? (FOOD_CATEGORY_LABELS[selectedCategory] || selectedCategory) : "汇总合计";
+    const catLabel = selectedCategory ? getCategoryLabel(selectedCategory) : "汇总合计";
     const groupLabel = getGroupLabel(report.targetGroup);
 
     // 生成 CSV 内容
@@ -260,7 +260,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         <div className="mt-8 p-4 bg-yellow-50/50 border border-yellow-10 border-dashed rounded-xl flex items-start gap-2 text-[13px] text-yellow-800">
           <Check size={16} className="text-yellow-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong>合计表业务说明：</strong>该表自动归集了当前目标受众分类（教师、幼儿、低/高年级）在各分食材（蔬菜、粮油、调料、肉类、低耗品、水果）卡片里的金额输入流。如果您需要增删或微调，请点击对应类目的标签即可下潜编辑。所有的修改都将完美自动向本表累合并瞬间落盘。
+            <strong>合计表业务说明：</strong>该表自动归集了当前目标受众分类（{activeGroupsList.map(g => g.label).join("、")}）在各分食材（{activeCategoriesList.map(c => c.label).join("、")}）卡片里的金额输入流。如果您需要增删或微调，请点击对应类目的标签即可下潜编辑。所有的修改都将完美自动向本表累合并瞬间落盘。
           </p>
         </div>
       </div>

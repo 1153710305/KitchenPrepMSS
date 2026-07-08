@@ -33,7 +33,7 @@ const makeItem = (dailyRecords: LedgerItem["dailyRecords"] = {}, initialStock = 
 describe("LedgerPrintStyle2Consumable", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "" }
+      { name: "大黑袋", category: "LOW_CONSUMP", unit: "捆", remark: "" }
     ]);
   });
 
@@ -112,7 +112,7 @@ describe("LedgerPrintStyle2Consumable", () => {
 
   it("falls back to the dictionary's remark when available, otherwise the item's own spec", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "个", remark: "加厚型" }
+      { name: "大黑袋", category: "LOW_CONSUMP", unit: "个", remark: "加厚型" }
     ]);
     const item = makeItem({ "2026-07-01": { inQuantity: 1, inPrice: 1, inAmount: 1, outQuantity: 0 } });
 

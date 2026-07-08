@@ -20,7 +20,7 @@ import type { GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../ty
 import type { LedgerItem } from "../../types/ledgerTypes.ts";
 
 const report: GroupMonthlyReport = {
-  targetGroup: TargetGroup.KID,
+  targetGroup: "KID",
   year: 2026,
   month: 7,
   items: []
@@ -49,7 +49,7 @@ const baseProps = {
 describe("TableGrid", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
     vi.spyOn(PrepReportService, "getActiveCategories").mockReturnValue([
       { key: "VEGETABLE", label: "蔬菜", isDefault: true },
@@ -72,15 +72,15 @@ describe("TableGrid", () => {
     it("[V5.70.0] shows the restored '全月备餐开支日耗曲线' chart with a total matching the 总预算耗资 badge", () => {
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([]);
       const reportWithData: GroupMonthlyReport = {
-        targetGroup: TargetGroup.KID,
+        targetGroup: "KID",
         year: 2026,
         month: 7,
         items: [
           {
             id: "item_1",
             name: "土豆",
-            category: FoodCategory.VEGETABLE,
-            targetGroup: TargetGroup.KID,
+            category: "VEGETABLE",
+            targetGroup: "KID",
             unit: "斤",
             dailyData: {
               "1": { quantity: 5, price: 2, amount: 10 },
@@ -90,8 +90,8 @@ describe("TableGrid", () => {
           {
             id: "item_2",
             name: "精肉",
-            category: FoodCategory.MEAT,
-            targetGroup: TargetGroup.KID,
+            category: "MEAT",
+            targetGroup: "KID",
             unit: "斤",
             dailyData: {
               "1": { quantity: 0, price: 0, amount: 0 },
@@ -113,7 +113,7 @@ describe("TableGrid", () => {
   describe("detail table (selectedCategory set)", () => {
     it("shows the empty-data message when no ledger item matches the selected category", () => {
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([]);
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       expect(screen.getByText(/该品类暂无细分材料/)).toBeInTheDocument();
     });
@@ -124,7 +124,7 @@ describe("TableGrid", () => {
       });
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       expect(screen.getByText("土豆")).toBeInTheDocument();
       expect(screen.getByText("5")).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("TableGrid", () => {
       const item = { ...makeLedgerItem(), ledgerId: "TEACHER" };
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       expect(screen.getByText(/该品类暂无细分材料/)).toBeInTheDocument();
     });
@@ -144,7 +144,7 @@ describe("TableGrid", () => {
       vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([]);
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       expect(screen.getByText(/该品类暂无细分材料/)).toBeInTheDocument();
     });
@@ -154,7 +154,7 @@ describe("TableGrid", () => {
       const item = makeLedgerItem();
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
       expect(screen.getByText("土豆")).toBeInTheDocument();
 
       await user.type(screen.getByPlaceholderText("快速检索当前页食材..."), "西红柿");
@@ -169,7 +169,7 @@ describe("TableGrid", () => {
       });
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       await user.click(screen.getByText("单日聚焦卡片 (推荐)"));
 
@@ -187,7 +187,7 @@ describe("TableGrid", () => {
       URL.revokeObjectURL = vi.fn();
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       await user.click(screen.getByText("导出本月细表 (CSV)"));
 
@@ -202,7 +202,7 @@ describe("TableGrid", () => {
       });
       vi.spyOn(LedgerService, "getLedgerItems").mockReturnValue([item]);
 
-      render(<TableGrid {...baseProps} selectedCategory={FoodCategory.VEGETABLE} />);
+      render(<TableGrid {...baseProps} selectedCategory={"VEGETABLE"} />);
 
       expect(screen.queryByText(/本月每日采购花销趋势/)).not.toBeInTheDocument();
 

@@ -53,7 +53,7 @@ describe("LedgerPrintModal", () => {
           {...baseProps}
           selectedPrintCategories={[]}
           setSelectedPrintCategories={vi.fn()}
-          printableCategories={new Set([FoodCategory.VEGETABLE])}
+          printableCategories={new Set(["VEGETABLE"])}
         />
       );
 
@@ -67,7 +67,7 @@ describe("LedgerPrintModal", () => {
           {...baseProps}
           selectedPrintCategories={[]}
           setSelectedPrintCategories={vi.fn()}
-          printableCategories={new Set([FoodCategory.VEGETABLE])}
+          printableCategories={new Set(["VEGETABLE"])}
         />
       );
 
@@ -83,13 +83,13 @@ describe("LedgerPrintModal", () => {
           {...baseProps}
           selectedPrintCategories={[]}
           setSelectedPrintCategories={setSelectedPrintCategories}
-          printableCategories={new Set([FoodCategory.VEGETABLE, FoodCategory.LOW_CONSUMP])}
+          printableCategories={new Set(["VEGETABLE", "LOW_CONSUMP"])}
         />
       );
 
       await user.click(screen.getByRole("button", { name: "全选" }));
 
-      expect(setSelectedPrintCategories).toHaveBeenCalledWith([FoodCategory.VEGETABLE, FoodCategory.LOW_CONSUMP]);
+      expect(setSelectedPrintCategories).toHaveBeenCalledWith(["VEGETABLE", "LOW_CONSUMP"]);
     });
   });
 
@@ -99,9 +99,9 @@ describe("LedgerPrintModal", () => {
     render(
       <LedgerPrintModal
         {...baseProps}
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         setSelectedPrintCategories={setSelectedPrintCategories}
-        printableCategories={new Set([FoodCategory.VEGETABLE])}
+        printableCategories={new Set(["VEGETABLE"])}
       />
     );
 
@@ -118,13 +118,13 @@ describe("LedgerPrintModal", () => {
         {...baseProps}
         selectedPrintCategories={[]}
         setSelectedPrintCategories={setSelectedPrintCategories}
-        printableCategories={new Set([FoodCategory.VEGETABLE])}
+        printableCategories={new Set(["VEGETABLE"])}
       />
     );
 
     await user.click(screen.getByRole("checkbox", { name: "蔬菜" }));
 
-    expect(setSelectedPrintCategories).toHaveBeenCalledWith([FoodCategory.VEGETABLE]);
+    expect(setSelectedPrintCategories).toHaveBeenCalledWith(["VEGETABLE"]);
   });
 
   it("toggles an already-selected category off on click", async () => {
@@ -133,9 +133,9 @@ describe("LedgerPrintModal", () => {
     render(
       <LedgerPrintModal
         {...baseProps}
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         setSelectedPrintCategories={setSelectedPrintCategories}
-        printableCategories={new Set([FoodCategory.VEGETABLE])}
+        printableCategories={new Set(["VEGETABLE"])}
       />
     );
 
@@ -150,7 +150,7 @@ describe("LedgerPrintModal", () => {
         {...baseProps}
         selectedPrintCategories={[]}
         setSelectedPrintCategories={vi.fn()}
-        printableCategories={new Set([FoodCategory.VEGETABLE])}
+        printableCategories={new Set(["VEGETABLE"])}
       />
     );
     expect(screen.getByRole("button", { name: "预览登记总表" })).toBeDisabled();
@@ -165,9 +165,9 @@ describe("LedgerPrintModal", () => {
         {...baseProps}
         onClose={onClose}
         setPrintPreviewStyle={setPrintPreviewStyle}
-        selectedPrintCategories={[FoodCategory.VEGETABLE]}
+        selectedPrintCategories={["VEGETABLE"]}
         setSelectedPrintCategories={vi.fn()}
-        printableCategories={new Set([FoodCategory.VEGETABLE])}
+        printableCategories={new Set(["VEGETABLE"])}
       />
     );
 

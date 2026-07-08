@@ -51,7 +51,7 @@ export function LedgerInvoiceTab({
 }: LedgerInvoiceTabProps) {
   return (
     <div className="space-y-6">
-      
+
       {/* 今日入库单 */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <div className="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
@@ -115,9 +115,9 @@ export function LedgerInvoiceTab({
                   <td className="px-3 py-2 font-mono font-bold text-emerald-800">¥{item.record.inAmount.toFixed(2)}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.outHandler || item.record.buyer || ""}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || item.record.inspector || ""}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.certification || "-"}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || "-"}</td>
-                  <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || "-"}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.certification || ""}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || ""}</td>
+                  <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || ""}</td>
                 </tr>
               ))
             )}
@@ -181,9 +181,9 @@ export function LedgerInvoiceTab({
                   <td className="px-3 py-2 font-mono font-bold text-slate-800">{item.record.outQuantity}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.outHandler || ""}</td>
                   <td className="px-3 py-2 text-slate-600">{item.record.outRecipient || ""}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.certification || "-"}</td>
-                  <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || "-"}</td>
-                  <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || "-"}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.certification || ""}</td>
+                  <td className="px-3 py-2 text-slate-600">{item.record.sensoryProperty || ""}</td>
+                  <td className="px-3 py-2 text-slate-500 text-left">{item.record.note || ""}</td>
                 </tr>
               ))
             )}

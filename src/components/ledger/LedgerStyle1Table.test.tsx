@@ -78,7 +78,7 @@ describe("LedgerStyle1Table", () => {
       shelfLifeOptions: ["2天", "15天"]
     });
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
   });
 

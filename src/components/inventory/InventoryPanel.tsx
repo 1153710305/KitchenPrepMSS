@@ -12,7 +12,7 @@ import { LedgerItem, Ledger } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { matchPinyin } from "../../utils.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { FoodCategory } from "../../types/types.ts";
 import {
   X,
@@ -132,8 +132,9 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
         // 从字典中查询分类和规格
         const dictEntry = dictItems.find((d) => d.name === item.name);
         const category = dictEntry?.category ?? null;
+        const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === category)?.label;
         const categoryLabel = category
-          ? (FOOD_CATEGORY_LABELS[category] ?? "未知分类")
+          ? (dynamicLabel || "未知分类")
           : "未知分类";
 
         // 读取后端直接发来的历史累计总和（不受懒加载被截断月份影响）
@@ -374,9 +375,9 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
                 className="appearance-none pl-3 pr-7 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-400 cursor-pointer text-slate-700 font-medium transition-all"
               >
                 <option value={ALL_CATEGORY_OPTION}>全部分类</option>
-                {Object.entries(FOOD_CATEGORY_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
+                {PrepReportService.getActiveCategories().map((cat) => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.label}
                   </option>
                 ))}
               </select>
@@ -387,8 +388,8 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
             <button
               onClick={() => setShowLowStockOnly((v) => !v)}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${showLowStockOnly
-                  ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-600"
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200"
+                : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-600"
                 }`}
             >
               <AlertTriangle size={12} />
@@ -523,7 +524,7 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
                       </td>
 
                       {/* 规格 */}
-                      <td className="px-3 py-3 text-slate-400">{row.spec || "-"}</td>
+                      <td className="px-3 py-3 text-slate-400">{row.spec || ""}</td>
 
                       {/* 单位 */}
                       <td className="px-3 py-3 text-center text-slate-500 font-medium">{row.unit}</td>

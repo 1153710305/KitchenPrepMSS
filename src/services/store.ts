@@ -7,7 +7,7 @@
  * @description 备餐采购/月度报表业务数据服务层（PrepReportService）：管理各受众人群月度报表的增删改查、一二级人群与食材大类配置的增删改查、与台账系统的数据同步桥接，并通过 SyncHelper 触发向后端的持久化。
  */
 
-import { PRESET_ITEMS_BY_CATEGORY, CATEGORY_DEFAULT_UNITS } from "../constants/constants.ts";
+import { RawMaterialsDictService } from "./rawMaterialDict.ts";
 import { FoodCategory, GroupMonthlyReport, PreparedItem, TargetGroup, DailyEntry, DynamicGroup, DynamicCategory } from "../types/types.ts";
 import { LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
@@ -187,20 +187,31 @@ export class PrepReportService {
         // 如果没有历史报表，使用默认品类种子填充
         const foodCategories = this.activeCategories.map((c) => c.key);
         foodCategories.forEach((cat) => {
-          const defaultNames = (PRESET_ITEMS_BY_CATEGORY as Record<string, string[]>)[cat] || ["预设原料"];
-          const defaultUnit = (CATEGORY_DEFAULT_UNITS as Record<string, string>)[cat] || "斤";
-
-          defaultNames.forEach((name) => {
+          const dictItemsForCat = RawMaterialsDictService.getItems().filter(item => item.category === cat);
+          
+          if (dictItemsForCat.length > 0) {
+            dictItemsForCat.forEach((dictItem) => {
+              const dailyData: Record<string, DailyEntry> = {};
+              items.push({
+                id: `item_${targetGroup.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                name: dictItem.name,
+                category: cat as FoodCategory,
+                targetGroup: targetGroup as TargetGroup,
+                unit: dictItem.unit || "斤",
+                dailyData
+              });
+            });
+          } else {
             const dailyData: Record<string, DailyEntry> = {};
             items.push({
               id: `item_${targetGroup.toLowerCase()}_${cat.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-              name,
+              name: "预设原料",
               category: cat as FoodCategory,
               targetGroup: targetGroup as TargetGroup,
-              unit: defaultUnit,
+              unit: "斤",
               dailyData
             });
-          });
+          }
         });
       }
 

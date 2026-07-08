@@ -51,9 +51,9 @@ export function useAppData(): UseAppDataResult {
   /** 当前加载好的月度多客群报表数组 */
   const [reports, setReports] = useState<GroupMonthlyReport[]>([]);
   /** 当前激活聚焦决策的一级餐位人群唯一标识Key，默认 TEACHER */
-  const [activeGroup, setActiveGroup] = useState<string>("TEACHER");
+  const [activeGroup, setActiveGroup] = useState<string>("");
   /** 当前选中的二级食材品类。当设置为 null 时，代表"合计汇总"汇总表 */
-  const [activeCategory, setActiveCategory] = useState<string | null>("VEGETABLE");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   /** 系统离线架构自检与加载态指示 */
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -169,13 +169,13 @@ export function useAppData(): UseAppDataResult {
         setActiveGroup((prev) => {
           if (prev === "LEDGER") return prev;
           if (groupKeys.includes(prev)) return prev;
-          return groupKeys[0] || "TEACHER";
+          return groupKeys[0] || "";
         });
 
         setActiveCategory((prev) => {
           if (prev === null) return null;
           if (catKeys.includes(prev)) return prev;
-          return catKeys[0] || "VEGETABLE";
+          return catKeys[0] || "";
         });
 
         // 触发自动存盘微气泡

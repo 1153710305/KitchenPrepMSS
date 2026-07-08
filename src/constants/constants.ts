@@ -8,58 +8,8 @@
  * @description 备餐系统专属的常量字典：一二级人群/食材大类的中文名映射、默认单位、预设食材种子数据、登录与管理员密码（来自环境变量）以及界面通用中文文案集中管理。
  */
 
-import { FoodCategory } from "../types/types.ts";
 
-/**
- * @description 食物品类的中文字典映射
- */
-export const FOOD_CATEGORY_LABELS: Record<FoodCategory, string> = {
-  [FoodCategory.VEGETABLE]: "蔬菜",
-  [FoodCategory.GRAIN_OIL]: "粮油",
-  [FoodCategory.SEASONING]: "调料",
-  [FoodCategory.MEAT]: "肉类",
-  [FoodCategory.LOW_CONSUMP]: "低耗品",
-  [FoodCategory.FRUIT]: "水果"
-};
 
-/**
- * @description 每个基本品类默认的单位映射
- */
-export const CATEGORY_DEFAULT_UNITS: Record<FoodCategory, string> = {
-  [FoodCategory.VEGETABLE]: "斤",
-  [FoodCategory.GRAIN_OIL]: "袋",
-  [FoodCategory.SEASONING]: "瓶",
-  [FoodCategory.MEAT]: "斤",
-  [FoodCategory.LOW_CONSUMP]: "包",
-  [FoodCategory.FRUIT]: "斤"
-};
-
-/**
- * @description 根据用户提供的图片表格，整理录入的常见食材和辅料名单作为各分类的预设种子数据
- */
-export const PRESET_ITEMS_BY_CATEGORY: Record<FoodCategory, string[]> = {
-  [FoodCategory.VEGETABLE]: [
-    "土豆", "柿子", "黄瓜", "胡萝卜", "青椒", "葱", "蒜", "香菜", "豆芽",
-    "大萝卜", "紫菜", "角瓜", "蒜苔", "白萝卜", "窝瓜", "白菜", "木耳",
-    "菠菜", "圆葱", "甘蓝", "香菇", "茄子", "山药", "大豆腐", "芹菜",
-    "油菜", "菜花", "干豆腐", "冬瓜"
-  ],
-  [FoodCategory.GRAIN_OIL]: [
-    "大米", "面粉", "黑芝麻", "粉条", "酵母", "豆沙", "粉丝", "小米", "糯米", "大豆油"
-  ],
-  [FoodCategory.SEASONING]: [
-    "香其酱", "烧烤料", "虾皮", "食用盐", "白砂糖", "鸡精", "酱油", "香醋", "十三香", "料酒"
-  ],
-  [FoodCategory.MEAT]: [
-    "猪肉", "牛肉", "鸡肉", "排骨", "鸡蛋", "鱼肉", "虾仁"
-  ],
-  [FoodCategory.LOW_CONSUMP]: [
-    "一次性餐盒", "垃圾袋", "洗洁精", "保鲜膜", "手套", "抹布", "消毒剂"
-  ],
-  [FoodCategory.FRUIT]: [
-    "苹果", "香蕉", "西瓜", "橘子", "鸭梨", "哈密瓜", "小番茄"
-  ]
-};
 
 /**
  * @description 管理配置后台的默认进入密码，支持从环境变量安全调入

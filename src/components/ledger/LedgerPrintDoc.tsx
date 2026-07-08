@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { AlertCircle } from "lucide-react";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { FoodCategory } from "../../types/types.ts";
 import { LEDGER_PRINT_OUT_CONFIG } from "../../constants/ledgerConstants.ts";
 
@@ -97,7 +97,7 @@ function PrintInDoc({
                   {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.name ?? item.name}
                 </td>
                 <td className="border border-black px-3 py-2 text-left">
-                  {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.remark || item.spec || "-"}
+                  {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.remark || item.spec || ""}
                 </td>
                 <td className="border border-black px-2 py-2">
                   {RawMaterialsDictService.getItems().find(d => d.name === item.name)?.unit ?? item.unit}
@@ -107,9 +107,9 @@ function PrintInDoc({
                 <td className="border border-black px-3 py-2 text-right  ">¥{item.record.inAmount.toFixed(2)}</td>
                 <td className="border border-black px-3 py-2">{item.record.outHandler || item.record.buyer || ""}</td>
                 <td className="border border-black px-3 py-2">{item.record.outRecipient || item.record.inspector || ""}</td>
-                <td className="border border-black px-3 py-2">{item.record.certification || "-"}</td>
-                <td className="border border-black px-3 py-2">{item.record.sensoryProperty || "-"}</td>
-                <td className="border border-black px-3 py-2 text-left">{item.record.note || "-"}</td>
+                <td className="border border-black px-3 py-2">{item.record.certification || ""}</td>
+                <td className="border border-black px-3 py-2">{item.record.sensoryProperty || ""}</td>
+                <td className="border border-black px-3 py-2 text-left">{item.record.note || ""}</td>
               </tr>
             ))
           )}
@@ -224,19 +224,20 @@ function PrintOutDoc({
   let globalIndex = 1;
   // 按照 FoodCategory 枚举顺序排列输出，保证类别顺序稳定
   const categoryOrder = [
-    FoodCategory.VEGETABLE,
-    FoodCategory.GRAIN_OIL,
-    FoodCategory.SEASONING,
-    FoodCategory.MEAT,
-    FoodCategory.LOW_CONSUMP,
-    FoodCategory.FRUIT
+    "VEGETABLE",
+    "GRAIN_OIL",
+    "SEASONING",
+    "MEAT",
+    "LOW_CONSUMP",
+    "FRUIT"
   ];
 
   categoryOrder.forEach(catKey => {
     const items = categoryMap.get(catKey);
     if (items && items.length > 0) {
+      const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === catKey)?.label;
       groupedByCategory.push({
-        categoryLabel: FOOD_CATEGORY_LABELS[catKey as FoodCategory] ?? catKey,
+        categoryLabel: dynamicLabel || catKey,
         items: items.map(item => ({ item, rowIndex: globalIndex++ }))
       });
     }
@@ -280,7 +281,8 @@ function PrintOutDoc({
     // 只展示原料所属的二级品类，不展示具体原料名称
     const dictItem = RawMaterialsDictService.getItems().find(d => d.name === item.name);
     if (!dictItem) return;
-    const catLabel = FOOD_CATEGORY_LABELS[dictItem.category] ?? dictItem.category;
+    const dynamicLabel = PrepReportService.getActiveCategories().find(c => c.key === dictItem.category)?.label;
+    const catLabel = dynamicLabel || dictItem.category;
 
     if (!supplierToCategoriesMap.has(supplier)) {
       supplierToCategoriesMap.set(supplier, []);
@@ -420,12 +422,12 @@ function PrintOutDoc({
   const renderTableHead = () => (
     <>
       <colgroup>
-        <col style={{ width: "9%" }} />
-        <col style={{ width: "7%" }} />
-        <col style={{ width: "17%" }} />
-        <col style={{ width: "12%" }} />
-        <col style={{ width: "22%" }} />
-        <col style={{ width: "33%" }} />
+        <col style={{ width: "10%" }} />
+        <col style={{ width: "8%" }} />
+        <col style={{ width: "19%" }} />
+        <col style={{ width: "11%" }} />
+        <col style={{ width: "26%" }} />
+        <col style={{ width: "26%" }} />
       </colgroup>
       <thead>
         <tr className="bg-white text-center " style={{ height: "42px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>

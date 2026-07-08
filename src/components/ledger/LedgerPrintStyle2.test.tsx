@@ -31,7 +31,7 @@ const makeItem = (dailyRecords: LedgerItem["dailyRecords"] = {}, initialStock = 
 describe("LedgerPrintStyle2", () => {
   beforeEach(() => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "土豆", category: FoodCategory.VEGETABLE, unit: "斤", remark: "" }
+      { name: "土豆", category: "VEGETABLE", unit: "斤", remark: "" }
     ]);
   });
 
@@ -56,7 +56,7 @@ describe("LedgerPrintStyle2", () => {
 
   it("delegates to the consumable-specific template when the item's dictionary category is LOW_CONSUMP", () => {
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-      { name: "大黑袋", category: FoodCategory.LOW_CONSUMP, unit: "捆", remark: "" }
+      { name: "大黑袋", category: "LOW_CONSUMP", unit: "捆", remark: "" }
     ]);
     const bag = { ...makeItem(), name: "大黑袋" };
 
@@ -167,7 +167,7 @@ describe("LedgerPrintStyle2", () => {
   describe("采购数量 (purchase quantity) column", () => {
     it("shows the converted quantity and conversion unit when the dictionary defines a conversion ratio", () => {
       vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
-        { name: "香梨", category: FoodCategory.FRUIT, unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
+        { name: "香梨", category: "FRUIT", unit: "箱", conversionUnit: "斤", conversionRatio: 20 }
       ]);
       const pear = { ...makeItem({
         "2026-07-03": { inQuantity: 2, inPrice: 30, inAmount: 60, outQuantity: 0 }

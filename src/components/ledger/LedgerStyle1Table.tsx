@@ -14,7 +14,6 @@ import { LedgerService } from "../../services/ledgerStore.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { PrepReportService } from "../../services/store.ts";
-import { FOOD_CATEGORY_LABELS } from "../../constants/constants.ts";
 import { LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
 import { FoodCategory } from "../../types/types.ts";
 import { HelperSelect } from "../shared/HelperSelect.tsx";
@@ -151,7 +150,7 @@ export function LedgerStyle1Table({
             <option value="">全部品类</option>
             {availableCategories.map(cat => (
               <option key={cat} value={cat}>
-                {PrepReportService.getActiveCategories().find(c => c.key === cat)?.label || FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat}
+                {PrepReportService.getActiveCategories().find(c => c.key === cat)?.label || cat}
               </option>
             ))}
           </select>
@@ -353,7 +352,7 @@ export function LedgerStyle1Table({
                                 {displayRemark ? (
                                   <div className="text-[10px] text-slate-400 font-normal mt-0.5">{displayRemark}</div>
                                 ) : (
-                                  <div className="text-[10px] text-slate-350 font-normal mt-0.5">{item.spec || "-"}</div>
+                                  <div className="text-[10px] text-slate-350 font-normal mt-0.5">{item.spec || ""}</div>
                                 )}
                               </>
                             );
@@ -378,7 +377,7 @@ export function LedgerStyle1Table({
                           const cat = dictItem2?.category;
                           if (!cat) return <span className="text-slate-300 text-[11px]">—</span>;
                           const activeCat = PrepReportService.getActiveCategories().find(c => c.key === cat);
-                          const catLabel = activeCat ? activeCat.label : (FOOD_CATEGORY_LABELS[cat as FoodCategory] || cat);
+                          const catLabel = activeCat ? activeCat.label : cat;
                           const colorMap: Record<string, string> = {
                             VEGETABLE: "bg-green-100 text-green-700 border-green-200",
                             GRAIN_OIL: "bg-amber-100 text-amber-700 border-amber-200",
