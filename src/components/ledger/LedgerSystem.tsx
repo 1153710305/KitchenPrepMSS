@@ -15,6 +15,7 @@ import { LogBroker, matchPinyin, getDatesBetween } from "../../utils.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
+import { PrepReportService } from "../../services/store.ts";
 import { LedgerPrintDoc } from "./LedgerPrintDoc.tsx";
 import { LedgerPrintPreviewOverlay } from "./LedgerPrintPreviewOverlay.tsx";
 import { LedgerStyle1Table } from "./LedgerStyle1Table.tsx";
@@ -141,14 +142,9 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   /** 二级分类勾选打印控制弹窗 */
   const [printModalOpen, setPrintModalOpen] = useState<boolean>(false);
   /** 总表打印预览下选中的二级食材分类（默认包含全部大类） */
-  const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>([
-    "VEGETABLE",
-    "GRAIN_OIL",
-    "SEASONING",
-    "MEAT",
-    "LOW_CONSUMP",
-    "FRUIT"
-  ]);
+  const [selectedPrintCategories, setSelectedPrintCategories] = useState<FoodCategory[]>(() =>
+    PrepReportService.getActiveCategories().map(c => c.key)
+  );
 
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
