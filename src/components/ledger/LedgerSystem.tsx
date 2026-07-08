@@ -7,7 +7,7 @@
  * @description 原料购销台账及库存仓储系统主面板组件：编排台账的筛选、样式一/样式二切换、录入模式、原料增删改、批量签字与打印导出等各子组件；数据加载与录入模式状态机已分别抽取到 useLedgerData/useLedgerRecording 两个自定义 Hook 中。
  */
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Ledger, LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
@@ -26,7 +26,7 @@ import { LedgerControlBar } from "./LedgerControlBar.tsx";
 import { useLedgerData } from "../../hooks/useLedgerData.ts";
 import { useLedgerRecording } from "../../hooks/useLedgerRecording.ts";
 import { SyncHelper } from "../../services/syncHelper.ts";
-import React, { useState, useMemo, lazy, Suspense, useEffect } from "react";
+
 import {
   Calendar,
   AlertCircle,
