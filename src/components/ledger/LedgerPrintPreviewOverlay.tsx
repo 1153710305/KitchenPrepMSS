@@ -28,8 +28,6 @@ interface LedgerPrintPreviewOverlayProps {
   style2DatesArray: string[];
   customDataRows: number;
   setCustomDataRows: (val: number) => void;
-  customSupplierRows: number;
-  setCustomSupplierRows: (val: number) => void;
 }
 
 export function LedgerPrintPreviewOverlay({
@@ -45,9 +43,7 @@ export function LedgerPrintPreviewOverlay({
   style2EndDate,
   style2DatesArray,
   customDataRows,
-  setCustomDataRows,
-  customSupplierRows,
-  setCustomSupplierRows
+  setCustomDataRows
 }: LedgerPrintPreviewOverlayProps) {
   const isPrintStyle1 = printPreviewStyle === "style1";
   const dictItems = RawMaterialsDictService.getItems();
@@ -83,16 +79,6 @@ export function LedgerPrintPreviewOverlay({
               min="0"
               value={customDataRows}
               onChange={(e) => setCustomDataRows(Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白供货商行数</label>
-            <input 
-              type="number" 
-              min="0"
-              value={customSupplierRows}
-              onChange={(e) => setCustomSupplierRows(Math.max(0, parseInt(e.target.value) || 0))}
               className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
             />
           </div>

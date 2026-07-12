@@ -858,3 +858,12 @@ Fix bug：
     1. 在 `LedgerSystem.tsx` 引入 `customDataRows` 和 `customSupplierRows` 状态。
     2. 将原先打印直接唤醒 `window.print()` 的出库/入库单，改写为同记账表一致的“先预览后打印”模式（包含带参数配置的顶栏区域），支持在界面上即时调整空数据行数和空供货商行数并实时渲染。
     3. 全局搜索打印组件（如 `LedgerPrintStyle1` / `LedgerPrintStyle2Consumable` / `LedgerPrintDoc`），将原本用于空白格占位的 `"-"` 统一清除，替换为空字符串，使物理打印时看起来更加干净。
+
+### 用户反馈与微调 2
+- 打印记账登记表时，只可以在预览界面修改数据行数，不需要修改供货商行数，因为没有单独的供货商行数。数据行数和供货商行数都需要修改的情况是打印出库单的预览。
+- 当在预览界面修改完数据行数后，立刻更新到预览界面修改之后的样子。默认使用系统设计的行数，当用户修改后保存到本地。
+  - 响应：
+    1. 在 `LedgerPrintModal.tsx` 移除了所有自定义行数的输入框，严格遵循“只可以在预览界面修改”。
+    2. 在 `LedgerPrintPreviewOverlay.tsx` (记账登记表预览) 中彻底移除了“供货商行数”的修改框。
+    3. 在 `LedgerPrintDoc.tsx` 的顶部预览控制栏中增加了判断逻辑，仅当打印出库单时才展示“补充空白供货商行数”，入库单则不展示。
+    4. 在 `LedgerSystem.tsx` 引入基于 `localStorage` 的本地记忆功能，将不同打印场景的状态互相剥离：`customDataRowsLedger` (记账表默认 15 行)、`customDataRowsDoc` (出库单默认 23 行)、`customSupplierRowsDoc` (供货商默认 6 行)，完全还原了最初系统的设计默认行数，同时兼顾了修改并自动保存的功能。

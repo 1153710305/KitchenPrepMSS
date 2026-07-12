@@ -146,9 +146,31 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
     PrepReportService.getActiveCategories().map(c => c.key)
   );
 
-  /** 动态补充的空白行数（打印和预览时生效） */
-  const [customDataRows, setCustomDataRows] = useState<number>(15);
-  const [customSupplierRows, setCustomSupplierRows] = useState<number>(6);
+  /** 动态补充的空白行数（打印和预览时生效，按类型分离记忆） */
+  const [customDataRowsLedger, setCustomDataRowsLedger] = useState<number>(() => {
+    const saved = localStorage.getItem("kpmss_print_data_rows_ledger");
+    return saved ? parseInt(saved, 10) : 15;
+  });
+  const [customDataRowsDoc, setCustomDataRowsDoc] = useState<number>(() => {
+    const saved = localStorage.getItem("kpmss_print_data_rows_doc");
+    return saved ? parseInt(saved, 10) : 23;
+  });
+  const [customSupplierRowsDoc, setCustomSupplierRowsDoc] = useState<number>(() => {
+    const saved = localStorage.getItem("kpmss_print_supplier_rows_doc");
+    return saved ? parseInt(saved, 10) : 6;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("kpmss_print_data_rows_ledger", customDataRowsLedger.toString());
+  }, [customDataRowsLedger]);
+
+  useEffect(() => {
+    localStorage.setItem("kpmss_print_data_rows_doc", customDataRowsDoc.toString());
+  }, [customDataRowsDoc]);
+
+  useEffect(() => {
+    localStorage.setItem("kpmss_print_supplier_rows_doc", customSupplierRowsDoc.toString());
+  }, [customSupplierRowsDoc]);
 
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
@@ -653,10 +675,10 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         dailyInwardItems={dailyInwardItems}
         dailyOutwardItems={dailyOutwardItems}
         dailyInTotalAmount={dailyInTotalAmount}
-        customDataRows={customDataRows}
-        setCustomDataRows={setCustomDataRows}
-        customSupplierRows={customSupplierRows}
-        setCustomSupplierRows={setCustomSupplierRows}
+        customDataRows={customDataRowsDoc}
+        setCustomDataRows={setCustomDataRowsDoc}
+        customSupplierRows={customSupplierRowsDoc}
+        setCustomSupplierRows={setCustomSupplierRowsDoc}
         onClose={() => setPrintDocType(null)}
       />
     );
@@ -677,6 +699,8 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         style2StartDate={style2StartDate}
         style2EndDate={style2EndDate}
         style2DatesArray={style2DatesArray}
+        customDataRows={customDataRowsLedger}
+        setCustomDataRows={setCustomDataRowsLedger}
       />
     );
   }
@@ -882,10 +906,6 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         setSelectedPrintCategories={setSelectedPrintCategories}
         setPrintPreviewStyle={setPrintPreviewStyle}
         printableCategories={printableCategories}
-        customDataRows={customDataRows}
-        setCustomDataRows={setCustomDataRows}
-        customSupplierRows={customSupplierRows}
-        setCustomSupplierRows={setCustomSupplierRows}
         onClose={() => setPrintModalOpen(false)}
       />
 
