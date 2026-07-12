@@ -133,10 +133,11 @@ export class PrepReportService {
     return new Promise((resolve) => {
       setTimeout(() => {
         try {
-          if (serverData && serverData.activeGroups && serverData.activeCategories && serverData.reports) {
+          if (serverData && serverData.activeGroups && serverData.activeCategories) {
             this.activeGroups = serverData.activeGroups as DynamicGroup[];
             this.activeCategories = serverData.activeCategories as DynamicCategory[];
-            this.reports = serverData.reports;
+            // reports 已废弃，前端按需合成
+            this.reports = [];
             LogBroker.publish("INFO", "PrepReportService", "已成功从服务器同步载入备餐报表数据");
           } else {
             // 服务端现在负责注入初始数据。若到达此处，说明网络失败或未收到有效负载。
@@ -144,7 +145,7 @@ export class PrepReportService {
             this.activeGroups = [];
             this.activeCategories = [];
             this.reports = [];
-            LogBroker.publish("WARN", "PrepReportService", "未收到有效的服务端报表数据，可能处于断网状态或服务异常。");
+            LogBroker.publish("WARN", "PrepReportService", "未收到有效的服务端数据，可能处于断网状态或服务异常。");
           }
           resolve(this.reports);
         } catch (error) {

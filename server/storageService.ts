@@ -19,7 +19,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
 // Constants previously here were removed
-import { FoodCategory, TargetGroup, GroupMonthlyReport, PreparedItem, DynamicGroup, DynamicCategory, DailyEntry } from "../src/types/types.ts";
+import { FoodCategory, TargetGroup, DynamicGroup, DynamicCategory } from "../src/types/types.ts";
 import { Ledger, LedgerItem, DailyStockRecord } from "../src/types/ledgerTypes.ts";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
 
@@ -37,8 +37,7 @@ const NORMALIZED_TABLES = [
 
 /** 阶段三·增量写协议：可增量写入的实体类型 */
 export type SyncOpEntity =
-  | "ledger" | "ledgerItem" | "ledgerItemDailyRecord" | "report" | "preparedItem"
-  | "preparedItemDailyData" | "activeGroup" | "activeCategory" | "rawMaterial" | "ledgerHelperOptions";
+  | "ledger" | "ledgerItem" | "ledgerItemDailyRecord" | "activeGroup" | "activeCategory" | "rawMaterial" | "ledgerHelperOptions";
 
 /**
  * @description 单个增量同步操作。key 的形状按 entity 而定：大多数实体是主键字符串，
@@ -267,55 +266,7 @@ export class StorageService {
     }));
     const ledgerItems: LedgerItem[] = []; // 台账内容保持为空，等用户自行录入
 
-    // 5. reports
-    // 生成一个空的 31 天矩阵，确保数据结构连贯
-    // 键统一用当月内的裸日序号（"1".."31"），与 syncFromLedger 等全部备餐报表读写点及前端所有
-    // 渲染/统计逻辑（App.tsx、TableGrid.tsx 等）保持一致；
-    // 不同于台账 dailyRecords 用完整 YYYY-MM-DD——因为一个 PreparedItem 天生只属于单一月份的报表，
-    // 年月已由其所属 report 唯一确定，无需在每日键里重复携带
-    const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    const dailyData: Record<string, DailyEntry> = {};
-    for (let day = 1; day <= daysInMonth; day++) {
-      dailyData[String(day)] = { quantity: 0, price: 0, amount: 0 };
-    }
 
-    const reports: GroupMonthlyReport[] = activeGroups.map((group) => {
-      const items: PreparedItem[] = [];
-      activeCategories.forEach((catInfo) => {
-        const cat = catInfo.key as FoodCategory;
-        const dictItems = rawMaterialsDict.filter(i => i.category === cat);
-        
-        if (dictItems.length > 0) {
-          dictItems.forEach((dictItem) => {
-            items.push({
-              id: crypto.randomUUID(),
-              name: dictItem.name,
-              category: cat,
-              targetGroup: group.key as TargetGroup,
-              unit: dictItem.unit || "斤",
-              dailyData: { ...dailyData }
-            });
-          });
-        } else {
-          items.push({
-            id: crypto.randomUUID(),
-            name: "预设原料",
-            category: cat,
-            targetGroup: group.key as TargetGroup,
-            unit: "斤",
-            dailyData: { ...dailyData }
-          });
-        }
-      });
-
-      return {
-        targetGroup: group.key as TargetGroup,
-        year: currentYear,
-        month: currentMonth,
-        items
-      };
-    });
 
     // 6. ledgerHelperDict (空)
     const ledgerHelperDict: Record<string, string[]> = {
@@ -332,7 +283,7 @@ export class StorageService {
     return {
       ledgers,
       ledgerItems,
-      reports,
+
       activeGroups,
       activeCategories,
       rawMaterialsDict,
@@ -708,11 +659,7 @@ export class StorageService {
             break;
           }
 
-          case "report":
-          case "preparedItem":
-          case "preparedItemDailyData":
-            // 实体表已被彻底删除，此三种同步操作变为直接忽略
-            break;
+
 
           case "activeGroup":
             if (op.op === "delete") {
@@ -885,58 +832,6 @@ export class StorageService {
       FROM raw_materials_dict
     `).all() as any[]).map((d) => ({ ...d, isDefault: !!d.isDefault }));
 
-    // 动态生成备餐报表 (Reports)
-    // 根据 ledgers(作为TargetGroup) 和 当前日期范围内的 ledger_item_daily_records，动态合成
-    const [startYearStr, startMonthStr] = filterStart.split('-');
-    const reportYear = parseInt(startYearStr);
-    const reportMonth = parseInt(startMonthStr);
-
-    const reports: any[] = [];
-    for (const ledger of ledgers) {
-      const targetGroup = ledger.id;
-      // 找出当前受众人群下的所有原料项目
-      const itemsForGroup = ledgerItemsRaw.filter(li => li.ledgerId === targetGroup);
-
-      const preparedItems = itemsForGroup.map(li => {
-        const dailyData: Record<string, any> = {};
-        const recordsForThisItem = dailyByItem[li.id] || {};
-
-        for (const dateStr of Object.keys(recordsForThisItem)) {
-          // dateStr is 'YYYY-MM-DD'
-          const day = parseInt(dateStr.split('-')[2]).toString();
-          const r = recordsForThisItem[dateStr];
-
-          if ((r.inQuantity && r.inQuantity > 0) || (r.inAmount && r.inAmount > 0)) {
-            dailyData[day] = {
-              quantity: r.inQuantity || 0,
-              price: r.inPrice || 0,
-              amount: r.inAmount || 0
-            };
-          }
-        }
-
-        // 尝试从大字典中推断 category，找不到默认算 VEGETABLE
-        const dictCategory = rawMaterialsDict.find(d => d.name === li.name)?.category || "VEGETABLE";
-
-        return {
-          id: li.id,
-          name: li.name,
-          category: dictCategory,
-          targetGroup: targetGroup,
-          unit: li.unit,
-          dailyData
-        };
-      });
-
-      // 无论该月有没有数据，都把该受众群体的空报表壳子推入，保证前端有全部月份可切换
-      reports.push({
-        targetGroup: targetGroup,
-        year: reportYear,
-        month: reportMonth,
-        items: preparedItems
-      });
-    }
-
     const activeGroups = (db.prepare("SELECT key, label, emoji, is_default as isDefault FROM active_groups").all() as any[])
       .map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, isDefault: !!g.isDefault }));
     const activeCategories = (db.prepare("SELECT key, label, is_default as isDefault FROM active_categories").all() as any[])
@@ -954,7 +849,7 @@ export class StorageService {
       ledgerHelperDict[row.category].push(row.value);
     }
 
-    return { reports, activeGroups, activeCategories, ledgers, ledgerItems, rawMaterialsDict, ledgerHelperDict };
+    return { activeGroups, activeCategories, ledgers, ledgerItems, rawMaterialsDict, ledgerHelperDict };
   }
 
   /**
@@ -1039,9 +934,7 @@ export class StorageService {
     const data: any = {
       ledgers: current.ledgers ? [...current.ledgers] : [],
       ledgerItems: current.ledgerItems ? current.ledgerItems.map((i: any) => ({ ...i, dailyRecords: { ...(i.dailyRecords ?? {}) } })) : [],
-      reports: current.reports ? current.reports.map((r: any) => ({
-        ...r, items: (r.items ?? []).map((it: any) => ({ ...it, dailyData: { ...(it.dailyData ?? {}) } }))
-      })) : [],
+
       activeGroups: current.activeGroups ? [...current.activeGroups] : [],
       activeCategories: current.activeCategories ? [...current.activeCategories] : [],
       rawMaterialsDict: current.rawMaterialsDict ? [...current.rawMaterialsDict] : [],
@@ -1674,13 +1567,6 @@ export class StorageService {
         };
       } else {
         savedGroup = { key: upperKey, label: label.trim(), emoji: emoji.trim() || "🍽️" };
-        const reports: GroupMonthlyReport[] = current.reports ?? [];
-        const reportExists = reports.some((r) => r.targetGroup === upperKey);
-        if (!reportExists) {
-          const currentYear = new Date().getFullYear();
-          const currentMonth = new Date().getMonth() + 1;
-          ops.push({ entity: "report", op: "upsert", key: { targetGroup: upperKey, year: currentYear, month: currentMonth } });
-        }
       }
       ops.push({ entity: "activeGroup", op: "upsert", key: upperKey, data: savedGroup });
 
@@ -1720,10 +1606,6 @@ export class StorageService {
       }
 
       const ops: SyncOp[] = [{ entity: "activeGroup", op: "delete", key: upperKey }];
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      reports.filter((r) => r.targetGroup.toUpperCase() === upperKey).forEach((report) => {
-        ops.push({ entity: "report", op: "delete", key: { targetGroup: report.targetGroup, year: report.year, month: report.month } });
-      });
 
       const ledgers: Ledger[] = current.ledgers ?? [];
       const ledger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
@@ -1790,12 +1672,6 @@ export class StorageService {
       }
 
       const ops: SyncOp[] = [{ entity: "activeCategory", op: "delete", key: upperKey }];
-      const reports: GroupMonthlyReport[] = current.reports ?? [];
-      reports.forEach((report) => {
-        (report.items ?? []).filter((item: PreparedItem) => item.category === upperKey).forEach((item: PreparedItem) => {
-          ops.push({ entity: "preparedItem", op: "delete", key: item.id });
-        });
-      });
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
