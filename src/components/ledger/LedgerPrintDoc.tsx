@@ -47,7 +47,8 @@ function PrintInDoc({
   activeLedger,
   selectedDate,
   dailyInwardItems,
-  dailyInTotalAmount
+  dailyInTotalAmount,
+  customDataRows
 }: {
   activeLedger: Ledger | null;
   selectedDate: string;
@@ -199,7 +200,9 @@ function paginateGroupedItems(
 function PrintOutDoc({
   activeLedger,
   selectedDate,
-  dailyOutwardItems
+  dailyOutwardItems,
+  customDataRows,
+  customSupplierRows
 }: {
   activeLedger: Ledger | null;
   selectedDate: string;
