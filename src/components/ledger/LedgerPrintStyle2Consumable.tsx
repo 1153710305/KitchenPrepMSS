@@ -35,17 +35,18 @@ export function LedgerPrintStyle2Consumable({
   activeItem,
   style2StartDate,
   style2EndDate,
-  style2DatesArray
+  style2DatesArray,
+  customDataRows
 }: LedgerPrintStyle2ConsumableProps) {
   const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === activeItem.name);
   const displayName = dictItem?.name ?? activeItem.name;
-  const displaySpec = dictItem?.remark || activeItem.spec || "-";
+  const displaySpec = dictItem?.remark || activeItem.spec || "";
 
   const activeRows = style2DatesArray
     .map((dStr) => ({ dStr, record: activeItem.dailyRecords[dStr] }))
     .filter(({ record }) => record && ((record.inQuantity || 0) > 0 || (record.outQuantity || 0) > 0));
 
-  const rowsPerPage = LEDGER_PRINT_CONSUMABLE_CONFIG.minPrintRows;
+  const rowsPerPage = customDataRows;
   const pages: Array<typeof activeRows> = [];
   if (activeRows.length === 0) {
     pages.push([]);

@@ -51,7 +51,7 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={vi.fn()}
-      />
+       ledgerItemsList={[]} />
     );
 
     expect(screen.getByText("土豆")).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={vi.fn()}
-      />
+       ledgerItemsList={[]} />
     );
 
     expect(screen.getByText("¥6.00 元")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("TableGridFocusView", () => {
         activeTheme={THEME_MAP.emerald}
         focusDay="1"
         setFocusDay={setFocusDay}
-      />
+       ledgerItemsList={[]} />
     );
 
     await user.click(screen.getByText("2号"));

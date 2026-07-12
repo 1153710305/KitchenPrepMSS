@@ -146,6 +146,10 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
     PrepReportService.getActiveCategories().map(c => c.key)
   );
 
+  /** 动态补充的空白行数（打印和预览时生效） */
+  const [customDataRows, setCustomDataRows] = useState<number>(15);
+  const [customSupplierRows, setCustomSupplierRows] = useState<number>(6);
+
   /** 从全局原料大字典获取的可供选择下拉项 */
   const dictOptions = useMemo(() => {
     return RawMaterialsDictService.getItems().map((item) => ({
@@ -630,14 +634,11 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   };
 
   /**
-   * @description 唤醒纯净打印覆盖层，并调用浏览器原生打印
+   * @description 唤醒纯净打印覆盖层
    * @param type "in" | "out"
    */
   const triggerPrintDoc = (type: "in" | "out") => {
     setPrintDocType(type);
-    setTimeout(() => {
-      window.print();
-    }, 200);
   };
 
   // ================= 视图渲染部分 =================
@@ -652,6 +653,10 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         dailyInwardItems={dailyInwardItems}
         dailyOutwardItems={dailyOutwardItems}
         dailyInTotalAmount={dailyInTotalAmount}
+        customDataRows={customDataRows}
+        setCustomDataRows={setCustomDataRows}
+        customSupplierRows={customSupplierRows}
+        setCustomSupplierRows={setCustomSupplierRows}
         onClose={() => setPrintDocType(null)}
       />
     );
@@ -877,6 +882,10 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         setSelectedPrintCategories={setSelectedPrintCategories}
         setPrintPreviewStyle={setPrintPreviewStyle}
         printableCategories={printableCategories}
+        customDataRows={customDataRows}
+        setCustomDataRows={setCustomDataRows}
+        customSupplierRows={customSupplierRows}
+        setCustomSupplierRows={setCustomSupplierRows}
         onClose={() => setPrintModalOpen(false)}
       />
 

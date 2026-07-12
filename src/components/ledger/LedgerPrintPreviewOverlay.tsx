@@ -26,6 +26,10 @@ interface LedgerPrintPreviewOverlayProps {
   style2StartDate: string;
   style2EndDate: string;
   style2DatesArray: string[];
+  customDataRows: number;
+  setCustomDataRows: (val: number) => void;
+  customSupplierRows: number;
+  setCustomSupplierRows: (val: number) => void;
 }
 
 export function LedgerPrintPreviewOverlay({
@@ -39,7 +43,11 @@ export function LedgerPrintPreviewOverlay({
   ledgerItems,
   style2StartDate,
   style2EndDate,
-  style2DatesArray
+  style2DatesArray,
+  customDataRows,
+  setCustomDataRows,
+  customSupplierRows,
+  setCustomSupplierRows
 }: LedgerPrintPreviewOverlayProps) {
   const isPrintStyle1 = printPreviewStyle === "style1";
   const dictItems = RawMaterialsDictService.getItems();
@@ -62,24 +70,46 @@ export function LedgerPrintPreviewOverlay({
         }
       `}</style>
       {/* 顶部退出预览条 */}
-      <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
-        <span className="text-sm text-gray-600 flex items-center gap-2">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-4 gap-4 print:hidden">
+        <span className="text-sm text-gray-600 flex items-center gap-2 shrink-0">
           <AlertCircle size={16} className="text-amber-500" />
-          <span className="font-bold">【打印预览模式】确认无误后请点击右侧“立即打印”，或按 Ctrl + P / Cmd + P 唤醒设备打印。</span>
+          <span className="font-bold">【打印预览模式】确认无误后请点击右侧“立即打印”。</span>
         </span>
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.print()}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
-          >
-            立即打印
-          </button>
-          <button
-            onClick={() => setPrintPreviewStyle(null)}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
-          >
-            返回系统
-          </button>
+        <div className="flex gap-4 items-center flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白数据行数</label>
+            <input 
+              type="number" 
+              min="0"
+              value={customDataRows}
+              onChange={(e) => setCustomDataRows(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白供货商行数</label>
+            <input 
+              type="number" 
+              min="0"
+              value={customSupplierRows}
+              onChange={(e) => setCustomSupplierRows(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
+            >
+              立即打印
+            </button>
+            <button
+              onClick={() => setPrintPreviewStyle(null)}
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow cursor-pointer transition-all"
+            >
+              返回系统
+            </button>
+          </div>
         </div>
       </div>
 
@@ -90,6 +120,7 @@ export function LedgerPrintPreviewOverlay({
           selectedPrintCategories={selectedPrintCategories}
           currentLedgerItems={currentLedgerItems}
           dictItems={dictItems}
+          customDataRows={customDataRows}
         />
       ) : (
         <LedgerPrintStyle2
@@ -100,6 +131,7 @@ export function LedgerPrintPreviewOverlay({
           style2StartDate={style2StartDate}
           style2EndDate={style2EndDate}
           style2DatesArray={style2DatesArray}
+          customDataRows={customDataRows}
         />
       )}
     </div>,

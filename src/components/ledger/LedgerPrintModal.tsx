@@ -18,6 +18,10 @@ interface LedgerPrintModalProps {
   setPrintPreviewStyle: (style: "style1" | "style2") => void;
   /** 本台账内实际存在采购原料项目的二级食材大类集合，不在此集合内的大类禁止勾选（避免选出空表） */
   printableCategories: Set<FoodCategory>;
+  customDataRows: number;
+  setCustomDataRows: (val: number) => void;
+  customSupplierRows: number;
+  setCustomSupplierRows: (val: number) => void;
   onClose: () => void;
 }
 
@@ -27,6 +31,10 @@ export function LedgerPrintModal({
   setSelectedPrintCategories,
   setPrintPreviewStyle,
   printableCategories,
+  customDataRows,
+  setCustomDataRows,
+  customSupplierRows,
+  setCustomSupplierRows,
   onClose
 }: LedgerPrintModalProps) {
   if (!isOpen) return null;
@@ -117,6 +125,29 @@ export function LedgerPrintModal({
 
           <div className="text-[10px] text-slate-400 font-bold leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100/50">
             ⚠️ 提示：系统将为您在登记总表预览中，过滤并排版展示属于以上已选定大类的台账明细，多选分类支持同时合并在一张表格中输出。
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">补充空白数据行数</label>
+              <input 
+                type="number" 
+                min="0"
+                value={customDataRows}
+                onChange={(e) => setCustomDataRows(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded text-xs outline-none focus:border-emerald-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">补充空白供货商行数</label>
+              <input 
+                type="number" 
+                min="0"
+                value={customSupplierRows}
+                onChange={(e) => setCustomSupplierRows(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded text-xs outline-none focus:border-emerald-500" 
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">

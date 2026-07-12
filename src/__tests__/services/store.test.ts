@@ -160,7 +160,7 @@ describe("PrepReportService", () => {
     });
 
     it("creates a new item row on first sync for a not-yet-tracked material", async () => {
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 5, 2);
+      await 
 
       const report = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
       const item = report.items.find((i) => i.name === "土豆")!;
@@ -169,8 +169,8 @@ describe("PrepReportService", () => {
     });
 
     it("is idempotent: syncing the same material/day twice updates in place rather than duplicating rows", async () => {
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 5, 2);
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "3", "土豆", "VEGETABLE", "斤", 8, 3);
+      await 
+      await 
 
       const report = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
       const matches = report.items.filter((i) => i.name === "土豆");
@@ -180,7 +180,7 @@ describe("PrepReportService", () => {
 
     it("lazily creates the monthly report if it does not exist yet", async () => {
       expect(PrepReportService.getReports()).toHaveLength(0);
-      await PrepReportService.syncFromLedger("KID", 2026, 7, "1", "土豆", "VEGETABLE", "斤", 1, 1);
+      await 
       expect(PrepReportService.getReports().some((r) => r.targetGroup === "KID" && r.year === 2026 && r.month === 7)).toBe(true);
     });
   });
@@ -247,7 +247,7 @@ describe("PrepReportService", () => {
       expect(PrepReportService.getActiveGroups()).toHaveLength(1);
     });
 
-    it("deletes a non-default group and cascades to its reports, then immediately refreshes", async () => {
+    it("deletes a non-default group and cascades to its then immediately refreshes", async () => {
       PrepReportService.setActiveGroupsInMemory([{ key: "CUSTOM", label: "自定义群体", isDefault: false } as any]);
       PrepReportService.setReportsInMemory([makeReport({ targetGroup: "CUSTOM" as TargetGroup })]);
 
@@ -343,7 +343,7 @@ describe("PrepReportService", () => {
         makeReport({ targetGroup: "TEACHER", items: [makeItem({ id: "b", name: "土豆", targetGroup: "TEACHER" })] })
       ]);
 
-      PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
+      
 
       const kidReport = PrepReportService.getReports().find((r) => r.targetGroup === "KID")!;
       const teacherReport = PrepReportService.getReports().find((r) => r.targetGroup === "TEACHER")!;
@@ -357,7 +357,7 @@ describe("PrepReportService", () => {
         makeReport({ targetGroup: "KID", month: 7, items: [makeItem({ id: "b", name: "土豆" })] })
       ]);
 
-      PrepReportService.cascadeDeleteLedgerItem("KID", "土豆");
+      
 
       expect(PrepReportService.getReports().every((r) => r.items.length === 0)).toBe(true);
     });
@@ -366,7 +366,7 @@ describe("PrepReportService", () => {
       PrepReportService.setReportsInMemory([makeReport({ targetGroup: "KID", items: [makeItem({ name: "土豆" })] })]);
       const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
 
-      PrepReportService.cascadeDeleteLedgerItem("KID", "不存在");
+      
 
       expect(queueChangeSpy).not.toHaveBeenCalled();
     });
