@@ -335,11 +335,6 @@ export class LedgerService {
     this.notifyListeners();
     LogBroker.publish("WARN", "LedgerService", `【删除原料】物理清除了采购项原料「${item?.name}」的所有库存出入库明细记录`);
 
-    // 级联清除该受众人群名下由 syncFromLedger 反向同步生成的同名备餐细项，
-    // 否则左下角当月采购支出与花销趋势图会继续显示已删除原料的历史入库金额
-    if (item) {
-      PrepReportService.cascadeDeleteLedgerItem(item.ledgerId, item.name);
-    }
   }
 
   /**
@@ -404,34 +399,6 @@ export class LedgerService {
     this.ledgerItems[itemIndex] = body.item;
     this.notifyListeners();
 
-    // 当用户手动录入入库数据或入库单价时，单向自动同步至备餐月度报表
-    if (fields.inQuantity !== undefined || fields.inPrice !== undefined) {
-      const mergedRecord: DailyStockRecord = body.mergedRecord;
-      const inQty = mergedRecord.inQuantity ?? 0;
-      const inPr = mergedRecord.inPrice ?? 0;
-
-      // 从原料库字典中根据原料名称查询二级分类和默认单位
-      const category = RawMaterialsDictService.getCategoryForMaterial(item.name) || PrepReportService.getActiveCategories()[0]?.key || "";
-      const unit = item.unit || "斤";
-
-      // 从 YYYY-MM-DD 提取年、月、日
-      const [yearStr, monthStr, dayStr] = dateStr.split("-");
-      const year = parseInt(yearStr || "2026");
-      const month = parseInt(monthStr || "06");
-      const day = parseInt(dayStr || "01").toString(); // 去除前导0
-
-      PrepReportService.syncFromLedger(
-        item.ledgerId, // 即 targetGroup
-        year,
-        month,
-        day,
-        item.name,
-        category,
-        unit,
-        inQty,
-        inPr
-      );
-    }
   }
 
   /**
@@ -467,30 +434,6 @@ export class LedgerService {
         needsNotify = true;
       }
 
-      // 处理每个项的备餐月度报表同步
-      const mergedRecord = mergedRecords[updatedItem.id];
-      if (mergedRecord && (updates[updatedItem.id]?.inQuantity !== undefined || updates[updatedItem.id]?.inPrice !== undefined)) {
-        const inQty = mergedRecord.inQuantity ?? 0;
-        const inPr = mergedRecord.inPrice ?? 0;
-        const category = RawMaterialsDictService.getCategoryForMaterial(updatedItem.name) || PrepReportService.getActiveCategories()[0]?.key || "";
-        const unit = updatedItem.unit || "斤";
-        const [yearStr, monthStr, dayStr] = dateStr.split("-");
-        const year = parseInt(yearStr || "2026");
-        const month = parseInt(monthStr || "06");
-        const day = parseInt(dayStr || "01").toString();
-
-        PrepReportService.syncFromLedger(
-          updatedItem.ledgerId,
-          year,
-          month,
-          day,
-          updatedItem.name,
-          category,
-          unit,
-          inQty,
-          inPr
-        );
-      }
     }
 
     if (needsNotify) {

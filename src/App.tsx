@@ -79,7 +79,6 @@ export default function App() {
 
   // 备餐报表/台账/原料字典三大服务的首屏加载、多端同步与心跳静默同步逻辑，统一由 useAppData 提供
   const {
-    reports,
     activeGroup,
     setActiveGroup,
     activeCategory,
@@ -230,7 +229,7 @@ export default function App() {
       });
     });
     return Math.round(sum * 100) / 100;
-  }, [activeGroup, selectedYear, selectedMonth, reports /* trigger refresh on update */]);
+  }, [activeGroup, selectedYear, selectedMonth, ledgerItemsList]);
 
   /**
    * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）。
@@ -252,7 +251,7 @@ export default function App() {
     });
 
     return Math.round(sum * 100) / 100;
-  }, [selectedYear, selectedMonth, reports]);
+  }, [selectedYear, selectedMonth, ledgerItemsList]);
 
   /**
    * @description 计算原料购销台账所有原料的累计入库总额 (全账期)
@@ -753,6 +752,7 @@ export default function App() {
                     selectedCategory={activeCategory as FoodCategory | null}
                     activeGroupsList={activeGroupsList}
                     activeCategoriesList={activeCategoriesList}
+                    ledgerItemsList={ledgerItemsList}
                   />
                 )}
 

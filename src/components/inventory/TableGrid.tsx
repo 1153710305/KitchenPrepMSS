@@ -35,6 +35,8 @@ interface TableGridProps {
   activeGroupsList: DynamicGroup[];
   /** 激活的二级食材分类列表 */
   activeCategoriesList: DynamicCategory[];
+  /** 所有的购销台账物品列表 */
+  ledgerItemsList: any[];
 }
 
 /**
@@ -46,7 +48,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
   month,
   selectedCategory,
   activeGroupsList,
-  activeCategoriesList
+  activeCategoriesList,
+  ledgerItemsList
 }) => {
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
@@ -72,7 +75,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 1. 过滤与台账每日采购明细无缝对齐：按选定主类和搜索关键字过滤条目，并将 dailyData 数据完全拦截重定向至对应台账采购数量与单价上
   const filteredItems = useMemo(() => {
     // 拉取台账所有原料项目
-    const allLedgerItems = LedgerService.getLedgerItems();
+    const allLedgerItems = ledgerItemsList;
 
     // 找出与当前备餐报表所属客群（targetGroup）相匹配的台账集合
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
@@ -125,7 +128,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           dailyData: alignedDailyData
         };
       });
-  }, [targetGroup, year, month, selectedCategory, searchQuery, days]);
+  }, [targetGroup, year, month, selectedCategory, searchQuery, days, ledgerItemsList, activeCategoriesList]);
 
   // 2. 统计计算：每个日期(1-31号)在该类目下的总开销汇总
   const dayTotals = useMemo(() => {
@@ -143,7 +146,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
   // 3. 合计汇总表专用：不受品类/搜索过滤影响，统计每日全品类汇总金额
   const summaryDailyTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    const allLedgerItems = LedgerService.getLedgerItems();
+    const allLedgerItems = ledgerItemsList;
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
 
     days.forEach((day) => {
@@ -161,7 +164,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
       totals[day] = Math.round(sum * 100) / 100;
     });
     return totals;
-  }, [targetGroup, year, month, days]);
+  }, [targetGroup, year, month, days, ledgerItemsList]);
 
   const getGroupLabel = (groupKey: string) => {
     const g = activeGroupsList.find((g) => g.key === groupKey);
@@ -205,7 +208,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   // --- 合计汇总报表视图渲染 (当 selectedCategory === null 时触发) ---
   const renderCategoryCombinedSummary = () => {
-    const allLedgerItems = LedgerService.getLedgerItems();
+    const allLedgerItems = ledgerItemsList;
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
 
     // 聚合各大类的总金额
