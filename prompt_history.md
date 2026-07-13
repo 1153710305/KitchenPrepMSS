@@ -867,3 +867,9 @@ Fix bug：
     2. 在 `LedgerPrintPreviewOverlay.tsx` (记账登记表预览) 中彻底移除了“供货商行数”的修改框。
     3. 在 `LedgerPrintDoc.tsx` 的顶部预览控制栏中增加了判断逻辑，仅当打印出库单时才展示“补充空白供货商行数”，入库单则不展示。
     4. 在 `LedgerSystem.tsx` 引入基于 `localStorage` 的本地记忆功能，将不同打印场景的状态互相剥离：`customDataRowsLedger` (记账表默认 15 行)、`customDataRowsDoc` (出库单默认 23 行)、`customSupplierRowsDoc` (供货商默认 6 行)，完全还原了最初系统的设计默认行数，同时兼顾了修改并自动保存的功能。
+
+### 用户反馈与微调 3
+- 打印出库单预览时，修改数据行数和修改供货商行数没有立即生效，预览处，看不到修改后的样式，实际打印效果也没有变化
+  - 响应：
+    - 查阅 `LedgerPrintDoc.tsx` 后发现，虽然属性 `customDataRows` 和 `customSupplierRows` 已经传入内部组件，但在出库单的分页和空行补齐逻辑中，依然使用了常量对象 `LEDGER_PRINT_OUT_CONFIG` 中的 `minPrintRows`、`suppliers` 等硬编码值。
+    - 我已将分页容量计算及占位符生成全部替换为使用动态传入的 `customDataRows` 和 `customSupplierRows`，现在当输入框的数字被修改后，组件的状态驱动会立刻重构分页并实时重绘预览视图以及打印视图的表格空缺和底部供货商数量。

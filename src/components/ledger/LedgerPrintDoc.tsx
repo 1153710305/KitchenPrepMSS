@@ -263,8 +263,8 @@ function PrintOutDoc({
     }
   });
 
-  // ==== 分页：出库单表格每页固定 minPrintRows 行，超出部分按品类整体移到下一页（[V5.73.0]） ====
-  const rowsPerPage = LEDGER_PRINT_OUT_CONFIG.minPrintRows;
+  // ==== 分页：出库单表格每页固定 customDataRows 行，超出部分按品类整体移到下一页（[V5.73.0]） ====
+  const rowsPerPage = customDataRows;
   const rowPages = groupedByCategory.length > 0 ? paginateGroupedItems(groupedByCategory, rowsPerPage) : [];
 
   // ==== 日期解析：自动填入完整年月日 ====
@@ -314,7 +314,9 @@ function PrintOutDoc({
 
   // ==== 供货商信息分页：首页容量动态伸缩，超出部分另起续页（[V5.77.1]） ====
   const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
-  const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
+  const supplierDisplayLines = isPlaceholderSuppliers 
+    ? Array.from({ length: customSupplierRows }, () => "") 
+    : dynamicSupplierLines;
   const maxSuppliersPerPage = customSupplierRows;
   const maxCapacity = rowsPerPage + maxSuppliersPerPage;
 
@@ -526,8 +528,8 @@ function PrintOutDoc({
           // [V5.77.0] 动态计算补全空行：保证记录和供货商在一页内，且供货商恰好置底
           let pageEmptyRowsCount = 0;
           if (isLastRowPage) {
-            const suppliersCount = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers.length : firstSupplierChunk.length;
-            const maxCapacity = rowsPerPage + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+            const suppliersCount = firstSupplierChunk.length;
+            const maxCapacity = rowsPerPage + maxSuppliersPerPage;
             pageEmptyRowsCount = Math.max(0, maxCapacity - rowsUsedOnThisPage - suppliersCount);
           } else {
             pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
