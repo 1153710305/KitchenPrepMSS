@@ -126,7 +126,7 @@ export function LedgerPrintStyle1({
         const mergedCellHeightPx = totalRows * DATA_ROW_HEIGHT_PX;
 
         const getUniqueFieldValues = (extractor: (record: any) => string) => {
-          const list = pageItems.map(item => {
+          const list = toPrintItems.map(item => {
             const record = item.dailyRecords[selectedDate];
             return record ? extractor(record) : "";
           }).filter(Boolean);

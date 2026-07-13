@@ -731,24 +731,36 @@ export function LedgerPrintDoc({
         <div className="flex gap-4 items-center flex-wrap">
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白数据行数</label>
-            <input 
-              type="number" 
-              min="0"
-              value={customDataRows}
-              onChange={(e) => setCustomDataRows(Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
-            />
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
+              <button 
+                className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={() => setCustomDataRows(Math.max(5, customDataRows - 1))}
+                disabled={customDataRows <= 5}
+              >-</button>
+              <div className="w-8 text-center text-xs text-slate-800 font-bold">{customDataRows}</div>
+              <button 
+                className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={() => setCustomDataRows(Math.min(50, customDataRows + 1))}
+                disabled={customDataRows >= 50}
+              >+</button>
+            </div>
           </div>
           {!isPrintIn && (
             <div className="flex items-center gap-2">
               <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白供货商行数</label>
-              <input 
-                type="number" 
-                min="0"
-                value={customSupplierRows}
-                onChange={(e) => setCustomSupplierRows(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-16 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs outline-none focus:border-emerald-500" 
-              />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
+                <button 
+                  className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => setCustomSupplierRows(Math.max(5, customSupplierRows - 1))}
+                  disabled={customSupplierRows <= 5}
+                >-</button>
+                <div className="w-8 text-center text-xs text-slate-800 font-bold">{customSupplierRows}</div>
+                <button 
+                  className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => setCustomSupplierRows(Math.min(50, customSupplierRows + 1))}
+                  disabled={customSupplierRows >= 50}
+                >+</button>
+              </div>
             </div>
           )}
           <div className="flex gap-2">
