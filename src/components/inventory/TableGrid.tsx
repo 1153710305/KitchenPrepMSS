@@ -25,24 +25,31 @@ import { MonthlySpendingChart } from "./MonthlySpendingChart.tsx";
  * @description 备餐网格组件的输入参数协议
  */
 interface TableGridProps {
-  /** 当前选定聚焦的餐类人群报告 */
-  report: GroupMonthlyReport;
+  /** 当前选定聚焦的台账人群 ID */
+  targetGroup: string;
+  year: number;
+  month: number;
   /** 当前激活的食材二级分类 (VEGETABLE | GRAIN_OIL... ；合计子表用 null 表示) */
   selectedCategory: FoodCategory | null;
   /** 激活的一级受众人群列表 */
   activeGroupsList: DynamicGroup[];
   /** 激活的二级食材分类列表 */
   activeCategoriesList: DynamicCategory[];
+  /** 所有的购销台账物品列表 */
+  ledgerItemsList: any[];
 }
 
 /**
  * @description 多功能食堂电子备料表格与汇总合计组件
  */
 export const TableGrid: React.FC<TableGridProps> = ({
-  report,
+  targetGroup,
+  year,
+  month,
   selectedCategory,
   activeGroupsList,
-  activeCategoriesList
+  activeCategoriesList,
+  ledgerItemsList
 }) => {
   // 1. 核心视图布局模式切换：MATRIX (大宽表Excel矩阵) | FOCUS (单日卡片聚焦)
   const [viewMode, setViewMode] = useState<"MATRIX" | "FOCUS">("MATRIX");
@@ -63,15 +70,15 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // 当月包含的日期数组 (["1", "2", ..., "31"])
-  const days = useMemo(() => getDaysInMonth(report.year, report.month), [report.year, report.month]);
+  const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
 
   // 1. 过滤与台账每日采购明细无缝对齐：按选定主类和搜索关键字过滤条目，并将 dailyData 数据完全拦截重定向至对应台账采购数量与单价上
   const filteredItems = useMemo(() => {
     // 拉取台账所有原料项目
-    const allLedgerItems = LedgerService.getLedgerItems();
+    const allLedgerItems = ledgerItemsList;
 
     // 找出与当前备餐报表所属客群（targetGroup）相匹配的台账集合
-    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === report.targetGroup);
+    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
 
     return groupLedgerItems
       .filter((item) => {
@@ -92,9 +99,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
         days.forEach((day) => {
           // 台账的日期索引是 YYYY-MM-DD
-          const monthStr = String(report.month).padStart(2, "0");
+          const monthStr = String(month).padStart(2, "0");
           const dayStr = String(day).padStart(2, "0");
-          const targetDateKey = `${report.year}-${monthStr}-${dayStr}`;
+          const targetDateKey = `${year}-${monthStr}-${dayStr}`;
 
           const ledgerRecord = item.dailyRecords?.[targetDateKey];
 
@@ -116,12 +123,12 @@ export const TableGrid: React.FC<TableGridProps> = ({
           id: item.id,
           name: item.name,
           category: dictItem ? dictItem.category : (activeCategoriesList[0]?.key || ""),
-          targetGroup: report.targetGroup,
+          targetGroup: targetGroup,
           unit: item.unit,
           dailyData: alignedDailyData
         };
       });
-  }, [report.targetGroup, report.year, report.month, selectedCategory, searchQuery, days]);
+  }, [targetGroup, year, month, selectedCategory, searchQuery, days, ledgerItemsList, activeCategoriesList]);
 
   // 2. 统计计算：每个日期(1-31号)在该类目下的总开销汇总
   const dayTotals = useMemo(() => {
@@ -136,18 +143,28 @@ export const TableGrid: React.FC<TableGridProps> = ({
     return totals;
   }, [filteredItems, days]);
 
-  // 3. 合计汇总表专用：按 report.items（与"总预算耗资"徽章同一数据源，不受品类/搜索过滤影响）统计每日全品类汇总金额
+  // 3. 合计汇总表专用：不受品类/搜索过滤影响，统计每日全品类汇总金额
   const summaryDailyTotals = useMemo(() => {
     const totals: Record<string, number> = {};
+    const allLedgerItems = ledgerItemsList;
+    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
+
     days.forEach((day) => {
       let sum = 0;
-      report.items.forEach((item) => {
-        sum += item.dailyData[day]?.amount || 0;
+      const monthStr = String(month).padStart(2, "0");
+      const dayStr = String(day).padStart(2, "0");
+      const targetDateKey = `${year}-${monthStr}-${dayStr}`;
+
+      groupLedgerItems.forEach((item) => {
+        const record = item.dailyRecords?.[targetDateKey];
+        if (record) {
+          sum += record.inAmount || 0;
+        }
       });
       totals[day] = Math.round(sum * 100) / 100;
     });
     return totals;
-  }, [report.items, days]);
+  }, [targetGroup, year, month, days, ledgerItemsList]);
 
   const getGroupLabel = (groupKey: string) => {
     const g = activeGroupsList.find((g) => g.key === groupKey);
@@ -164,7 +181,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
    */
   const handleExportCsv = () => {
     const catLabel = selectedCategory ? getCategoryLabel(selectedCategory) : "汇总合计";
-    const groupLabel = getGroupLabel(report.targetGroup);
+    const groupLabel = getGroupLabel(targetGroup);
 
     // 生成 CSV 内容
     const csvString = convertItemsToCsv(filteredItems, days, catLabel);
@@ -174,7 +191,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `${report.year}年${report.month}月_${groupLabel}_${catLabel}_采购细表.csv`);
+    link.setAttribute("download", `${year}年${month}月_${groupLabel}_${catLabel}_采购细表.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -182,7 +199,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
     LogBroker.publish(
       "INFO",
       "TableGrid",
-      `【导出明细】操作员导出了「${groupLabel}」的 [${catLabel}类] 在 ${report.year}年${report.month}月 的采购细表 CSV。`
+      `【导出明细】操作员导出了「${groupLabel}」的 [${catLabel}类] 在 ${year}年${month}月 的采购细表 CSV。`
     );
   };
 
@@ -191,14 +208,29 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
   // --- 合计汇总报表视图渲染 (当 selectedCategory === null 时触发) ---
   const renderCategoryCombinedSummary = () => {
+    const allLedgerItems = ledgerItemsList;
+    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
+
     // 聚合各大类的总金额
     const categoryRows = PrepReportService.getActiveCategories().map((cat) => {
       let costSum = 0;
-      const catItems = report.items.filter((item) => item.category === cat.key as FoodCategory);
+      const dictItems = RawMaterialsDictService.getItems();
+      
+      const catItems = groupLedgerItems.filter((item) => {
+        const dictItem = dictItems.find(d => d.name === item.name);
+        return dictItem && dictItem.category === cat.key;
+      });
 
       days.forEach((day) => {
+        const monthStr = String(month).padStart(2, "0");
+        const dayStr = String(day).padStart(2, "0");
+        const targetDateKey = `${year}-${monthStr}-${dayStr}`;
+
         catItems.forEach((item) => {
-          costSum += item.dailyData[day]?.amount || 0;
+          const record = item.dailyRecords?.[targetDateKey];
+          if (record) {
+            costSum += record.inAmount || 0;
+          }
         });
       });
 
@@ -219,7 +251,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
               <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Flame size={18} /></span>
               {UI_TEXT.summaryName}
             </h3>
-            <p className="text-[13px] text-gray-400 mt-1">汇聚餐段：{report.year}年{report.month}月 - 统一统筹合计表</p>
+            <p className="text-[13px] text-gray-400 mt-1">汇聚餐段：{year}年{month}月 - 统一统筹合计表</p>
           </div>
           <span className="text-[15px] font-semibold text-indigo-700 bg-indigo-50 px-4 py-1.5 rounded-full">
             总预算耗资: ¥{grandTotal.toLocaleString()}
@@ -231,7 +263,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
           <MonthlySpendingChart
             days={days}
             dayTotals={summaryDailyTotals}
-            groupLabel={getGroupLabel(report.targetGroup)}
+            groupLabel={getGroupLabel(targetGroup)}
             categoryLabel=""
             activeTheme={activeTheme}
             titleOverride="全月备餐开支日耗曲线"
@@ -362,7 +394,7 @@ export const TableGrid: React.FC<TableGridProps> = ({
         <MonthlySpendingChart
           days={days}
           dayTotals={dayTotals}
-          groupLabel={getGroupLabel(report.targetGroup)}
+          groupLabel={getGroupLabel(targetGroup)}
           categoryLabel={getCategoryLabel(selectedCategory)}
           activeTheme={activeTheme}
         />
@@ -395,8 +427,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
               activeTheme={activeTheme}
               focusDay={focusDay}
               setFocusDay={setFocusDay}
-              reportYear={report.year}
-              reportMonth={report.month}
+              reportYear={year}
+              reportMonth={month}
             />
           )}
         </>

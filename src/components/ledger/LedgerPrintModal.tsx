@@ -16,7 +16,6 @@ interface LedgerPrintModalProps {
   selectedPrintCategories: FoodCategory[];
   setSelectedPrintCategories: (cats: FoodCategory[]) => void;
   setPrintPreviewStyle: (style: "style1" | "style2") => void;
-  /** 本台账内实际存在采购原料项目的二级食材大类集合，不在此集合内的大类禁止勾选（避免选出空表） */
   printableCategories: Set<FoodCategory>;
   onClose: () => void;
 }

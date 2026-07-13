@@ -16,6 +16,7 @@ import { ErrorBoundary } from "./components/shared/ErrorBoundary.tsx";
 import { useAppAuth } from "./hooks/useAppAuth.ts";
 import { useAppData } from "./hooks/useAppData.ts";
 import { SyncHelper } from "./services/syncHelper.ts";
+import { LedgerService } from "./services/ledgerStore.ts";
 
 const AdminBackend = lazy(() => import("./components/admin/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
 const LedgerSystem = lazy(() => import("./components/ledger/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
@@ -78,7 +79,6 @@ export default function App() {
 
   // 备餐报表/台账/原料字典三大服务的首屏加载、多端同步与心跳静默同步逻辑，统一由 useAppData 提供
   const {
-    reports,
     activeGroup,
     setActiveGroup,
     activeCategory,
@@ -200,10 +200,7 @@ export default function App() {
     return map;
   }, [activeCategoriesList]);
 
-  const currentReport = useMemo(() => {
-    if (activeGroup === "LEDGER") return null;
-    return PrepReportService.getOrCreateReport(activeGroup, selectedYear, selectedMonth);
-  }, [reports, activeGroup, selectedYear, selectedMonth]);
+
 
   // ================= 辅助指标运算 =================
 
@@ -215,16 +212,24 @@ export default function App() {
    * 早已不再被任何界面渲染读取的历史脏键金额也一并计入合计，导致明细表与合计对不上。
    */
   const activeGroupReportTotal = useMemo(() => {
-    if (!currentReport) return 0;
-    const validDays = getDaysInMonth(currentReport.year, currentReport.month);
+    if (activeGroup === "LEDGER") return 0;
+    const validDays = getDaysInMonth(selectedYear, selectedMonth);
     let sum = 0;
-    currentReport.items.forEach((item) => {
+    
+    const allLedgerItems = LedgerService.getLedgerItems();
+    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === activeGroup);
+
+    groupLedgerItems.forEach((item) => {
       validDays.forEach((day) => {
-        sum += item.dailyData[day]?.amount || 0;
+        const targetDateKey = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const record = item.dailyRecords?.[targetDateKey];
+        if (record) {
+          sum += record.inAmount || 0;
+        }
       });
     });
     return Math.round(sum * 100) / 100;
-  }, [currentReport]);
+  }, [activeGroup, selectedYear, selectedMonth, ledgerItemsList]);
 
   /**
    * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）。
@@ -232,16 +237,21 @@ export default function App() {
    */
   const allGroupsReportTotal = useMemo(() => {
     let sum = 0;
-    reports.forEach((report) => {
-      const validDays = getDaysInMonth(report.year, report.month);
-      report.items.forEach((item) => {
-        validDays.forEach((day) => {
-          sum += item.dailyData[day]?.amount || 0;
-        });
+    const validDays = getDaysInMonth(selectedYear, selectedMonth);
+    const allLedgerItems = LedgerService.getLedgerItems();
+
+    allLedgerItems.forEach((item) => {
+      validDays.forEach((day) => {
+        const targetDateKey = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const record = item.dailyRecords?.[targetDateKey];
+        if (record) {
+          sum += record.inAmount || 0;
+        }
       });
     });
+
     return Math.round(sum * 100) / 100;
-  }, [reports]);
+  }, [selectedYear, selectedMonth, ledgerItemsList]);
 
   /**
    * @description 计算原料购销台账所有原料的累计入库总额 (全账期)
@@ -734,13 +744,15 @@ export default function App() {
               {/* 报表卡片容器（已根据指示，将进程日志等剥离到管理配置后台） */}
               <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
 
-                {/* 情形 B: 普通受众视图，显示具体品类记账表 */}
-                {currentReport && (
+                {activeGroup !== "LEDGER" && (
                   <TableGrid
-                    report={currentReport}
+                    targetGroup={activeGroup}
+                    year={selectedYear}
+                    month={selectedMonth}
                     selectedCategory={activeCategory as FoodCategory | null}
                     activeGroupsList={activeGroupsList}
                     activeCategoriesList={activeCategoriesList}
+                    ledgerItemsList={ledgerItemsList}
                   />
                 )}
 

@@ -20,8 +20,7 @@ import { LogBroker } from "../utils.ts";
  * @description useAppData 返回值接口
  */
 export interface UseAppDataResult {
-  /** 当前加载好的月度多客群报表数组 */
-  reports: GroupMonthlyReport[];
+
   /** 当前激活聚焦决策的一级餐位人群唯一标识Key */
   activeGroup: string;
   setActiveGroup: (val: string | ((prev: string) => string)) => void;
@@ -48,8 +47,7 @@ export interface UseAppDataResult {
  * @description 管理备餐报表/台账/原料字典三大服务的首屏并行加载、内存数据提取器注册、数据变动订阅与心跳静默同步的自定义 Hook
  */
 export function useAppData(): UseAppDataResult {
-  /** 当前加载好的月度多客群报表数组 */
-  const [reports, setReports] = useState<GroupMonthlyReport[]>([]);
+
   /** 当前激活聚焦决策的一级餐位人群唯一标识Key，默认 TEACHER */
   const [activeGroup, setActiveGroup] = useState<string>("");
   /** 当前选中的二级食材品类。当设置为 null 时，代表"合计汇总"汇总表 */
@@ -124,7 +122,7 @@ export function useAppData(): UseAppDataResult {
             sessionStorage.clear();
           }
 
-          setReports(prepData);
+
           setLedgerItemsList(ledgerData.items);
 
           // 使用服务器的原料大字典来初始化字典内存
@@ -154,9 +152,8 @@ export function useAppData(): UseAppDataResult {
     });
 
     // 监听服务数据重大变动回调，实现各版块自动重算
-    const unsubscribe = PrepReportService.subscribe((updated) => {
+    const unsubscribe = PrepReportService.subscribe(() => {
       if (active) {
-        setReports(updated);
         const groups = PrepReportService.getActiveGroups();
         const cats = PrepReportService.getActiveCategories();
         setActiveGroupsList(groups);
@@ -216,7 +213,6 @@ export function useAppData(): UseAppDataResult {
   }, []);
 
   return {
-    reports,
     activeGroup,
     setActiveGroup,
     activeCategory,

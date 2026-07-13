@@ -34,6 +34,10 @@ interface LedgerPrintDocProps {
   dailyInTotalAmount: number;
   /** 关闭预览回调 */
   onClose: () => void;
+  customDataRows: number;
+  setCustomDataRows: (val: number) => void;
+  customSupplierRows: number;
+  setCustomSupplierRows: (val: number) => void;
 }
 
 /**
@@ -43,12 +47,14 @@ function PrintInDoc({
   activeLedger,
   selectedDate,
   dailyInwardItems,
-  dailyInTotalAmount
+  dailyInTotalAmount,
+  customDataRows
 }: {
   activeLedger: Ledger | null;
   selectedDate: string;
   dailyInwardItems: any[];
   dailyInTotalAmount: number;
+  customDataRows: number;
 }) {
   return (
     <>
@@ -194,11 +200,15 @@ function paginateGroupedItems(
 function PrintOutDoc({
   activeLedger,
   selectedDate,
-  dailyOutwardItems
+  dailyOutwardItems,
+  customDataRows,
+  customSupplierRows
 }: {
   activeLedger: Ledger | null;
   selectedDate: string;
   dailyOutwardItems: any[];
+  customDataRows: number;
+  customSupplierRows: number;
 }) {
   const yearStr = selectedDate.split("-")[0];
 
@@ -253,8 +263,8 @@ function PrintOutDoc({
     }
   });
 
-  // ==== 分页：出库单表格每页固定 minPrintRows 行，超出部分按品类整体移到下一页（[V5.73.0]） ====
-  const rowsPerPage = LEDGER_PRINT_OUT_CONFIG.minPrintRows;
+  // ==== 分页：出库单表格每页固定 customDataRows 行，超出部分按品类整体移到下一页（[V5.73.0]） ====
+  const rowsPerPage = customDataRows;
   const rowPages = groupedByCategory.length > 0 ? paginateGroupedItems(groupedByCategory, rowsPerPage) : [];
 
   // ==== 日期解析：自动填入完整年月日 ====
@@ -304,9 +314,11 @@ function PrintOutDoc({
 
   // ==== 供货商信息分页：首页容量动态伸缩，超出部分另起续页（[V5.77.1]） ====
   const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
-  const supplierDisplayLines = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers : dynamicSupplierLines;
-  const maxSuppliersPerPage = LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
-  const maxCapacity = LEDGER_PRINT_OUT_CONFIG.minPrintRows + maxSuppliersPerPage;
+  const supplierDisplayLines = isPlaceholderSuppliers 
+    ? Array.from({ length: customSupplierRows }, () => "") 
+    : dynamicSupplierLines;
+  const maxSuppliersPerPage = customSupplierRows;
+  const maxCapacity = rowsPerPage + maxSuppliersPerPage;
 
   // 获取最后一页的已用记录行数（如果是空表，则已用行数为 0）
   const lastRowPage = rowPages[rowPages.length - 1];
@@ -481,7 +493,7 @@ function PrintOutDoc({
               {renderTableHead()}
               <tbody>
                 {(() => {
-                  const emptyRowCount = Math.max(0, LEDGER_PRINT_OUT_CONFIG.minPrintRows + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage - firstSupplierChunk.length);
+                  const emptyRowCount = Math.max(0, customDataRows + customSupplierRows - firstSupplierChunk.length);
                   return Array.from({ length: emptyRowCount }).map((_, i) => (
                     <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_OUT_CONFIG.outDocDataRowHeight, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize }} className="text-center">
                       {i === 0 ? (
@@ -516,8 +528,8 @@ function PrintOutDoc({
           // [V5.77.0] 动态计算补全空行：保证记录和供货商在一页内，且供货商恰好置底
           let pageEmptyRowsCount = 0;
           if (isLastRowPage) {
-            const suppliersCount = isPlaceholderSuppliers ? LEDGER_PRINT_OUT_CONFIG.suppliers.length : firstSupplierChunk.length;
-            const maxCapacity = rowsPerPage + LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
+            const suppliersCount = firstSupplierChunk.length;
+            const maxCapacity = rowsPerPage + maxSuppliersPerPage;
             pageEmptyRowsCount = Math.max(0, maxCapacity - rowsUsedOnThisPage - suppliersCount);
           } else {
             pageEmptyRowsCount = Math.max(0, rowsPerPage - rowsUsedOnThisPage);
@@ -663,6 +675,10 @@ export function LedgerPrintDoc({
   dailyInwardItems,
   dailyOutwardItems,
   dailyInTotalAmount,
+  customDataRows,
+  setCustomDataRows,
+  customSupplierRows,
+  setCustomSupplierRows,
   onClose
 }: LedgerPrintDocProps) {
   const isPrintIn = printDocType === "in";
@@ -707,17 +723,61 @@ export function LedgerPrintDoc({
         }
       `}</style>
       {/* 顶部退出预览条（打印时自动隐藏） */}
-      <div className="mb-6 flex justify-between items-center border-b border-gray-200 pb-4 print:hidden">
-        <span className="text-sm text-gray-500 flex items-center gap-1.5">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-4 gap-4 print:hidden">
+        <span className="text-sm text-gray-500 flex items-center gap-1.5 shrink-0">
           <AlertCircle size={16} />
-          温馨提示：下方为打印纸质效果预览，请按 Ctrl + P / Cmd + P 确认打印。
+          温馨提示：下方为打印预览，请按 Ctrl + P / Cmd + P 或点击右侧“立即打印”。
         </span>
-        <button
-          onClick={onClose}
-          className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs  rounded cursor-pointer transition-all"
-        >
-          返回台账主页
-        </button>
+        <div className="flex gap-4 items-center flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白数据行数</label>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
+              <button 
+                className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={() => setCustomDataRows(Math.max(5, customDataRows - 1))}
+                disabled={customDataRows <= 5}
+              >-</button>
+              <div className="w-8 text-center text-xs text-slate-800 font-bold">{customDataRows}</div>
+              <button 
+                className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={() => setCustomDataRows(Math.min(50, customDataRows + 1))}
+                disabled={customDataRows >= 50}
+              >+</button>
+            </div>
+          </div>
+          {!isPrintIn && (
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白供货商行数</label>
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
+                <button 
+                  className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => setCustomSupplierRows(Math.max(5, customSupplierRows - 1))}
+                  disabled={customSupplierRows <= 5}
+                >-</button>
+                <div className="w-8 text-center text-xs text-slate-800 font-bold">{customSupplierRows}</div>
+                <button 
+                  className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => setCustomSupplierRows(Math.min(50, customSupplierRows + 1))}
+                  disabled={customSupplierRows >= 50}
+                >+</button>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded cursor-pointer transition-all shadow"
+            >
+              立即打印
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded cursor-pointer transition-all shadow"
+            >
+              返回
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 根据类型渲染不同模板 */}
@@ -727,12 +787,15 @@ export function LedgerPrintDoc({
           selectedDate={selectedDate}
           dailyInwardItems={dailyInwardItems}
           dailyInTotalAmount={dailyInTotalAmount}
+          customDataRows={customDataRows}
         />
       ) : (
         <PrintOutDoc
           activeLedger={activeLedger}
           selectedDate={selectedDate}
           dailyOutwardItems={dailyOutwardItems}
+          customDataRows={customDataRows}
+          customSupplierRows={customSupplierRows}
         />
       )}
     </div>,

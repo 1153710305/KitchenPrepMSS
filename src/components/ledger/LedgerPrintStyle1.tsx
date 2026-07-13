@@ -25,6 +25,7 @@ interface LedgerPrintStyle1Props {
   currentLedgerItems: LedgerItem[];
   /** 从字典服务获取的所有原料项目快照 */
   dictItems: any[];
+  customDataRows: number;
 }
 
 /** 数据行行高（数值形式，用于计算跨行合并单元格的总高度） */
@@ -38,7 +39,8 @@ export function LedgerPrintStyle1({
   selectedDate,
   selectedPrintCategories,
   currentLedgerItems,
-  dictItems
+  dictItems,
+  customDataRows
 }: LedgerPrintStyle1Props) {
   // 根据用户勾选的二级分类过滤打印原料，并且只保留在"选定日期当天"实际发生过入库或出库的原料——
   // currentLedgerItems 是本台账历史上出现过的全部原料名录（一旦某原料被加入台账就会一直留在名录里），
@@ -51,7 +53,7 @@ export function LedgerPrintStyle1({
     return !!record && (record.inQuantity > 0 || record.outQuantity > 0);
   });
 
-  const rowsPerPage = LEDGER_PRINT_STYLE1_CONFIG.minPrintRows;
+  const rowsPerPage = customDataRows;
   const pages: Array<typeof toPrintItems> = [];
   if (toPrintItems.length === 0) {
     pages.push([]);
@@ -66,7 +68,7 @@ export function LedgerPrintStyle1({
    * @description 渲染合并单元格内的多行文本，内容定位在单元格纵向前 1/3 处（而非居中），便于跨行阅读定位
    */
   const renderMergedCell = (values: string[], mergedCellHeightPx: number, maxChars: number = 8) => {
-    if (values.length === 0) return "-";
+    if (values.length === 0) return "";
     return (
       <div
         className="flex flex-col items-center gap-0.5"
@@ -124,7 +126,7 @@ export function LedgerPrintStyle1({
         const mergedCellHeightPx = totalRows * DATA_ROW_HEIGHT_PX;
 
         const getUniqueFieldValues = (extractor: (record: any) => string) => {
-          const list = pageItems.map(item => {
+          const list = toPrintItems.map(item => {
             const record = item.dailyRecords[selectedDate];
             return record ? extractor(record) : "";
           }).filter(Boolean);
@@ -194,7 +196,7 @@ export function LedgerPrintStyle1({
               <tbody>
                 {pageItems.length === 0 ? (
             /* 当无明细时，至少渲染 15 行空行，并且后 7 列合并为一个大空单元格 */
-            Array.from({ length: LEDGER_PRINT_STYLE1_CONFIG.minPrintRows }).map((_, i) => (
+            Array.from({ length: customDataRows }).map((_, i) => (
               <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
                 <td className="border border-black"></td>
                 <td className="border border-black"></td>
@@ -202,13 +204,13 @@ export function LedgerPrintStyle1({
                 <td className="border border-black"></td>
                 {i === 0 && (
                   <>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
-                    <td className="border border-black align-middle" rowSpan={LEDGER_PRINT_STYLE1_CONFIG.minPrintRows}>-</td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
                   </>
                 )}
               </tr>
@@ -287,13 +289,13 @@ export function LedgerPrintStyle1({
                     <td className="border border-black"></td>
                     {pageItems.length === 0 && i === 0 && (
                       <>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}>-</td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
                       </>
                     )}
                   </tr>

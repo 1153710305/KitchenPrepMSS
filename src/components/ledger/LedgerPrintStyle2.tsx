@@ -43,7 +43,8 @@ export function LedgerPrintStyle2({
   ledgerItems,
   style2StartDate,
   style2EndDate,
-  style2DatesArray
+  style2DatesArray,
+  customDataRows
 }: LedgerPrintStyle2Props) {
   const activeItem = ledgerItems.find((i) => i.id === activeItemId);
   if (!activeItem) {
@@ -60,6 +61,7 @@ export function LedgerPrintStyle2({
         style2StartDate={style2StartDate}
         style2EndDate={style2EndDate}
         style2DatesArray={style2DatesArray}
+        customDataRows={customDataRows}
       />
     );
   }
@@ -100,7 +102,7 @@ export function LedgerPrintStyle2({
     return { dStr, record, hasActivity };
   }).filter(d => d.hasActivity && d.record);
 
-  const rowsPerPage = LEDGER_PRINT_STYLE2_CONFIG.minPrintRows;
+  const rowsPerPage = customDataRows;
   const pages: Array<typeof activeDays> = [];
   if (activeDays.length === 0) {
     pages.push([]);

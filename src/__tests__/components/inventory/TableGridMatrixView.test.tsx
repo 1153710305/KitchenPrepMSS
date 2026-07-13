@@ -53,7 +53,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     expect(screen.getByText("土豆")).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     expect(screen.getByText("【蔬菜】每日开支合计")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     const resizableWrapper = container.querySelector(".resize-x");
@@ -105,7 +105,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     const anyBorderedCell = screen.getAllByRole("cell")[0];
@@ -121,7 +121,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     const anyBorderedCell = screen.getAllByRole("cell")[0];
@@ -138,7 +138,7 @@ describe("TableGridMatrixView", () => {
         dayTotals={{ "1": 6, "2": 0 }}
         activeTheme={THEME_MAP.emerald}
         selectedCategory={"VEGETABLE"}
-      />
+       ledgerItemsList={[]} />
     );
 
     expect(screen.getAllByText("数量")[0].className).toContain("whitespace-nowrap");
