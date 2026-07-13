@@ -75,16 +75,16 @@ export function LedgerPrintPreviewOverlay({
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白数据行数</label>
             <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
-              <button 
+              <button
                 className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                onClick={() => setCustomDataRows(Math.max(5, customDataRows - 1))}
-                disabled={customDataRows <= 5}
+                onClick={() => setCustomDataRows(Math.max(2, customDataRows - 1))}
+                disabled={customDataRows <= 2}
               >-</button>
               <div className="w-8 text-center text-xs text-slate-800 font-bold">{customDataRows}</div>
-              <button 
+              <button
                 className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                onClick={() => setCustomDataRows(Math.min(50, customDataRows + 1))}
-                disabled={customDataRows >= 50}
+                onClick={() => setCustomDataRows(Math.min(40, customDataRows + 1))}
+                disabled={customDataRows >= 40}
               >+</button>
             </div>
           </div>
