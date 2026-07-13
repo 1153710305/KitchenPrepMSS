@@ -314,8 +314,8 @@ function PrintOutDoc({
 
   // ==== 供货商信息分页：首页容量动态伸缩，超出部分另起续页（[V5.77.1]） ====
   const isPlaceholderSuppliers = dynamicSupplierLines.length === 0;
-  const supplierDisplayLines = isPlaceholderSuppliers 
-    ? Array.from({ length: customSupplierRows }, () => "") 
+  const supplierDisplayLines = isPlaceholderSuppliers
+    ? Array.from({ length: customSupplierRows }, () => "")
     : dynamicSupplierLines;
   const maxSuppliersPerPage = customSupplierRows;
   const maxCapacity = rowsPerPage + maxSuppliersPerPage;
@@ -732,13 +732,13 @@ export function LedgerPrintDoc({
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白数据行数</label>
             <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
-              <button 
+              <button
                 className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 onClick={() => setCustomDataRows(Math.max(5, customDataRows - 1))}
                 disabled={customDataRows <= 5}
               >-</button>
               <div className="w-8 text-center text-xs text-slate-800 font-bold">{customDataRows}</div>
-              <button 
+              <button
                 className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 onClick={() => setCustomDataRows(Math.min(50, customDataRows + 1))}
                 disabled={customDataRows >= 50}
@@ -749,16 +749,16 @@ export function LedgerPrintDoc({
             <div className="flex items-center gap-2">
               <label className="text-[11px] font-bold text-slate-500 whitespace-nowrap">补充空白供货商行数</label>
               <div className="flex items-center bg-slate-50 border border-slate-200 rounded overflow-hidden">
-                <button 
+                <button
                   className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  onClick={() => setCustomSupplierRows(Math.max(5, customSupplierRows - 1))}
-                  disabled={customSupplierRows <= 5}
+                  onClick={() => setCustomSupplierRows(Math.max(2, customSupplierRows - 1))}
+                  disabled={customSupplierRows <= 2}
                 >-</button>
                 <div className="w-8 text-center text-xs text-slate-800 font-bold">{customSupplierRows}</div>
-                <button 
+                <button
                   className="px-2.5 py-1 text-xs hover:bg-slate-200 cursor-pointer text-slate-600 font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  onClick={() => setCustomSupplierRows(Math.min(50, customSupplierRows + 1))}
-                  disabled={customSupplierRows >= 50}
+                  onClick={() => setCustomSupplierRows(Math.min(40, customSupplierRows + 1))}
+                  disabled={customSupplierRows >= 40}
                 >+</button>
               </div>
             </div>
