@@ -881,3 +881,9 @@ Fix bug：
     1. 修复了 `LedgerPrintStyle1.tsx` 中提取 `suppliers`, `buyers` 等信息的依据数据源：原先是对切割后的**当前单页数据（`pageItems`）**进行去重提取，导致仅包含这些日期的页会有人员签名；现在修正为对**当月有该类别记录的全部待打印数据（`toPrintItems`）**进行提取，实现了全部分页都会带有全局采购员、检验员等签名的效果。
     2. 其他打印样式由于排版结构为“按日或按明细”分发人员信息（跟随对应行而不是按列穿透），因此不存在此缺陷。
     3. 在 `LedgerPrintPreviewOverlay.tsx` 和 `LedgerPrintDoc.tsx` 的行数配置界面，移除了可以直接手动输入的 `<input type="number">`，改写成了不能输入的展示块，左右配以 `+`、`-` 按钮，将数值的点击增减范围严格限定在 `5` 到 `50` 之间。
+
+### 用户反馈与微调 5
+- 默认行数要和系统设置的一样
+  - 响应：
+    1. 查阅代码后发现，之前为输入框提供默认值时，将系统设计的配置项如出库单的数据行数、供货商行数等硬编码（hardcode）为了 `15`、`23`、`6`，且未与 `ledgerConstants.ts` 中的全局系统配置常量进行关联，导致如果系统常量的默认供货商行数为 3，预览界面由于硬编码首次依然展示为 6。
+    2. 已将 `LedgerSystem.tsx` 里的初始化状态 `useState` 改为直接引入并读取 `LEDGER_PRINT_STYLE1_CONFIG.minPrintRows`（默认 15） 和 `LEDGER_PRINT_OUT_CONFIG.minPrintRows`（默认 23）、`LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage`（默认 3）。这样首次打开时，完全精准对齐系统深处的默认排版配置项；同时保证了用户的修改界限依然遵循“下限为5，上限为50”的规则。

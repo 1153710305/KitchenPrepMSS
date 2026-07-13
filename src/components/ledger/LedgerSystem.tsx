@@ -10,7 +10,7 @@
 import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Ledger, LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
-import { LEDGER_UI_TEXT, LEDGER_HEADERS } from "../../constants/ledgerConstants.ts";
+import { LEDGER_UI_TEXT, LEDGER_HEADERS, LEDGER_PRINT_OUT_CONFIG, LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
 import { LogBroker, matchPinyin, getDatesBetween } from "../../utils.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
@@ -149,15 +149,15 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   /** 动态补充的空白行数（打印和预览时生效，按类型分离记忆） */
   const [customDataRowsLedger, setCustomDataRowsLedger] = useState<number>(() => {
     const saved = localStorage.getItem("kpmss_print_data_rows_ledger");
-    return saved ? parseInt(saved, 10) : 15;
+    return saved ? parseInt(saved, 10) : LEDGER_PRINT_STYLE1_CONFIG.minPrintRows;
   });
   const [customDataRowsDoc, setCustomDataRowsDoc] = useState<number>(() => {
     const saved = localStorage.getItem("kpmss_print_data_rows_doc");
-    return saved ? parseInt(saved, 10) : 23;
+    return saved ? parseInt(saved, 10) : LEDGER_PRINT_OUT_CONFIG.minPrintRows;
   });
   const [customSupplierRowsDoc, setCustomSupplierRowsDoc] = useState<number>(() => {
     const saved = localStorage.getItem("kpmss_print_supplier_rows_doc");
-    return saved ? parseInt(saved, 10) : 6;
+    return saved ? parseInt(saved, 10) : LEDGER_PRINT_OUT_CONFIG.maxSuppliersPerPage;
   });
 
   useEffect(() => {
