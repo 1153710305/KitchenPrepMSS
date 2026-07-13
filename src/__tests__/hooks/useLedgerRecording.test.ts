@@ -34,7 +34,7 @@ describe("useLedgerRecording", () => {
     localStorage.clear();
     onSaveToast.mockClear();
     onError.mockClear();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ success: true }) }));
     vi.spyOn(RawMaterialsDictService, "getItems").mockReturnValue([
       { name: "土豆", category: "VEGETABLE" as any, unit: "斤", remark: "散装" },
       { name: "柿子", category: "VEGETABLE" as any, unit: "斤", remark: "散装" }

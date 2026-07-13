@@ -294,10 +294,12 @@ export class StorageService {
 
   /**
    * @description 获取（并按需懒创建）本地 SQLite 数据库连接与规范化的关系型表结构。
-   * 按业务实体拆成了 9 张真正的关系型表（ledgers/ledger_items/ledger_item_daily_records/reports/
-   * prepared_items/prepared_item_daily_data/active_groups/active_categories/raw_materials_dict/
-   * ledger_helper_options），获得可索引查询、字段级类型约束等关系型数据库的实质好处。
-   * 早期版本遗留的 kv_store/daily_records 两张表予以主动清空（DROP TABLE IF EXISTS），
+   * 按业务实体拆成了 8 张真正的关系型表（ledgers/ledger_items/ledger_item_daily_records/
+   * active_groups/active_categories/raw_materials_dict/ledger_helper_options/sys_config），
+   * 获得可索引查询、字段级类型约束等关系型数据库的实质好处。
+   * 早期版本遗留的 kv_store/daily_records 两张表、以及后来被证实是冗余双轨的 reports/prepared_items/
+   * prepared_item_daily_data 三张备餐报表表均予以主动清空（DROP TABLE IF EXISTS）——TableGrid 等展示
+   * 视图现在直接以 ledger_items/ledger_item_daily_records 实时派生渲染，不再需要一份独立同步维护的报表，
    * 系统尚未正式上线、无需保留任何历史迁移兼容路径。
    * @returns {Database.Database} SQLite 数据库连接
    */
@@ -401,8 +403,6 @@ export class StorageService {
         INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
-      // 每日零数据清理（已废弃 prepared_item_daily_data）
-
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
         if (process.env.SKIP_SEEDING === "1") {
           console.log("[SYSTEM BOOT] 数据库全表空置，当前处于测试模式并设置了 SKIP_SEEDING，跳过自动注入种子数据...");
@@ -447,8 +447,8 @@ export class StorageService {
   }
 
   /**
-   * @description 覆盖写入"骨架"部分：ledgers / ledger_items（不含每日流水）/ reports+prepared_items+每日备餐数据 /
-   * active_groups / active_categories / raw_materials_dict / ledger_helper_options。
+   * @description 覆盖写入"骨架"部分：ledgers / ledger_items（不含每日流水）/ active_groups /
+   * active_categories / raw_materials_dict / ledger_helper_options。
    * 不涉及 ledger_item_daily_records，供首次启动生成默认种子数据、以及修复被意外清空的配置表使用；
    * 正常保存路径走的是 applyChangesIntoSqlite() 的增量 upsert/delete，不使用整体覆盖。
    * @param {Database.Database} db SQLite 数据库连接
@@ -476,9 +476,7 @@ export class StorageService {
       }
     }
 
-
-
-    // 4. active_groups / active_categories
+    // 3. active_groups / active_categories
     if (data.activeGroups !== undefined) {
       db.prepare("DELETE FROM active_groups").run();
       const insertGroup = db.prepare("INSERT INTO active_groups (key, label, emoji, is_default) VALUES (?, ?, ?, ?)");
@@ -494,7 +492,7 @@ export class StorageService {
       }
     }
 
-    // 5. raw_materials_dict
+    // 4. raw_materials_dict
     if (data.rawMaterialsDict !== undefined) {
       db.prepare("DELETE FROM raw_materials_dict").run();
       const insertDictItem = db.prepare(
@@ -505,7 +503,7 @@ export class StorageService {
       }
     }
 
-    // 6. ledger_helper_options
+    // 5. ledger_helper_options
     if (data.ledgerHelperDict !== undefined) {
       db.prepare("DELETE FROM ledger_helper_options").run();
       const insertHelperOption = db.prepare("INSERT INTO ledger_helper_options (category, value, sort_order) VALUES (?, ?, ?)");

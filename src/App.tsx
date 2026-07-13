@@ -11,12 +11,11 @@ import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { FoodCategory, TargetGroup } from "./types/types.ts";
 import { PrepReportService } from "./services/store.ts";
 import { TableGrid } from "./components/inventory/TableGrid.tsx";
-import { LogBroker, getDaysInMonth } from "./utils.ts";
+import { LogBroker, computeLedgerDailyAmountsByGroup } from "./utils.ts";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary.tsx";
 import { useAppAuth } from "./hooks/useAppAuth.ts";
 import { useAppData } from "./hooks/useAppData.ts";
 import { SyncHelper } from "./services/syncHelper.ts";
-import { LedgerService } from "./services/ledgerStore.ts";
 
 const AdminBackend = lazy(() => import("./components/admin/AdminBackend.tsx").then(m => ({ default: m.AdminBackend })));
 const LedgerSystem = lazy(() => import("./components/ledger/LedgerSystem.tsx").then(m => ({ default: m.LedgerSystem })));
@@ -77,7 +76,7 @@ export default function App() {
     };
   }, []);
 
-  // 备餐报表/台账/原料字典三大服务的首屏加载、多端同步与心跳静默同步逻辑，统一由 useAppData 提供
+  // 人群/大类配置、台账、原料字典三大服务的首屏加载与数据变动订阅逻辑，统一由 useAppData 提供
   const {
     activeGroup,
     setActiveGroup,
@@ -206,50 +205,22 @@ export default function App() {
 
   /**
    * @description 计算当前选择分组备餐全品类在全月的累积费用总支出。
-   * 只按该报表所属年月实际天数（"1".."当月天数"）累加，不使用 Object.keys(dailyData) 盲目累加——
-   * 历史上曾有代码（首启种子数据生成、旧版本 updateCell 等，见 [V5.94.1]）用完整 "YYYY-MM-DD" 作为键，
-   * 与当前统一约定的裸日序号键并存于同一数据库中较久的部署实例里，若不限定有效日期范围会把这些
-   * 早已不再被任何界面渲染读取的历史脏键金额也一并计入合计，导致明细表与合计对不上。
+   * 求和逻辑收敛到 computeLedgerDailyAmountsByGroup（见 utils.ts），只按当月实际天数累加、
+   * 避免历史脏键污染合计；此处先取逐日金额再统一求和四舍五入一次，减少逐日四舍五入的累积误差。
    */
   const activeGroupReportTotal = useMemo(() => {
     if (activeGroup === "LEDGER") return 0;
-    const validDays = getDaysInMonth(selectedYear, selectedMonth);
-    let sum = 0;
-    
-    const allLedgerItems = LedgerService.getLedgerItems();
-    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === activeGroup);
-
-    groupLedgerItems.forEach((item) => {
-      validDays.forEach((day) => {
-        const targetDateKey = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const record = item.dailyRecords?.[targetDateKey];
-        if (record) {
-          sum += record.inAmount || 0;
-        }
-      });
-    });
+    const dailyAmounts = computeLedgerDailyAmountsByGroup(ledgerItemsList, activeGroup, selectedYear, selectedMonth);
+    const sum = Object.values(dailyAmounts).reduce((a, b) => a + b, 0);
     return Math.round(sum * 100) / 100;
   }, [activeGroup, selectedYear, selectedMonth, ledgerItemsList]);
 
   /**
-   * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）。
-   * 同上，只按各报表自身年月的有效天数范围累加，避免历史脏键污染合计。
+   * @description 计算食堂所有受众人群全品类在全月的累积费用总支出（宏观总额）。求和逻辑同上，不按人群过滤。
    */
   const allGroupsReportTotal = useMemo(() => {
-    let sum = 0;
-    const validDays = getDaysInMonth(selectedYear, selectedMonth);
-    const allLedgerItems = LedgerService.getLedgerItems();
-
-    allLedgerItems.forEach((item) => {
-      validDays.forEach((day) => {
-        const targetDateKey = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const record = item.dailyRecords?.[targetDateKey];
-        if (record) {
-          sum += record.inAmount || 0;
-        }
-      });
-    });
-
+    const dailyAmounts = computeLedgerDailyAmountsByGroup(ledgerItemsList, null, selectedYear, selectedMonth);
+    const sum = Object.values(dailyAmounts).reduce((a, b) => a + b, 0);
     return Math.round(sum * 100) / 100;
   }, [selectedYear, selectedMonth, ledgerItemsList]);
 

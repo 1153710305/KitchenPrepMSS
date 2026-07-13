@@ -4,7 +4,9 @@
  */
 
 /**
- * @description 备餐采购/月度报表业务数据服务层（PrepReportService）：管理一二级人群与食材大类配置的增删改查。
+ * @description 一二级人群/食材大类配置服务层。类名 PrepReportService 是转型前"备餐月度报表"是主要功能时期的遗留命名——
+ * [V2 架构演进] 备餐报表双状态（reports/getOrCreateReport/syncFromLedger 等）已随台账转为主要数据源而整体删除，
+ * 现在只负责 activeGroups/activeCategories 两份一二级配置的增删改查，不再管理任何"报表"。
  */
 
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
@@ -23,7 +25,9 @@ const MOCK_API_LATENCY = 150;
 export type StateChangeListener = () => void;
 
 /**
- * @description 双向业务逻辑数据服务层，针对后期前后端分离架构进行解耦设计
+ * @description 一二级人群/食材大类配置的 pub/sub 单例服务：saveGroup/deleteGroup/saveCategory/deleteCategory
+ * 的校验/级联规则已迁移到后端 REST API（前端只负责发请求、用响应更新内存），syncGroupFromLedger/
+ * syncDeleteGroupFromLedger 仍是纯前端内存操作，供台账改名/删除时同步一级人群标签使用。
  */
 export class PrepReportService {
   private static changeListeners: StateChangeListener[] = [];

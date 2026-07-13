@@ -894,3 +894,13 @@ Fix bug：
     1. 在服务端日志中间件服务（`server/logService.ts`）中，拦截了所有前端统一上报的操作日志（如新增原料、切换台账等）。
     2. 将原先写入物理日志文件的同步 IO 方法 `fs.appendFileSync` 升级为了异步的 `fs.appendFile`。这样写入日志就不会阻塞 Node.js 的主事件循环，彻底避免了由于磁盘写盘慢导致的高并发性能抖动。
     3. 新增了标准化的控制台输出语句：`[系统日志] 用户在 {时间} 对 {模块} 做了操作: {描述}`。启动或运行后，在后端控制台里会用异步输出流的形式源源不断地打印这些操作足迹，方便维护者监视和排查。
+
+## 2026-07-13 台账为主转型收尾清理
+- 深度熟悉项目，这个项目，最开始的设计并非是台账为主，后期改为台账功能为主，所以导致出现了一些设计不合理和功能冗余，仔细分析本项目，找出设计不合理的地方，并逐个改正。
+  - 响应：
+    1. 只读探查发现当天更早的两次提交（"Phase 2/3"）已经把备餐报表的独立数据模型（`reports`/`getOrCreateReport`/`syncFromLedger` 等）整体删除，但只改了 4 个文件，没有同步清理其余调用点、测试与文档，是本次分析的核心发现。
+    2. 修复了 `syncHelper.ts`/`AdminStressTestTab.tsx` 里对已删方法的真实调用（被 `store.test.ts` 的语法错误意外掩盖，`tsc --noEmit` 看似正常实则已经编译不过）。
+    3. 重写了 `store.test.ts`/`ledgerStore.test.ts`/`useAppData.test.ts`/`TableGrid.test.tsx` 等测试文件里对已删方法/已变更签名的残留引用，顺带修好了几处测试 fetch mock 缺 `headers` 字段的既有 bug，`TableGrid.test.tsx` 更是发现整份文件还在 mock 组件早已不调用的服务方法。
+    4. 把 `App.tsx` 与 `TableGrid.tsx` 里两份几乎相同的"按人群过滤台账、按当月天数求和"逻辑合并成了 `utils.ts` 的共享函数，避免两处口径再次漂移。
+    5. 清理了孤儿类型 `GroupMonthlyReport`、`constants.ts` 里 24 个未使用的 `UI_TEXT` 死文案（含一处提示用户点击已不存在的"新增项"按钮的过期文案），修正了 `store.ts`/`ledgerStore.ts`/`storageService.ts` 里多处过时或自相矛盾的注释。
+    6. 全面重写了 `ARCHITECTURE.md`，如实反映当前"台账为主"的数据流全貌，并记录了审计中顺带发现的、独立于本次任务的新现状——原有的 10 秒心跳多端同步机制在更早一次改造中已被移除，目前没有自动机制让一端的修改同步到另一端。

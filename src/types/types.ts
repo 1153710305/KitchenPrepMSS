@@ -50,20 +50,6 @@ export interface PreparedItem {
 }
 
 /**
- * @description 某一受众群体的月度完整报表
- */
-export interface GroupMonthlyReport {
-  /** 目标人群类型 */
-  targetGroup: TargetGroup;
-  /** 年度 */
-  year: number;
-  /** 月度 (1-12) */
-  month: number;
-  /** 细分备餐明细行列表 */
-  items: PreparedItem[];
-}
-
-/**
  * @description 统一系统性能/操作日志接口，方便开发排查和用户了解状态
  */
 export interface SystemLog {
