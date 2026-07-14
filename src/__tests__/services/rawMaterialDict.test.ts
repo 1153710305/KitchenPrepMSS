@@ -233,7 +233,7 @@ describe("RawMaterialsDictService", () => {
     });
   });
 
-  describe("setRawMaterialsDictInMemory (heartbeat silent update)", () => {
+  describe("setRawMaterialsDictInMemory (refreshNow silent update)", () => {
     it("dedupes on silent overwrite without touching the server", () => {
       vi.spyOn(SyncHelper, "queueChange").mockClear();
       RawMaterialsDictService.setRawMaterialsDictInMemory([

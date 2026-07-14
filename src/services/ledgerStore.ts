@@ -4,7 +4,7 @@
  */
 
 /**
- * @description 原料购销台账业务数据服务层（LedgerService）：管理台账列表与采购原料项目、每日出入库流水记录的增删改查、台账常用人员/供货商字典配置，并与备餐报表服务（PrepReportService）联动同步。
+ * @description 原料购销台账业务数据服务层（LedgerService）：管理台账列表与采购原料项目、每日出入库流水记录的增删改查、台账常用人员/供货商字典配置，并与一二级配置服务（PrepReportService）联动同步。
  */
 
 import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
@@ -189,7 +189,7 @@ export class LedgerService {
    * @param id 台账ID
    */
   public static async deleteLedger(id: string): Promise<void> {
-    // 校验、级联删除原料项目/对应餐位人群配置/月度报表（此前的 PrepReportService.syncDeleteGroupFromLedger）
+    // 校验、级联删除原料项目/对应餐位人群配置（此前的 PrepReportService.syncDeleteGroupFromLedger）
     // 均已迁移到后端一次事务完成，前端只负责发起请求
     const ledger = this.ledgers.find((l) => l.id === id);
     const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(id)}`, { method: "DELETE" });

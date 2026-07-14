@@ -55,9 +55,9 @@ export class SyncHelper {
    */
   public static currentDbVersion?: number;
 
-  /** 当前内存中缓存的每日流水/报表数据所属的起始日期 */
+  /** 当前内存中缓存的台账每日流水数据所属的起始日期 */
   private static loadedStartDate?: string;
-  /** 当前内存中缓存的每日流水/报表数据所属的结束日期 */
+  /** 当前内存中缓存的台账每日流水数据所属的结束日期 */
   private static loadedEndDate?: string;
 
   /**

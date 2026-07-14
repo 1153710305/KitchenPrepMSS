@@ -125,7 +125,7 @@ export default function App() {
   const selectedYear = parseInt(selectedDate.split("-")[0], 10);
   const selectedMonth = parseInt(selectedDate.split("-")[1], 10);
 
-  // ================= 按月懒加载触发器 (针对备餐报表) =================
+  // ================= 按月懒加载触发器 (针对台账每日流水) =================
   useEffect(() => {
     // 只有当 SyncHelper 初始化完成后（即跳过首屏初始化拉取），才因为账期变动而触发增量拉取
     // 这里依赖 SyncHelper 的 loadedStartDate/End 判断是否真正发请求
@@ -136,7 +136,7 @@ export default function App() {
     
     // 我们在此触发 refreshNow 即可，内部会校验缓存和 bypassCache
     SyncHelper.refreshNow(requiredStart, requiredEnd).catch(err => {
-      console.error("切换备餐报表账期懒加载失败:", err);
+      console.error("切换查看账期懒加载失败:", err);
     });
   }, [selectedYear, selectedMonth]);
 

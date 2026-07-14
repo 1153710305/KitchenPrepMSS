@@ -33,7 +33,7 @@ rawMaterialsRouter.post("/", async (req, res) => {
 });
 
 /**
- * @description 更新一条原料字典条目（可改名），并级联同步台账/备餐报表里的同名条目
+ * @description 更新一条原料字典条目（可改名），并级联同步台账里的同名条目
  * @route PUT /api/raw-materials/:oldName
  */
 rawMaterialsRouter.put("/:oldName", async (req, res) => {
@@ -51,7 +51,7 @@ rawMaterialsRouter.put("/:oldName", async (req, res) => {
 });
 
 /**
- * @description 删除一条原料字典条目（系统默认原料禁止删除），并级联物理删除台账/备餐报表里的同名条目
+ * @description 删除一条原料字典条目（系统默认原料禁止删除），并级联物理删除台账里的同名条目
  * @route DELETE /api/raw-materials/:name
  */
 rawMaterialsRouter.delete("/:name", async (req, res) => {

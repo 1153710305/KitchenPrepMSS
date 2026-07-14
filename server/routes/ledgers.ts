@@ -40,7 +40,7 @@ ledgersRouter.put("/:id", async (req, res) => {
 });
 
 /**
- * @description 物理删除台账，级联删除其下原料项目与对应的餐位人群配置/月度报表
+ * @description 物理删除台账，级联删除其下原料项目与对应的餐位人群配置
  * @route DELETE /api/ledgers/:id
  */
 ledgersRouter.delete("/:id", async (req, res) => {

@@ -4,7 +4,7 @@
  */
 
 /**
- * @description 备餐报表相关路由（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：
+ * @description 一二级配置相关路由（阶段C·业务规则迁移到后端，见 SQLite迁移规划.md）：
  * `groupsRouter` 挂载在 /api/groups 前缀下（一级人群配置的增改删）；
  * `categoriesRouter` 挂载在 /api/categories 前缀下（二级食材大类配置的增改删）。
  * 校验/级联规则均在 StorageService 对应方法内实现，本路由只负责把 HTTP 请求转成方法调用、
@@ -40,7 +40,7 @@ groupsRouter.put("/:key", async (req, res) => {
 });
 
 /**
- * @description 删除一级人群配置及关联的所有报表（系统默认人群禁止删除），级联同步删除对应台账
+ * @description 删除一级人群配置（系统默认人群禁止删除），级联同步删除对应台账及其下全部原料项目
  * @route DELETE /api/groups/:key
  */
 groupsRouter.delete("/:key", async (req, res) => {
@@ -69,7 +69,7 @@ categoriesRouter.put("/:key", async (req, res) => {
 });
 
 /**
- * @description 删除二级大类配置并清空所有报表里属于此大类的细分项（系统默认大类禁止删除）
+ * @description 删除二级大类配置（系统默认大类禁止删除）
  * @route DELETE /api/categories/:key
  */
 categoriesRouter.delete("/:key", async (req, res) => {

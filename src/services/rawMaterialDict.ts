@@ -4,7 +4,7 @@
  */
 
 /**
- * @description 原料大字典业务数据服务层（RawMaterialsDictService）：管理全局原料名称/单位/所属大类/换算比例等字典条目的增删改查，是备餐报表与台账系统共用的原料基础数据源。
+ * @description 原料大字典业务数据服务层（RawMaterialsDictService）：管理全局原料名称/单位/所属大类/换算比例等字典条目的增删改查，是台账系统及其展示视图共用的原料基础数据源。
  */
 
 import { FoodCategory } from "../types/types.ts";
@@ -276,7 +276,7 @@ export class RawMaterialsDictService {
     conversionUnit?: string,
     conversionRatio?: number
   ): Promise<void> {
-    // 校验、isDefault 保留、级联更新台账/备餐报表里的同名条目均已迁移到后端（阶段A，见 SQLite迁移规划.md），
+    // 校验、isDefault 保留、级联更新台账里的同名条目均已迁移到后端（阶段A，见 SQLite迁移规划.md），
     // 后端一次事务内完成级联，前端只负责发起请求、用响应更新内存缓存
     const res = await SyncHelper.fetchWithVersion(`/api/raw-materials/${encodeURIComponent(oldName)}`, {
       method: "PUT",
