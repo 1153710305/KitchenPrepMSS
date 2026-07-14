@@ -132,12 +132,12 @@ export function LedgerPrintStyle2Consumable({
                   <col style={{ width: "8%" }} />
                   <col style={{ width: "5%" }} />
                   <col style={{ width: "6%" }} />
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "5%" }} />
+                  <col style={{ width: "17%" }} />
+                  <col style={{ width: "6%" }} />
                   <col style={{ width: "8%" }} />
                   <col style={{ width: "15%" }} />
-                  <col style={{ width: "5%" }} />
-                  <col style={{ width: "5%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "6%" }} />
                   <col style={{ width: "23%" }} />
                 </colgroup>
 
@@ -172,6 +172,20 @@ export function LedgerPrintStyle2Consumable({
                     const specFontSize = specText.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
                     const specLineHeight = specText.length > 4 ? "1.2" : "normal";
 
+                    const renderTwoLineDate = (dateStr: string) => {
+                      if (!dateStr) return "";
+                      const parts = dateStr.split("-");
+                      if (parts.length >= 3) {
+                        return (
+                          <div style={{ lineHeight: "1.1" }}>
+                            <div>{parts[0]}</div>
+                            <div>{parts[1]}-{parts[2]}</div>
+                          </div>
+                        );
+                      }
+                      return dateStr;
+                    };
+
                     return pageData.map(({ dStr, record }) => {
                       const supplier = record!.supplier || "";
                       const supplierFontSize = supplier.length > 11 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
@@ -195,11 +209,11 @@ export function LedgerPrintStyle2Consumable({
                           <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? record!.inQuantity : ""}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: specFontSize, lineHeight: specLineHeight }}>{specText}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: supplierFontSize, lineHeight: supplierLineHeight }}>{supplier}</td>
-                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1">{record!.inQuantity > 0 ? renderTwoLineDate(record!.purchaseDate || dStr) : ""}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
-                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
-                          <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1">{record!.inQuantity > 0 ? renderTwoLineDate(record!.purchaseDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1">{record!.outQuantity > 0 ? renderTwoLineDate(record!.outDate || dStr) : ""}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
                         </tr>
                       );
