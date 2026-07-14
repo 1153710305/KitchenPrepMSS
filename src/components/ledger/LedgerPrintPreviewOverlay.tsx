@@ -8,7 +8,8 @@
  */
 
 import { AlertCircle } from "lucide-react";
-import { Ledger, LedgerItem, FoodCategory } from "../../types/ledgerTypes.ts";
+import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
+import { FoodCategory } from "../../types/types.ts";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { createPortal } from "react-dom";
 import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
