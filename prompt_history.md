@@ -908,3 +908,7 @@ Fix bug：
 ### 用户反馈与微调 7
 - 低耗品的打印样式的页边距和出库单的打印样式的页边距要和打印记账登记表的页边距一样收回来5mm左右。
   - 响应：修改了 `LedgerPrintStyle2Consumable.tsx` 和 `LedgerPrintDoc.tsx` 中的页边距设置，将这两处的 `@page` margin 统一设置为了 `12mm 18mm`，并在 `PrintOutDoc` 容器中补充了 `marginLeft: "6mm", marginRight: "6mm"`，使得它们在横向留白上与记账登记表（LedgerPrintStyle1）实现完全对齐和一致的装订预留。
+
+### 用户反馈与微调 8
+- 低耗品的打印样式修改，默认的行高是两行高，和中袋那一行的行高是一样的
+  - 响应：修改了 `src/constants/ledgerConstants.ts` 中的 `LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight`，将原本单行字体的 `32px` 行高放大到了 `46px`（约为两行文字折行后的高度），使得所有的数据行和空行默认都能撑起与“中袋”折行后一样宽阔一致的两行高度。

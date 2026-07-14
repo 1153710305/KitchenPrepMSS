@@ -464,7 +464,6 @@ function PrintOutDoc({
         }
         @page {
           size: A4;
-          margin: 12mm 18mm;
         }
           /* 干掉 index.html 的表头全局灰色 */
 .ledger-print-doc-overlay thead th {
