@@ -1382,9 +1382,9 @@ export class StorageService {
   /**
    * @description 录入/更新指定原料在指定日期的部分出入库字段，采用 Partial 合并技术实现 onBlur 自动保存，
    * 并自动重算当日入库金额与该原料的实时当前库存（阶段B·业务规则迁移到后端）：合并/校验/重算逻辑与迁移前的
-   * 前端实现逐字一致。是否需要反向同步进备餐月度报表（此前 PrepReportService.syncFromLedger 的既有行为）
-   * 由调用方（前端 LedgerService，PrepReportService 尚未迁移到后端）根据返回的 mergedRecord 自行决定，
-   * 本次改造范围只覆盖台账自身的 ledger_items/ledger_item_daily_records 两张表。
+   * 前端实现逐字一致。[V2 架构演进] 此前反向同步进备餐月度报表的 PrepReportService.syncFromLedger 已随报表
+   * 双状态整体删除，调用方（前端 LedgerService）不再需要对返回的 mergedRecord 做任何反向同步处理——
+   * TableGrid 等展示视图现在直接以 ledger_items/ledger_item_daily_records 实时派生渲染。
    * @param {string} itemId 原料ID
    * @param {string} dateStr 选中的日期 (格式如 "YYYY-MM-DD")
    * @param {Partial<DailyStockRecord>} fields 可选合并的属性集合

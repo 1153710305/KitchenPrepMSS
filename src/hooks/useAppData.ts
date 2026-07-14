@@ -47,7 +47,7 @@ export interface UseAppDataResult {
 }
 
 /**
- * @description 管理备餐报表/台账/原料字典三大服务的首屏并行加载、内存数据提取器注册、数据变动订阅与心跳静默同步的自定义 Hook
+ * @description 管理人群/大类配置、台账、原料字典三大服务的首屏并行加载与数据变动订阅的自定义 Hook（心跳轮询已移除，见文件顶部说明）
  */
 export function useAppData(): UseAppDataResult {
 
@@ -98,7 +98,7 @@ export function useAppData(): UseAppDataResult {
 
     // 并行初始化各服务，分别累加进度
     const p1 = PrepReportService.initStore().then(data => {
-      reportProgress(30, "已成功装载月度备餐食材细表...");
+      reportProgress(30, "已成功装载人群与食材大类配置...");
       return data;
     });
 
@@ -147,7 +147,7 @@ export function useAppData(): UseAppDataResult {
 
           setIsLoading(false);
           SyncHelper.setInitialized(true);
-          LogBroker.publish("INFO", "App", "系统已完成备餐、台账以及大字典服务数据模型的全局并行加载初始化");
+          LogBroker.publish("INFO", "App", "系统已完成人群大类配置、台账以及原料大字典服务数据模型的全局并行加载初始化");
         }
       }, 400);
     }).catch(err => {
