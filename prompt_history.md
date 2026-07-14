@@ -904,3 +904,7 @@ Fix bug：
     4. 把 `App.tsx` 与 `TableGrid.tsx` 里两份几乎相同的"按人群过滤台账、按当月天数求和"逻辑合并成了 `utils.ts` 的共享函数，避免两处口径再次漂移。
     5. 清理了孤儿类型 `GroupMonthlyReport`、`constants.ts` 里 24 个未使用的 `UI_TEXT` 死文案（含一处提示用户点击已不存在的"新增项"按钮的过期文案），修正了 `store.ts`/`ledgerStore.ts`/`storageService.ts` 里多处过时或自相矛盾的注释。
     6. 全面重写了 `ARCHITECTURE.md`，如实反映当前"台账为主"的数据流全貌，并记录了审计中顺带发现的、独立于本次任务的新现状——原有的 10 秒心跳多端同步机制在更早一次改造中已被移除，目前没有自动机制让一端的修改同步到另一端。
+
+### 用户反馈与微调 7
+- 低耗品的打印样式的页边距和出库单的打印样式的页边距要和打印记账登记表的页边距一样收回来5mm左右。
+  - 响应：修改了 `LedgerPrintStyle2Consumable.tsx` 和 `LedgerPrintDoc.tsx` 中的页边距设置，将这两处的 `@page` margin 统一设置为了 `12mm 18mm`，并在 `PrintOutDoc` 容器中补充了 `marginLeft: "6mm", marginRight: "6mm"`，使得它们在横向留白上与记账登记表（LedgerPrintStyle1）实现完全对齐和一致的装订预留。

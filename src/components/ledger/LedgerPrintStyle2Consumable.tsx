@@ -79,6 +79,9 @@ export function LedgerPrintStyle2Consumable({
         .ledger-print-consumable-table thead th {
           background-color: #ffffff !important;
         }
+        @page {
+          margin: 12mm 18mm;
+        }
         @media print {
           .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
             -webkit-print-color-adjust: exact !important;
