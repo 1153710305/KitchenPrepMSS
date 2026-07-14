@@ -258,9 +258,9 @@ export const LEDGER_PRINT_CONSUMABLE_CONFIG = {
   dataFontSize: "14px",
 
   /**
-   * @description 数据行行高（在原 28px 基础上放大至 1.3 倍）
+   * @description 数据行行高（要求默认两行高，与换行内容行高保持一致）
    */
-  dataRowHeight: "32px",
+  dataRowHeight: "46px",
 
   /**
    * @description 标题的字体大小

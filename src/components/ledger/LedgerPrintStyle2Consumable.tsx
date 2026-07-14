@@ -79,6 +79,9 @@ export function LedgerPrintStyle2Consumable({
         .ledger-print-consumable-table thead th {
           background-color: #ffffff !important;
         }
+        @page {
+          margin: 12mm 18mm;
+        }
         @media print {
           .ledger-print-consumable-table, .ledger-print-consumable-table th, .ledger-print-consumable-table td {
             -webkit-print-color-adjust: exact !important;
@@ -101,118 +104,118 @@ export function LedgerPrintStyle2Consumable({
         return (
           <div key={pageIndex}>
             <div style={{ position: "relative" }}>
-            {/* 标题区：标题+日期作为一个左对齐整体块居中摆放 */}
-            <div className="mb-3 relative" style={{ display: "flex", justifyContent: "center" }}>
-              <div className="text-left">
-                <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }} className="tracking-widest">
-                  {LEDGER_PRINT_CONSUMABLE_CONFIG.titlePrefix}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "2px" }}>
-                  <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, fontWeight: "bold" }}>
-                    日期：（  {style2StartDate} 至 {style2EndDate}  ）
+              {/* 标题区：标题+日期作为一个左对齐整体块居中摆放。保持与记账登记表（Style1）的标题顶边距/底边距高度一致 */}
+              <div className="relative" style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+                <div className="text-left">
+                  <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }} className="tracking-widest">
+                    {LEDGER_PRINT_CONSUMABLE_CONFIG.titlePrefix}
                   </div>
-                  <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginLeft: "12px" }}>
-                    {activeLedger?.name || ""}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "2px" }}>
+                    <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, fontWeight: "bold" }}>
+                      日期：（  {style2StartDate} 至 {style2EndDate}  ）
+                    </div>
+                    <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.subtitleFontSize, whiteSpace: "nowrap", marginLeft: "12px" }}>
+                      {activeLedger?.name || ""}
+                    </div>
                   </div>
                 </div>
+                {/* 多页时显示页码，位于左下角 */}
+                {totalPages > 1 && (
+                  <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "12px", color: "#444" }}>
+                    第 {pageIndex + 1} / {totalPages} 页
+                  </div>
+                )}
               </div>
-              {/* 多页时显示页码，位于左下角 */}
-              {totalPages > 1 && (
-                <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "12px", color: "#444" }}>
-                  第 {pageIndex + 1} / {totalPages} 页
-                </div>
-              )}
-            </div>
 
-            <table className="ledger-print-consumable-table w-full border-collapse text-center mb-6" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "5%" }} />
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "23%" }} />
-              </colgroup>
+              <table className="ledger-print-consumable-table w-full border-collapse text-center mb-6" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "5%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "17%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "23%" }} />
+                </colgroup>
 
-              <thead>
-                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">物品名称</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">规格</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">
-                    <div>采购</div>
-                    <div>时间</div>
-                  </th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
-                  <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
-                </tr>
-                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
-                  <th className="border border-black px-1 py-1 align-middle">入库</th>
-                  <th className="border border-black px-1 py-1 align-middle">出库</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {(() => {
-                  const nameText = displayName || "";
-                const nameFontSize = nameText.length > 5 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                const nameLineHeight = nameText.length > 5 ? "1.2" : "normal";
-
-                const specText = displaySpec || "";
-                const specFontSize = specText.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                const specLineHeight = specText.length > 4 ? "1.2" : "normal";
-
-                return pageData.map(({ dStr, record }) => {
-                  const supplier = record!.supplier || "";
-                  const supplierFontSize = supplier.length > 11 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                  const supplierLineHeight = supplier.length > 11 ? "1.2" : "normal";
-
-                  const buyer = record!.buyer || "";
-                  const buyerFontSize = buyer.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                  const buyerLineHeight = buyer.length > 4 ? "1.2" : "normal";
-
-                  const inspector = record!.inspector || "";
-                  const inspectorFontSize = inspector.length > 10 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                  const inspectorLineHeight = inspector.length > 10 ? "1.2" : "normal";
-
-                  const keeper = record!.keeper || "";
-                  const keeperFontSize = keeper.length > 15 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
-                  const keeperLineHeight = keeper.length > 15 ? "1.2" : "normal";
-
-                  return (
-                    <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{nameText}</td>
-                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? record!.inQuantity : ""}</td>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: specFontSize, lineHeight: specLineHeight }}>{specText}</td>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: supplierFontSize, lineHeight: supplierLineHeight }}>{supplier}</td>
-                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
-                      <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
-                      <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
-                      <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
-                    </tr>
-                  );
-                });
-              })()}
-
-                {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
-                {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
-                    {Array.from({ length: 10 }).map((_, j) => (
-                      <td key={j} className="border border-black"></td>
-                    ))}
+                <thead>
+                  <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">物品名称</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">规格</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">
+                      <div>采购</div>
+                      <div>时间</div>
+                    </th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
+                    <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.headerFontSize }}>
+                    <th className="border border-black px-1 py-1 align-middle">入库</th>
+                    <th className="border border-black px-1 py-1 align-middle">出库</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {(() => {
+                    const nameText = displayName || "";
+                    const nameFontSize = nameText.length > 5 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                    const nameLineHeight = nameText.length > 5 ? "1.2" : "normal";
+
+                    const specText = displaySpec || "";
+                    const specFontSize = specText.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                    const specLineHeight = specText.length > 4 ? "1.2" : "normal";
+
+                    return pageData.map(({ dStr, record }) => {
+                      const supplier = record!.supplier || "";
+                      const supplierFontSize = supplier.length > 11 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                      const supplierLineHeight = supplier.length > 11 ? "1.2" : "normal";
+
+                      const buyer = record!.buyer || "";
+                      const buyerFontSize = buyer.length > 4 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                      const buyerLineHeight = buyer.length > 4 ? "1.2" : "normal";
+
+                      const inspector = record!.inspector || "";
+                      const inspectorFontSize = inspector.length > 10 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                      const inspectorLineHeight = inspector.length > 10 ? "1.2" : "normal";
+
+                      const keeper = record!.keeper || "";
+                      const keeperFontSize = keeper.length > 15 ? "11px" : LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize;
+                      const keeperLineHeight = keeper.length > 15 ? "1.2" : "normal";
+
+                      return (
+                        <tr key={dStr} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{nameText}</td>
+                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? record!.inQuantity : ""}</td>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: specFontSize, lineHeight: specLineHeight }}>{specText}</td>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: supplierFontSize, lineHeight: supplierLineHeight }}>{supplier}</td>
+                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
+                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
+                          <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+
+                  {/* 补充空行至最小行数，保持完整网格线（每格独立，不合并） */}
+                  {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                    <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_CONSUMABLE_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.dataFontSize }}>
+                      {Array.from({ length: 10 }).map((_, j) => (
+                        <td key={j} className="border border-black"></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             {!isLastPage && <div style={{ breakAfter: "page", pageBreakAfter: "always", height: 0, overflow: "hidden" }}></div>}
           </div>

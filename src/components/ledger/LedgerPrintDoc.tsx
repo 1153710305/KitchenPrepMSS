@@ -455,7 +455,7 @@ function PrintOutDoc({
   );
 
   return (
-    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize, color: "#000" }}>
+    <div style={{ fontFamily: LEDGER_PRINT_OUT_CONFIG.outDocFontFamily, fontSize: LEDGER_PRINT_OUT_CONFIG.outDocDataFontSize, color: "#000", marginLeft: "6mm", marginRight: "6mm" }}>
       {/* 线框颜色/粗细通过下方 <style> 强制统一为纯黑细线，避免打印时因子像素反锯齿呈现偏蓝色调、粗细不一，与图一/图二打印样式保持一致；
           同时声明 A4 纸张与页边距，配合各页容器的强制分页符，保证内容行数/供货商条数超出单页容量时完整续排到下一页，不再被物理纸张边缘截断 */}
       <style>{`
@@ -464,7 +464,6 @@ function PrintOutDoc({
         }
         @page {
           size: A4;
-          margin: 20mm 12mm 12mm 12mm;
         }
           /* 干掉 index.html 的表头全局灰色 */
 .ledger-print-doc-overlay thead th {
