@@ -226,14 +226,14 @@ export class PrepReportService {
   }
 
   /**
-   * @description 供心跳轮询静默更新内存中的一级人群列表
+   * @description 供 SyncHelper.refreshNow() 静默更新内存中的一级人群列表
    */
   public static setActiveGroupsInMemory(g: DynamicGroup[]): void {
     this.activeGroups = g;
   }
 
   /**
-   * @description 供心跳轮询静默更新内存中的二级大类列表
+   * @description 供 SyncHelper.refreshNow() 静默更新内存中的二级大类列表
    */
   public static setActiveCategoriesInMemory(c: DynamicCategory[]): void {
     this.activeCategories = c;

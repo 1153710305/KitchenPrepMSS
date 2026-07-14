@@ -30,7 +30,6 @@ function resetAllServices() {
   RawMaterialsDictService.setRawMaterialsDictInMemory([]);
   (SyncHelper as any).isInitialized = false;
   (SyncHelper as any).onReadyQueue = [];
-  (SyncHelper as any).lastLocalMutationAt = 0;
 }
 
 describe("useAppData", () => {

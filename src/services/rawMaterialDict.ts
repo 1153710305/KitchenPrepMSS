@@ -189,10 +189,10 @@ export class RawMaterialsDictService {
   }
 
   /**
-   * @description 供心跳轮询静默更新内存中的原料字典列表，防止 LocalStorage 覆写
+   * @description 供 SyncHelper.refreshNow() 静默更新内存中的原料字典列表，防止 LocalStorage 覆写
    */
   public static setRawMaterialsDictInMemory(items: RawMaterialDictItem[]): void {
-    // 心跳轮询数据同样做防呆去重，避免历史脏数据在轮询覆盖时持续产生重复 key（此路径不回写服务器，避免高频心跳触发多余保存）
+    // 同样做防呆去重，避免历史脏数据在刷新覆盖时持续产生重复 key（此路径不回写服务器，避免触发多余保存）
     this.items = this.dedupeByName(items);
   }
 
@@ -295,8 +295,8 @@ export class RawMaterialsDictService {
     }
     LogBroker.publish("INFO", "RawMaterialsDictService", `【原料字典】更新原料「${oldName}」为「${body.item.name}」（类别: ${category}，单位: ${unit}，备注: ${remark}，换算单位: ${conversionUnit}，换算比例: ${conversionRatio}）`);
 
-    // 级联结果只发生在后端 SQLite 里，台账/备餐报表当前的内存状态尚未感知，主动刷新一次而不是等最多10秒的心跳，
-    // 避免用户改完名字后台账/备餐细表页面显得"过一会才更新"
+    // 级联结果只发生在后端 SQLite 里，台账当前的内存状态尚未感知，主动刷新一次，
+    // 避免用户改完名字后台账细表页面显得"过一会才更新"
     await SyncHelper.refreshNow();
   }
 
@@ -305,7 +305,7 @@ export class RawMaterialsDictService {
    * @param name 原料品名
    */
   public static async deleteMaterial(name: string): Promise<void> {
-    // 校验（isDefault 保护）与级联删除台账/备餐报表里的同名条目均已迁移到后端，前端只负责发起请求
+    // 校验（isDefault 保护）与级联删除台账里的同名条目均已迁移到后端，前端只负责发起请求
     const res = await SyncHelper.fetchWithVersion(`/api/raw-materials/${encodeURIComponent(name)}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok) {
@@ -314,7 +314,7 @@ export class RawMaterialsDictService {
     this.items = this.items.filter((item) => item.name !== name);
     LogBroker.publish("WARN", "RawMaterialsDictService", `【原料字典】移除了原料「${name}」`);
 
-    // 同 updateMaterial：级联删除只发生在后端，主动刷新一次而不是等心跳
+    // 同 updateMaterial：级联删除只发生在后端，主动刷新一次让操作者立即看到最新数据
     await SyncHelper.refreshNow();
   }
 }

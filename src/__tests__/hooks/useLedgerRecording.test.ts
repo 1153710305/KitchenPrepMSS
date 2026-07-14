@@ -257,7 +257,7 @@ describe("useLedgerRecording", () => {
 
     it("REGRESSION [V5.89.0]: does not exit recording mode until the incremental sync is actually confirmed by the server", async () => {
       // 真实的用户可感知问题：本地保存一结束就立刻放行页面，此时增量同步可能还没真正落盘，
-      // 如果这时恰好撞上心跳静默同步，刚保存的记录就可能被短暂"冲掉"，表现为"细表里显示有延迟"。
+      // 如果这时恰好触发了一次 refreshNow()，刚保存的记录就可能被短暂"冲掉"，表现为"细表里显示有延迟"。
       // 修复后 handleConfirmRecording 必须等 SyncHelper.waitForPendingSync() 真正 resolve 才收尾。
       let resolveSync: () => void;
       const syncPromise = new Promise<void>((resolve) => { resolveSync = resolve; });

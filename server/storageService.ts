@@ -6,7 +6,7 @@
 /**
  * @description 本地 SQLite（阶段二·规范化关系型表结构 + 阶段三·增量写协议，见 SQLite迁移规划.md）与腾讯云对象存储（COS）
  * 双模式持久化服务：save() 接收一批增量 SyncOp[]，通过 applyChangesIntoSqlite() 对规范化表做目标 upsert/delete；
- * load() 返回完整状态供 GET /load 与心跳轮询使用。
+ * load() 返回完整状态供 GET /load 使用（按月懒加载时附带日期区间，见 server/routes/storage.ts）。
  * 早期 JSON 文件存储、阶段一 kv_store 浅迁移格式、以及此前的本地/云端 JSON 备份快照功能均已彻底移除，
  * 不再保留任何迁移兼容代码——数据安全性完全依赖 SQLite 事务+WAL（本地模式）或云厂商多副本冗余（COS 模式），
  * 灾难恢复（如硬盘损坏）由客户自行定期做操作系统级的 data/ 目录整体备份，详见部署指南.md。

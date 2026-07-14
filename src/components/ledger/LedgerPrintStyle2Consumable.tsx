@@ -177,7 +177,7 @@ export function LedgerPrintStyle2Consumable({
                       const parts = dateStr.split("-");
                       if (parts.length >= 3) {
                         return (
-                          <div style={{ lineHeight: "1.1" }}>
+                          <div>
                             <div>{parts[0]}</div>
                             <div>{parts[1]}-{parts[2]}</div>
                           </div>
