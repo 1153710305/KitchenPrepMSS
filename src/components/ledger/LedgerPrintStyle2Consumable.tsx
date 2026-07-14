@@ -104,8 +104,8 @@ export function LedgerPrintStyle2Consumable({
         return (
           <div key={pageIndex}>
             <div style={{ position: "relative" }}>
-              {/* 标题区：标题+日期作为一个左对齐整体块居中摆放 */}
-              <div className="mb-3 relative" style={{ display: "flex", justifyContent: "center" }}>
+              {/* 标题区：标题+日期作为一个左对齐整体块居中摆放。保持与记账登记表（Style1）的标题顶边距/底边距高度一致 */}
+              <div className="relative" style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
                 <div className="text-left">
                   <div style={{ fontSize: LEDGER_PRINT_CONSUMABLE_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }} className="tracking-widest">
                     {LEDGER_PRINT_CONSUMABLE_CONFIG.titlePrefix}
@@ -133,8 +133,8 @@ export function LedgerPrintStyle2Consumable({
                   <col style={{ width: "5%" }} />
                   <col style={{ width: "6%" }} />
                   <col style={{ width: "17%" }} />
-                  <col style={{ width: "7%" }} />
-                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "8%" }} />
                   <col style={{ width: "15%" }} />
                   <col style={{ width: "6%" }} />
                   <col style={{ width: "6%" }} />
@@ -198,7 +198,7 @@ export function LedgerPrintStyle2Consumable({
                           <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: buyerFontSize, lineHeight: buyerLineHeight }}>{buyer}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: inspectorFontSize, lineHeight: inspectorLineHeight }}>{inspector}</td>
-                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : " \n "}</td>
+                          <td className="border border-black px-1 py-1 ">{record!.inQuantity > 0 ? (record!.purchaseDate || dStr) : ""}</td>
                           <td className="border border-black px-1 py-1 ">{record!.outQuantity > 0 ? (record!.outDate || dStr) : ""}</td>
                           <td className="border border-black px-1 py-1" style={{ fontSize: keeperFontSize, lineHeight: keeperLineHeight }}>{keeper}</td>
                         </tr>
