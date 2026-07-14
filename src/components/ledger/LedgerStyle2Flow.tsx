@@ -187,9 +187,9 @@ export function LedgerStyle2Flow({
             <tr className="bg-slate-100/50 text-slate-500 border-b border-slate-200 text-center font-bold">
               <th className="px-4 py-2.5 font-bold w-28">日期</th>
               <th className="px-3 py-2.5 font-bold bg-emerald-50/20 w-24">采购数量</th>
-              <th className="px-3 py-2.5 font-bold w-24">采购员</th>
               <th className="px-3 py-2.5 font-bold w-28">生产日期</th>
               <th className="px-3 py-2.5 font-bold w-24">保质期</th>
+              <th className="px-3 py-2.5 font-bold w-24">采购员</th>
               <th className="px-3 py-2.5 font-bold w-24">感官性状</th>
               <th className="px-3 py-2.5 font-bold w-24">检验员</th>
               <th className="px-3 py-2.5 font-bold bg-indigo-50/10 w-24">出库数量</th>
@@ -236,20 +236,6 @@ export function LedgerStyle2Flow({
                     />
                   </td>
                   
-                  {/* 采购员 */}
-                  <td className="px-2 py-1.5">
-                    <HelperSelect
-                      value={recordToRender.buyer || ""}
-                      options={LedgerService.getHelperDict().buyers}
-                      disabled={!isRowEditable}
-                      onChange={(val) => handleDraftCellChange(activeItem.id, { buyer: val })}
-                      placeholder="锁定"
-                      className="w-full"
-                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
-                      focusBorderClassName="focus:border-emerald-500"
-                    />
-                  </td>
-
                   {/* 生产日期 */}
                   <td className="px-2 py-1.5">
                     <input 
@@ -283,6 +269,20 @@ export function LedgerStyle2Flow({
                         className="w-full bg-slate-50/30 text-slate-400 border border-slate-200 px-2 py-1 rounded outline-none"
                       />
                     )}
+                  </td>
+
+                  {/* 采购员 */}
+                  <td className="px-2 py-1.5">
+                    <HelperSelect
+                      value={recordToRender.buyer || ""}
+                      options={LedgerService.getHelperDict().buyers}
+                      disabled={!isRowEditable}
+                      onChange={(val) => handleDraftCellChange(activeItem.id, { buyer: val })}
+                      placeholder="锁定"
+                      className="w-full"
+                      disabledClassName="bg-slate-50/30 text-slate-400 text-xs"
+                      focusBorderClassName="focus:border-emerald-500"
+                    />
                   </td>
 
                   {/* 感官性状 */}

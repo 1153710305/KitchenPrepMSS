@@ -238,10 +238,10 @@ export function LedgerStyle1Table({
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.certification}</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.sensoryProperty}</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-48">{LEDGER_HEADERS.supplier}</th>
-                <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
-                <th className="px-3 py-2.5 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-36">生产日期</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-36">保质期</th>
+                <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
+                <th className="px-3 py-2.5 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
                 <th className="px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-36">出库时间</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.inspector}</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.keeper}</th>
@@ -494,31 +494,6 @@ export function LedgerStyle1Table({
                         />
                       </td>
 
-                      {/* 采购员 */}
-                      <td className="px-3 py-2">
-                        <HelperSelect
-                          value={recordToRender.buyer || ""}
-                          options={LedgerService.getHelperDict().buyers}
-                          disabled={!isRecordingMode}
-                          onChange={(val) => handleDraftCellChange(item.id, { buyer: val })}
-                          placeholder="未开启录入"
-                          className="w-28"
-                        />
-                      </td>
-
-                      {/* 采购/入库时间（默认选定日期，允许手动修改） */}
-                      <td className="px-3 py-2 bg-emerald-50/20">
-                        <input
-                          type="date"
-                          value={recordToRender.purchaseDate || selectedDate}
-                          disabled={!isRecordingMode}
-                          onChange={(e) => handleDraftCellChange(item.id, { purchaseDate: e.target.value })}
-                          className="bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-[13px] outline-none focus:border-emerald-400"
-                          style={{ width: getInputWidth(recordToRender.purchaseDate || selectedDate, "", true) }}
-                          title="采购入库时间（默认为当日，可手动修改）"
-                        />
-                      </td>
-
                       {/* 生产日期 */}
                       <td className="px-3 py-2">
                         <input
@@ -555,6 +530,31 @@ export function LedgerStyle1Table({
                             style={{ width: getInputWidth(recordToRender.shelfLife, "未开启录入") }}
                           />
                         )}
+                      </td>
+
+                      {/* 采购员 */}
+                      <td className="px-3 py-2">
+                        <HelperSelect
+                          value={recordToRender.buyer || ""}
+                          options={LedgerService.getHelperDict().buyers}
+                          disabled={!isRecordingMode}
+                          onChange={(val) => handleDraftCellChange(item.id, { buyer: val })}
+                          placeholder="未开启录入"
+                          className="w-28"
+                        />
+                      </td>
+
+                      {/* 采购/入库时间（默认选定日期，允许手动修改） */}
+                      <td className="px-3 py-2 bg-emerald-50/20">
+                        <input
+                          type="date"
+                          value={recordToRender.purchaseDate || selectedDate}
+                          disabled={!isRecordingMode}
+                          onChange={(e) => handleDraftCellChange(item.id, { purchaseDate: e.target.value })}
+                          className="bg-white disabled:bg-slate-50 disabled:text-slate-300 border border-slate-200 px-1.5 py-1 rounded font-mono text-[13px] outline-none focus:border-emerald-400"
+                          style={{ width: getInputWidth(recordToRender.purchaseDate || selectedDate, "", true) }}
+                          title="采购入库时间（默认为当日，可手动修改）"
+                        />
                       </td>
 
                       {/* 出库时间（默认选定日期，允许手动修改） */}
