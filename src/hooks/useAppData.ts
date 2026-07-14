@@ -4,11 +4,14 @@
  */
 
 /**
- * @description 封装 App 顶层的核心数据加载与多端同步逻辑的自定义 Hook：负责首屏并行初始化备餐报表/台账/原料字典三大服务、注册统一的内存数据提取器供 SyncHelper 去抖动上报、订阅各服务的数据变动、以及每 10 秒一次的静默心跳同步。
+ * @description 封装 App 顶层的核心数据加载逻辑的自定义 Hook：负责首屏并行初始化人群/大类配置、台账、原料字典三大服务，
+ * 并订阅各服务的数据变动以驱动重渲染。[2026-07-07] 原先每 10 秒静默拉取全量状态的心跳轮询机制已随"按月懒加载 + 304 缓存"
+ * 改造移除，多端数据一致性现在依赖各写操作自身的 SyncHelper.refreshNow() 主动刷新 + 乐观并发版本冲突检测，
+ * 不再有其它浏览器/设备的修改会在 10 秒内自动同步过来的能力。
  */
 
 import { useEffect, useState } from "react";
-import { GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../types/types.ts";
+import { DynamicGroup, DynamicCategory } from "../types/types.ts";
 import { UI_TEXT } from "../constants/constants.ts";
 import { PrepReportService } from "../services/store.ts";
 import { LedgerService } from "../services/ledgerStore.ts";

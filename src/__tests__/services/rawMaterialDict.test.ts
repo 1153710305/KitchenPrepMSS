@@ -21,9 +21,9 @@ function resetDict() {
 }
 
 /** 构造一次 fetch 成功响应：{ ok: true, json: async () => { success: true, item } } */
-const okResponse = (item: any) => ({ ok: true, json: async () => ({ success: true, item }) });
+const okResponse = (item: any) => ({ ok: true, headers: new Headers(), json: async () => ({ success: true, item }) });
 /** 构造一次 fetch 失败响应：{ ok: false, json: async () => { error } } */
-const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
+const errorResponse = (error: string) => ({ ok: false, headers: new Headers(), json: async () => ({ error }) });
 
 describe("RawMaterialsDictService", () => {
   beforeEach(() => {
@@ -220,7 +220,7 @@ describe("RawMaterialsDictService", () => {
         { name: "自定义原料", category: "VEGETABLE", unit: "斤" },
         { name: "土豆", category: "VEGETABLE", unit: "斤", isDefault: true }
       ]);
-      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ success: true }) });
       vi.stubGlobal("fetch", fetchSpy);
 
       await RawMaterialsDictService.deleteMaterial("自定义原料");

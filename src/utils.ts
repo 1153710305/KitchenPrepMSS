@@ -8,6 +8,7 @@
  */
 
 import { PreparedItem, SystemLog } from "./types/types.ts";
+import { LedgerItem } from "./types/ledgerTypes.ts";
 
 /**
  * @description 获取选定月份的第1天到月末的天数数组
@@ -23,6 +24,42 @@ export function getDaysInMonth(year: number, month: number): string[] {
     days.push(String(i));
   }
   return days;
+}
+
+/**
+ * @description 按台账人群（可选）与当月有效天数（"1".."当月天数"）逐日累加台账入库金额，返回以天序号为键的每日金额 Record（不做四舍五入，交由调用方按展示/累计场景各自处理）。
+ * 只按当月实际天数遍历、不使用 Object.keys(dailyRecords) 盲目累加，避免历史脏键（如早期版本遗留的完整 "YYYY-MM-DD" 格式键）污染合计——
+ * App.tsx 的侧边栏合计（activeGroupReportTotal/allGroupsReportTotal）与 TableGrid.tsx 的"合计汇总"逐日汇总（summaryDailyTotals）此前
+ * 各自独立实现了同一段"按人群过滤台账、按当月天数求和"逻辑，此处收敛为一份共享实现，避免两处口径不一致（[V5.97.0] 曾因类似的独立实现口径不一致导致侧边栏合计与明细表对不上）。
+ * @param ledgerItems 全部台账原料项目列表
+ * @param targetGroup 目标人群/台账ID；传 null 表示不按人群过滤，统计全部台账
+ * @param year 年份
+ * @param month 月份 (1-12)
+ * @returns 以天序号字符串（"1".."当月天数"）为键的每日入库金额 Record
+ */
+export function computeLedgerDailyAmountsByGroup(
+  ledgerItems: LedgerItem[],
+  targetGroup: string | null,
+  year: number,
+  month: number
+): Record<string, number> {
+  const validDays = getDaysInMonth(year, month);
+  const scopedItems = targetGroup === null ? ledgerItems : ledgerItems.filter((i) => i.ledgerId === targetGroup);
+  const dailyAmounts: Record<string, number> = {};
+
+  validDays.forEach((day) => {
+    const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    let sum = 0;
+    scopedItems.forEach((item) => {
+      const record = item.dailyRecords?.[dateKey];
+      if (record) {
+        sum += record.inAmount || 0;
+      }
+    });
+    dailyAmounts[day] = sum;
+  });
+
+  return dailyAmounts;
 }
 
 /**

@@ -19,7 +19,6 @@ import { RawMaterialsDictService } from "./rawMaterialDict.ts";
  * @description 后端读取接口 GET /api/storage/load 返回的完整状态数据结构（读路径不受本次改造影响，仍是整体状态）
  */
 export interface BackendData {
-  reports?: any[];
   activeGroups?: any[];
   activeCategories?: any[];
   ledgers?: any[];
@@ -30,8 +29,7 @@ export interface BackendData {
 
 /** 阶段三·增量写协议：可增量写入的实体类型，需与 server/storageService.ts 的 SyncOpEntity 保持一致 */
 export type SyncOpEntity =
-  | "ledger" | "ledgerItem" | "ledgerItemDailyRecord" | "report" | "preparedItem"
-  | "preparedItemDailyData" | "activeGroup" | "activeCategory" | "rawMaterial" | "ledgerHelperOptions";
+  | "ledger" | "ledgerItem" | "ledgerItemDailyRecord" | "activeGroup" | "activeCategory" | "rawMaterial" | "ledgerHelperOptions";
 
 /**
  * @description 单个增量同步操作，由每个具体的 mutation 方法在完成内存状态变更后显式构造并调用 queueChange() 提交。
@@ -256,10 +254,6 @@ export class SyncHelper {
   public static applyFreshData(freshData: BackendData): boolean {
     let memoryChanged = false;
 
-    if (freshData.reports && JSON.stringify(freshData.reports) !== JSON.stringify(PrepReportService.getReports())) {
-      PrepReportService.setReportsInMemory(freshData.reports);
-      memoryChanged = true;
-    }
     if (freshData.activeGroups && JSON.stringify(freshData.activeGroups) !== JSON.stringify(PrepReportService.getActiveGroups())) {
       PrepReportService.setActiveGroupsInMemory(freshData.activeGroups);
       memoryChanged = true;

@@ -33,8 +33,8 @@ const makeLedger = (id: string, name: string): Ledger => ({
   createdAt: new Date("2026-01-01").toISOString()
 });
 
-const okResponse = (body: any) => ({ ok: true, json: async () => ({ success: true, ...body }) });
-const errorResponse = (error: string) => ({ ok: false, json: async () => ({ error }) });
+const okResponse = (body: any) => ({ ok: true, headers: new Headers(), json: async () => ({ success: true, ...body }) });
+const errorResponse = (error: string) => ({ ok: false, headers: new Headers(), json: async () => ({ error }) });
 
 /**
  * @description 假后端路由：镜像 server/storageService.ts 里 addLedgerItem/updateLedgerItem/deleteLedgerItem/
@@ -169,10 +169,8 @@ function fakeLedgerFetch(url: string, options: any = {}) {
 describe("LedgerService", () => {
   beforeEach(() => {
     resetLedgerService();
-    vi.spyOn(PrepReportService, "syncFromLedger").mockResolvedValue(undefined);
     vi.spyOn(PrepReportService, "syncGroupFromLedger").mockImplementation(() => {});
     vi.spyOn(PrepReportService, "syncDeleteGroupFromLedger").mockImplementation(() => {});
-    vi.spyOn(PrepReportService, "cascadeDeleteLedgerItem").mockImplementation(() => {});
     vi.spyOn(RawMaterialsDictService, "getCategoryForMaterial").mockReturnValue("VEGETABLE");
     vi.spyOn(SyncHelper, "refreshNow").mockResolvedValue(false);
     vi.stubGlobal("fetch", vi.fn(fakeLedgerFetch));
@@ -427,20 +425,6 @@ describe("LedgerService", () => {
     it("rejects with the backend's not-found error", async () => {
       await expect(LedgerService.deleteLedgerItem("nope")).rejects.toThrow("找不到要删除的原料项目");
     });
-
-    it("[回归] 级联清除该受众人群名下由 syncFromLedger 反向同步生成的同名备餐细项，避免删除台账记录后左下角支出/趋势图未更新", async () => {
-      LedgerService.setLedgersInMemory([makeLedger("KID", "幼儿备餐")]);
-      const item = await LedgerService.addLedgerItem("KID", "土豆", "斤", "散装", 10);
-
-      await LedgerService.deleteLedgerItem(item.id);
-
-      expect(PrepReportService.cascadeDeleteLedgerItem).toHaveBeenCalledWith("KID", "土豆");
-    });
-
-    it("does not call the cascade when the backend rejects the deletion", async () => {
-      await expect(LedgerService.deleteLedgerItem("nope")).rejects.toThrow();
-      expect(PrepReportService.cascadeDeleteLedgerItem).not.toHaveBeenCalled();
-    });
   });
 
   describe("updateDailyRecord [阶段B：合并/校验/重算已迁移到后端]", () => {
@@ -543,24 +527,6 @@ describe("LedgerService", () => {
     it("rejects with the backend's not-found error", async () => {
       await expect(LedgerService.updateDailyRecord("nope", "2026-07-03", { inQuantity: 1 })).rejects.toThrow(
         "找不到对应的采购原料项目"
-      );
-    });
-
-    it("syncs to PrepReportService only when inQuantity or inPrice was part of the update", async () => {
-      await LedgerService.updateDailyRecord(itemId, "2026-07-03", { supplier: "合作基地直供" });
-      expect(PrepReportService.syncFromLedger).not.toHaveBeenCalled();
-
-      await LedgerService.updateDailyRecord(itemId, "2026-07-03", { inQuantity: 3 });
-      expect(PrepReportService.syncFromLedger).toHaveBeenCalledWith(
-        "KID",
-        2026,
-        7,
-        "3",
-        "土豆",
-        "VEGETABLE",
-        "斤",
-        3,
-        0
       );
     });
   });

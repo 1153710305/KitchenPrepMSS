@@ -88,31 +88,44 @@ export class LogService {
     return candidate;
   }
 
-  /**
-   * 写入一条带标准格式时间戳的日志行到本地物理日志文件（自动按日期+体积归档）
-   */
   public static write(level: string, category: string, message: string): void {
+    // 采用异步写入方式，避免同步IO阻塞 Node.js 主线程从而影响服务器并发性能
     const writeLog = () => {
       const filePath = LogService.resolveActiveLogFilePath();
       const timeStr = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
       const logLine = `[${timeStr}] [${level}] [${category}] ${message}\n`;
-      fs.appendFileSync(filePath, logLine, "utf8");
+      
+      fs.appendFile(filePath, logLine, "utf8", (err) => {
+        if (err && err.code === 'ENOENT') {
+          // 如果目录被人为删除了，尝试重新创建目录并重试异步写入一次
+          fs.mkdir(LogService.logDir, { recursive: true }, (mkdirErr) => {
+            if (!mkdirErr) {
+              fs.appendFile(filePath, logLine, "utf8", () => {});
+            } else {
+              console.error("[LOG SERVICE ERROR] 重建日志目录并重试写入失败:", mkdirErr);
+            }
+          });
+        } else if (err) {
+          console.error("[LOG SERVICE ERROR] 异步写入本地日志文件失败:", err);
+        }
+      });
+
+      // 满足需求：控制台要输出“用户在什么时候对什么做了什么操作”的记录，且避免影响性能
+      // 这里的 console 是异步非阻塞的（在输出重定向时），直接打印即可
+      const consoleOutput = `[系统日志] 用户在 ${timeStr} 对 ${category} 做了操作: ${message}`;
+      if (level === "ERROR") {
+        console.error(consoleOutput);
+      } else if (level === "WARN") {
+        console.warn(consoleOutput);
+      } else {
+        console.log(consoleOutput);
+      }
     };
 
     try {
       writeLog();
     } catch (err: any) {
-      if (err.code === 'ENOENT') {
-        try {
-          // 如果目录被人为删除了，尝试重新创建目录并重试一次
-          fs.mkdirSync(LogService.logDir, { recursive: true });
-          writeLog();
-        } catch (retryErr) {
-          console.error("[LOG SERVICE ERROR] 重建日志目录并重试写入失败:", retryErr);
-        }
-      } else {
-        console.error("[LOG SERVICE ERROR] 写入本地日志文件失败:", err);
-      }
+      console.error("[LOG SERVICE ERROR] 启动日志写入任务失败:", err);
     }
   }
 }

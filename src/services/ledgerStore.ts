@@ -377,8 +377,8 @@ export class LedgerService {
     dateStr: string,
     fields: Partial<DailyStockRecord>
   ): Promise<void> {
-    // 合并/校验/重算逻辑已迁移到后端（阶段B，见 SQLite迁移规划.md）；反向同步进备餐月度报表
-    // （PrepReportService.syncFromLedger）目前仍是前端调用——PrepReportService 本身尚未迁移到后端（阶段C）
+    // 合并/校验/重算逻辑已迁移到后端（阶段B，见 SQLite迁移规划.md）。[V2 架构演进] 此前反向同步进备餐月度
+    // 报表的 PrepReportService.syncFromLedger 已随报表双状态整体删除，此处不再需要任何反向同步调用。
     const item = this.ledgerItems.find((i) => i.id === itemId);
     if (!item) {
       throw new Error("找不到对应的采购原料项目");

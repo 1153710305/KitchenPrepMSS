@@ -8,10 +8,10 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { FoodCategory, GroupMonthlyReport, DynamicGroup, DynamicCategory } from "../../types/types.ts";
+import { FoodCategory, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
 import { UI_TEXT } from "../../constants/constants.ts";
-import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv } from "../../utils.ts";
+import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv, computeLedgerDailyAmountsByGroup } from "../../utils.ts";
 import { Grid, Search, CalendarDays, Check, Flame, Download, TrendingUp } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
@@ -143,24 +143,12 @@ export const TableGrid: React.FC<TableGridProps> = ({
     return totals;
   }, [filteredItems, days]);
 
-  // 3. 合计汇总表专用：不受品类/搜索过滤影响，统计每日全品类汇总金额
+  // 3. 合计汇总表专用：不受品类/搜索过滤影响，统计每日全品类汇总金额。求和逻辑收敛到
+  // computeLedgerDailyAmountsByGroup（见 utils.ts），此处逐日展示故仍在此对每日金额分别四舍五入
   const summaryDailyTotals = useMemo(() => {
+    const dailyAmounts = computeLedgerDailyAmountsByGroup(ledgerItemsList, targetGroup, year, month);
     const totals: Record<string, number> = {};
-    const allLedgerItems = ledgerItemsList;
-    const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
-
-    days.forEach((day) => {
-      let sum = 0;
-      const monthStr = String(month).padStart(2, "0");
-      const dayStr = String(day).padStart(2, "0");
-      const targetDateKey = `${year}-${monthStr}-${dayStr}`;
-
-      groupLedgerItems.forEach((item) => {
-        const record = item.dailyRecords?.[targetDateKey];
-        if (record) {
-          sum += record.inAmount || 0;
-        }
-      });
+    Object.entries(dailyAmounts).forEach(([day, sum]) => {
       totals[day] = Math.round(sum * 100) / 100;
     });
     return totals;

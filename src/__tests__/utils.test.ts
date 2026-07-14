@@ -15,9 +15,11 @@ import {
   getItemMonthlySummary,
   createSystemLog,
   convertItemsToCsv,
+  computeLedgerDailyAmountsByGroup,
   LogBroker
 } from "@/src/utils.ts";
 import { PreparedItem, FoodCategory, TargetGroup } from "@/src/types/types.ts";
+import { LedgerItem } from "@/src/types/ledgerTypes.ts";
 
 describe("getDaysInMonth", () => {
   it("returns 31 days for January", () => {
@@ -36,6 +38,74 @@ describe("getDaysInMonth", () => {
 
   it("returns 30 days for April", () => {
     expect(getDaysInMonth(2026, 4)).toHaveLength(30);
+  });
+});
+
+describe("computeLedgerDailyAmountsByGroup", () => {
+  const makeLedgerItem = (overrides: Partial<LedgerItem> = {}): LedgerItem => ({
+    id: overrides.id || "item_1",
+    ledgerId: overrides.ledgerId || "KID",
+    name: overrides.name || "土豆",
+    unit: overrides.unit || "斤",
+    initialStock: overrides.initialStock ?? 0,
+    currentStock: overrides.currentStock ?? 0,
+    dailyRecords: overrides.dailyRecords || {}
+  });
+
+  it("sums inAmount per day, scoped to the given group, across the valid days of the month", () => {
+    const items: LedgerItem[] = [
+      makeLedgerItem({
+        id: "a",
+        ledgerId: "KID",
+        dailyRecords: {
+          "2026-07-01": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 },
+          "2026-07-02": { inQuantity: 3, inPrice: 2, inAmount: 6, outQuantity: 0 }
+        }
+      }),
+      makeLedgerItem({
+        id: "b",
+        ledgerId: "TEACHER",
+        dailyRecords: {
+          "2026-07-01": { inQuantity: 100, inPrice: 1, inAmount: 100, outQuantity: 0 }
+        }
+      })
+    ];
+
+    const result = computeLedgerDailyAmountsByGroup(items, "KID", 2026, 7);
+
+    expect(result["1"]).toBe(10);
+    expect(result["2"]).toBe(6);
+    expect(result["3"]).toBe(0);
+    expect(Object.keys(result)).toHaveLength(31);
+  });
+
+  it("includes every group's amounts when targetGroup is null", () => {
+    const items: LedgerItem[] = [
+      makeLedgerItem({ id: "a", ledgerId: "KID", dailyRecords: { "2026-07-01": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 } } }),
+      makeLedgerItem({ id: "b", ledgerId: "TEACHER", dailyRecords: { "2026-07-01": { inQuantity: 1, inPrice: 5, inAmount: 5, outQuantity: 0 } } })
+    ];
+
+    const result = computeLedgerDailyAmountsByGroup(items, null, 2026, 7);
+
+    expect(result["1"]).toBe(15);
+  });
+
+  it("ignores historical dirty keys outside the requested month's valid day range", () => {
+    const items: LedgerItem[] = [
+      makeLedgerItem({
+        ledgerId: "KID",
+        dailyRecords: {
+          // 历史脏键：早期版本遗留的完整日期格式落在其它月份，不应计入本月合计
+          "2026-06-15": { inQuantity: 999, inPrice: 1, inAmount: 999, outQuantity: 0 },
+          "2026-07-01": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 }
+        }
+      })
+    ];
+
+    const result = computeLedgerDailyAmountsByGroup(items, "KID", 2026, 7);
+    const total = Object.values(result).reduce((a, b) => a + b, 0);
+
+    expect(total).toBe(10);
   });
 });
 

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { LedgerService } from "../services/ledgerStore.ts";
-import { PrepReportService } from "../services/store.ts";
 import { RawMaterialsDictService } from "../services/rawMaterialDict.ts";
 import { Play, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { DailyStockRecord } from "../types/ledgerTypes.ts";
@@ -54,8 +53,6 @@ export function AdminStressTestTab() {
       addLog(`[第二步] 构建为期 ${testDays} 天的海量出入库有效负载（每条同时包含浮点入库和出库）...`);
       let totalExpectedInQty = 0;
       let totalExpectedOutQty = 0;
-      let totalExpectedInAmount = 0; // 累计入库金额
-      let totalExpectedOutAmount = 0; // 累计出库金额
 
       const batchStartTime = performance.now();
       for (let day = 1; day <= testDays; day++) {
@@ -71,14 +68,6 @@ export function AdminStressTestTab() {
           totalExpectedInQty += inQty;
           totalExpectedOutQty += outQty;
 
-          // 严格模拟底层单笔记录的就地四舍五入，防止 JS 累加浮点精度爆炸导致报表金额对不齐
-          const dailyInAmount = Math.round(inQty * inPrice * 100) / 100;
-          totalExpectedInAmount += dailyInAmount;
-
-          // 根据目前的机制，如果当天只有 inQty 和 inPrice，同步到报表时使用 inQty * inPrice; 
-          // 但真实场景如果出入库全有，出入单价一样。系统自动推导出的消耗金额是基于报表逻辑。
-          // 此处我们严格记录入库的汇总值用于下面与报表的对账验证。
-
           updates[itemId] = {
             inQuantity: inQty,
             inPrice: inPrice,
@@ -86,7 +75,6 @@ export function AdminStressTestTab() {
           };
         }
 
-        // 调用批量前端接口更新，它会自动同步到后台并且反向触发 PrepReportService 的同步
         await LedgerService.updateDailyRecordsBatch(dateStr, updates);
       }
       const batchElapsed = ((performance.now() - batchStartTime) / 1000).toFixed(2);
@@ -95,7 +83,7 @@ export function AdminStressTestTab() {
       addLog(`[第三步] 对比底层聚合数据进行严格算力核验...`);
 
       let actualCurrentStockSum = 0;
-      const allItems = LedgerService.getLedgerItems(ledgerId);
+      const allItems = LedgerService.getLedgerItems().filter(i => i.ledgerId === ledgerId);
       for (const itemId of createdItemIds) {
         const item = allItems.find(i => i.id === itemId);
         if (item) {
@@ -103,7 +91,8 @@ export function AdminStressTestTab() {
         }
       }
 
-      // 1. 台账结余精度核算
+      // 台账结余精度核算：TableGrid 等展示视图现在都直接以 LedgerItem.currentStock 为唯一数据源实时派生，
+      // 不再有独立的备餐报表可供二次核对，故压测只需验证这一份底层数据的精度
       const expectedStockSum = Math.round((totalExpectedInQty - totalExpectedOutQty) * 100) / 100;
       const actualRoundedSum = Math.round(actualCurrentStockSum * 100) / 100;
       const stockDiff = Math.abs(actualRoundedSum - expectedStockSum);
@@ -115,39 +104,6 @@ export function AdminStressTestTab() {
         return;
       } else {
         addLog(`✅ [核对成功] 台账物理结存完全匹配出入逻辑（容忍度0.01内）: 累加结存为 ${actualCurrentStockSum.toFixed(2)}`);
-      }
-
-      // 2. 报表同步正确性核算
-      const allReports = PrepReportService.getReports();
-      const testReport = allReports.find(r => r.targetGroup === ledgerId && r.year === baseYear && r.month === baseMonth);
-      let actualReportTotalAmount = 0;
-
-      if (testReport) {
-        for (const reportItem of testReport.items) {
-          // 判断是否是我们本次创建的测试项目
-          if (createdItemIds.includes(reportItem.id) || reportItem.name.includes("极限测试土豆_")) {
-            for (let d = 1; d <= 31; d++) {
-              const dKey = d.toString();
-              if (reportItem.dailyData[dKey]) {
-                actualReportTotalAmount += reportItem.dailyData[dKey].amount;
-              }
-            }
-          }
-        }
-      }
-
-      // 台账系统往报表同步的时候，严格使用当日入库金额累计。
-      // 因为前端汇总了 900 条带有 2 位小数的 dailyData amount，在相加时 JS 可能产生 0.0000000000001 的精度问题，
-      // 所以我们把两边的总数都做一次常规的四舍五入。
-      const finalActualAmount = Math.round(actualReportTotalAmount * 100) / 100;
-      const finalExpectedAmount = Math.round(totalExpectedInAmount * 100) / 100;
-
-      const amountDiff = Math.abs(finalActualAmount - finalExpectedAmount);
-      if (amountDiff > 0.1) {
-        addLog(`❌ [核对失败] 备餐月度报表金额联动同步出现严重偏离！期望总金额: ${finalExpectedAmount.toFixed(2)}, 报表统计: ${finalActualAmount.toFixed(2)}`);
-        setResult("fail");
-      } else {
-        addLog(`✅ [核对成功] 前端报表自动汇总金额与台账入库总额完全匹配: 累计金额为 ${finalActualAmount.toFixed(2)} 元。`);
         addLog(`🎉 极限压测及校验完美通过！`);
         setResult("success");
       }

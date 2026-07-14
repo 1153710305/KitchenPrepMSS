@@ -205,7 +205,7 @@ describe("SyncHelper", () => {
 
       // 心跳请求发出之后，用户触发了一次真实的本地保存
       vi.advanceTimersByTime(50);
-      SyncHelper.queueChange({ entity: "report", op: "upsert", key: { targetGroup: "KID", year: 2026, month: 7 } });
+      SyncHelper.queueChange({ entity: "activeGroup", op: "upsert", key: "KID" });
 
       expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThan(heartbeatRequestStartedAt);
     });
