@@ -434,12 +434,12 @@ function PrintOutDoc({
   const renderTableHead = () => (
     <>
       <colgroup>
-        <col style={{ width: "10%" }} />
+        <col style={{ width: "14%" }} />
         <col style={{ width: "8%" }} />
         <col style={{ width: "19%" }} />
         <col style={{ width: "11%" }} />
-        <col style={{ width: "26%" }} />
-        <col style={{ width: "26%" }} />
+        <col style={{ width: "24%" }} />
+        <col style={{ width: "24%" }} />
       </colgroup>
       <thead>
         <tr className="bg-white text-center " style={{ height: "42px", fontSize: LEDGER_PRINT_OUT_CONFIG.outDocHeaderFontSize }}>
