@@ -48,7 +48,7 @@ export function LedgerPrintStyle3Purchase({
   };
 
   return (
-    <div className="bg-white text-black min-h-screen p-8 print:p-0 mx-auto w-full max-w-[297mm]">
+    <div className="bg-white text-black min-h-screen print:min-h-0 p-8 print:p-0 mx-auto w-full max-w-[297mm]">
       <style>{`
         @page {
           size: A4 landscape;
@@ -74,140 +74,149 @@ export function LedgerPrintStyle3Purchase({
 
         return (
           <div key={pageIndex}>
-            <div className="relative mx-auto w-full max-w-[297mm] mb-6">
+            <div className="relative mx-auto w-full max-w-[297mm] mb-6 print:mb-0">
               {/* 标题部分 */}
-              <div className="relative text-center mb-6 mt-4">
+              <div className="relative text-center mb-4 mt-4">
                 <h1 className="text-2xl font-black tracking-widest">采购与进货验收记录</h1>
-                <div className="absolute right-0 bottom-1 font-bold text-lg">
+                <div className="absolute right-[7%] -bottom-2 text-sm">
                   {activeLedger.name}
                 </div>
               </div>
 
-            {/* 表格主体 */}
-            <table className="purchase-table w-full border-collapse table-fixed">
-              <colgroup>
-                <col style={{ width: "3%" }} /> {/* 序号 */}
-                <col style={{ width: "6%" }} /> {/* 进货日期 */}
-                <col style={{ width: "8%" }} /> {/* 产品名称 */}
-                <col style={{ width: "5%" }} /> {/* 规格 */}
-                <col style={{ width: "4%" }} /> {/* 数量 */}
-                <col style={{ width: "7%" }} /> {/* 生产批号或日期 */}
-                <col style={{ width: "5%" }} /> {/* 生产者 */}
-                <col style={{ width: "8%" }} /> {/* 地址及联系方式 */}
-                <col style={{ width: "5%" }} /> {/* 供货者 */}
-                <col style={{ width: "8%" }} /> {/* 地址及联系方式 */}
-                <col style={{ width: "4%" }} /> {/* 供货者资质证明 */}
-                <col style={{ width: "4%" }} /> {/* 购货凭证 */}
-                <col style={{ width: "4%" }} /> {/* 产品合格证明 */}
-                <col style={{ width: "4%" }} /> {/* 进口检疫 */}
-                <col style={{ width: "4%" }} /> {/* 肉类 */}
-                <col style={{ width: "4%" }} /> {/* 外观 */}
-                <col style={{ width: "4%" }} /> {/* 温度 */}
-                <col style={{ width: "4%" }} /> {/* 自检 */}
-                <col style={{ width: "4%" }} /> {/* 记录人 */}
-                <col style={{ width: "5%" }} /> {/* 备注 */}
-              </colgroup>
-              <thead>
-                <tr>
-                  <th rowSpan={2}>序<br/>号</th>
-                  <th rowSpan={2}>进货<br/>日期</th>
-                  <th rowSpan={2}>产品<br/>名称</th>
-                  <th rowSpan={2}>规格</th>
-                  <th rowSpan={2}>数量</th>
-                  <th rowSpan={2}>生产<br/>批号<br/>或日期</th>
-                  <th rowSpan={2}>生<br/>产<br/>者</th>
-                  <th rowSpan={2}>地址<br/>及联<br/>系方式<br/>(电话等)</th>
-                  <th rowSpan={2}>供<br/>货<br/>者</th>
-                  <th rowSpan={2}>地址<br/>及联<br/>系方式<br/>(电话等)</th>
-                  <th colSpan={5}>随货证明文件查验</th>
-                  <th colSpan={2}>入库检查</th>
-                  <th rowSpan={2}>自检<br/>或委<br/>检情况</th>
-                  <th rowSpan={2}>记<br/>录<br/>人</th>
-                  <th rowSpan={2}>备<br/>注</th>
-                </tr>
-                <tr>
-                  <th>许可<br/>证<br/>(如有)</th>
-                  <th>营业<br/>执照<br/>(如有)</th>
-                  <th>购货<br/>凭证</th>
-                  <th>产品<br/>检验<br/>报告</th>
-                  <th>其他合<br/>格证明<br/>(如有)</th>
-                  <th>外观<br/>检查</th>
-                  <th>温度<br/>检查<br/>(如需)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map((item, index) => {
-                  const record = item.dailyRecords[selectedDate];
-                  const supplier = record.supplier || "";
-                  const contact = getSupplierContact(supplier);
-                  // 只要有原材料记录就默认填写“有”
-                  const hasItem = "有";
-                  const absoluteIndex = pageIndex * rowsPerPage + index + 1;
+              {/* 表格主体 */}
+              <table className="purchase-table w-full border-collapse table-fixed">
+                <colgroup>
+                  <col style={{ width: "3%" }} /> {/* 序号 */}
+                  <col style={{ width: "7%" }} /> {/* 进货日期 */}
+                  <col style={{ width: "5%" }} /> {/* 产品名称 */}
+                  <col style={{ width: "5%" }} /> {/* 规格 */}
+                  <col style={{ width: "4%" }} /> {/* 数量 */}
+                  <col style={{ width: "8%" }} /> {/* 生产批号或日期 */}
+                  <col style={{ width: "5%" }} /> {/* 生产者 */}
+                  <col style={{ width: "6%" }} /> {/* 地址及联系方式 */}
+                  <col style={{ width: "8%" }} /> {/* 供货者 */}
+                  <col style={{ width: "9%" }} /> {/* 地址及联系方式 */}
+                  <col style={{ width: "4%" }} /> {/* 供货者资质证明 */}
+                  <col style={{ width: "4%" }} /> {/* 购货凭证 */}
+                  <col style={{ width: "3%" }} /> {/* 产品合格证明 */}
+                  <col style={{ width: "3%" }} /> {/* 进口检疫 */}
+                  <col style={{ width: "4%" }} /> {/* 肉类 */}
+                  <col style={{ width: "5%" }} /> {/* 外观 */}
+                  <col style={{ width: "4%" }} /> {/* 温度 */}
+                  <col style={{ width: "4%" }} /> {/* 自检 */}
+                  <col style={{ width: "5%" }} /> {/* 记录人 */}
+                  <col style={{ width: "4%" }} /> {/* 备注 */}
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th rowSpan={2}>序<br />号</th>
+                    <th rowSpan={2}>进货<br />日期</th>
+                    <th rowSpan={2}>产品<br />名称</th>
+                    <th rowSpan={2}>规格</th>
+                    <th rowSpan={2}>数量</th>
+                    <th rowSpan={2}>生产<br />批号<br />或日期</th>
+                    <th rowSpan={2}>生<br />产<br />者</th>
+                    <th rowSpan={2}>地址<br />及联<br />系方式<br />(电话等)</th>
+                    <th rowSpan={2}>供<br />货<br />者</th>
+                    <th rowSpan={2}>地址<br />及联<br />系方式<br />(电话等)</th>
+                    <th colSpan={5}>随货证明文件查验</th>
+                    <th colSpan={2}>入库检查</th>
+                    <th rowSpan={2}>自检<br />或委<br />检情况</th>
+                    <th rowSpan={2}>记<br />录<br />人</th>
+                    <th rowSpan={2}>备<br />注</th>
+                  </tr>
+                  <tr>
+                    <th>许可<br />证<br />(如有)</th>
+                    <th>营业<br />执照<br />(如有)</th>
+                    <th>购货<br />凭证</th>
+                    <th>产品<br />检验<br />报告</th>
+                    <th>其他合<br />格证明<br />(如有)</th>
+                    <th>外观<br />检查</th>
+                    <th>温度<br />检查<br />(如需)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((item, index) => {
+                    const record = item.dailyRecords[selectedDate];
+                    const supplier = record.supplier || "";
+                    const contact = getSupplierContact(supplier);
+                    // 只要有原材料记录就默认填写“有”
+                    const hasItem = "有";
+                    const absoluteIndex = pageIndex * rowsPerPage + index + 1;
 
-                  return (
-                    <tr key={item.id} className="h-10">
-                      <td>{absoluteIndex}</td>
-                      <td>{selectedDate.replace(/-/g, '/')}</td>
-                      <td>{item.name}</td>
-                      <td>{item.spec || ""}</td>
-                      <td>{record.inQuantity}</td>
-                      <td>{record.produceDate || ""}</td>
-                      <td></td> {/* 生产者 */}
-                      <td></td> {/* 生产者联系方式 */}
-                      <td>{supplier}</td>
-                      <td>{contact}</td>
-                      <td>{hasItem}</td>
-                      <td>{hasItem}</td>
-                      <td>{hasItem}</td>
-                      <td>{hasItem}</td>
-                      <td>{hasItem}</td>
-                      <td>{record.sensoryProperty || ""}</td> {/* 外观检查 */}
-                      <td></td> {/* 温度检查 */}
-                      <td></td> {/* 自检和委检情况 */}
-                      <td></td> {/* 记录人 */}
-                      <td></td> {/* 备注 */}
-                    </tr>
-                  );
-                })}
-                
-                {blankRows.map((_, index) => {
-                  const absoluteIndex = pageIndex * rowsPerPage + pageItems.length + index + 1;
-                  return (
-                    <tr key={`blank-${pageIndex}-${index}`} className="h-10">
-                      <td>{absoluteIndex}</td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={item.id} className="h-10">
+                        <td>{absoluteIndex}</td>
+                        <td>{selectedDate.replace(/-/g, '/')}</td>
+                        <td>{item.name}</td>
+                        <td>{item.spec || ""}</td>
+                        <td>{record.inQuantity}</td>
+                        <td>{record.produceDate || ""}</td>
+                        <td></td> {/* 生产者 */}
+                        <td></td> {/* 生产者联系方式 */}
+                        <td>{supplier}</td>
+                        <td>{contact}</td>
+                        <td>{hasItem}</td>
+                        <td>{hasItem}</td>
+                        <td>{hasItem}</td>
+                        <td>{hasItem}</td>
+                        <td>{hasItem}</td>
+                        <td>{record.sensoryProperty || ""}</td> {/* 外观检查 */}
+                        <td></td> {/* 温度检查 */}
+                        <td></td> {/* 自检和委检情况 */}
 
-            {/* 底部备注 */}
-            <div className="mt-4 text-[11px] font-bold pl-2">
-              注：食品安全管理人员应每周检查记录表格，发现异常情况时，立即督促有关人员采取整改措施。
+                        {index === 0 && (
+                          <>
+                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
+                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+
+                  {blankRows.map((_, index) => {
+                    const absoluteIndex = pageIndex * rowsPerPage + pageItems.length + index + 1;
+                    return (
+                      <tr key={`blank-${pageIndex}-${index}`} className="h-10">
+                        <td>{absoluteIndex}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        {(pageItems.length === 0 && index === 0) && (
+                          <>
+                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
+                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* 底部备注 */}
+              <div className="mt-4 text-[11px] font-bold pl-2">
+                注：食品安全管理人员应每周检查记录表格，发现异常情况时，立即督促有关人员采取整改措施。
+              </div>
             </div>
+            {!isLastPage && <div style={{ pageBreakAfter: "always" }} />}
           </div>
-          {!isLastPage && <div style={{ pageBreakAfter: "always" }} />}
-        </div>
-      );
+        );
       })}
     </div>
   );
