@@ -25,6 +25,8 @@ interface LedgerPrintStyle2ConsumableProps {
   style2EndDate: string;
   /** 样式二时间段内的全量日期列表 */
   style2DatesArray: string[];
+  /** 自定义补充空白行数 */
+  customDataRows: number;
 }
 
 /**

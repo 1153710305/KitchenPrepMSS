@@ -220,7 +220,7 @@ export function useLedgerRecording({
       for (const [itemId, record] of Object.entries(draftRecords)) {
         if (itemId.startsWith("temp_")) {
           // 如果是有编辑记录的临时原料，需先添加到本台账下
-          if (hasAtLeastOneContent(record)) {
+          if (hasAtLeastOneContent(record as DailyStockRecord)) {
             const rawName = itemId.replace("temp_", "");
             const dictItem = RawMaterialsDictService.getItems().find(d => d.name === rawName);
             if (dictItem) {

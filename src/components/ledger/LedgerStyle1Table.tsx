@@ -486,7 +486,7 @@ export function LedgerStyle1Table({
                       <td className="px-3 py-2">
                         <HelperSelect
                           value={recordToRender.supplier || ""}
-                          options={LedgerService.getHelperDict().suppliers}
+                          options={LedgerService.getHelperDict().suppliers.map(s => s.split('|')[0])}
                           disabled={!isRecordingMode}
                           onChange={(val) => handleDraftCellChange(item.id, { supplier: val })}
                           placeholder="未开启录入"

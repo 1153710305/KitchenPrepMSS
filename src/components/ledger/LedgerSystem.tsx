@@ -138,7 +138,7 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
 
   // --- 高级打印模式相关状态 ---
   /** 区分当前正处于何种打印预览中：null 表示关闭预览，"style1"表示总表模式预览，"style2"表示单原料流水预览 */
-  const [printPreviewStyle, setPrintPreviewStyle] = useState<null | "style1" | "style2">(null);
+  const [printPreviewStyle, setPrintPreviewStyle] = useState<null | "style1" | "style2" | "style3">(null);
   /** 二级分类勾选打印控制弹窗 */
   const [printModalOpen, setPrintModalOpen] = useState<boolean>(false);
   /** 总表打印预览下选中的二级食材分类（默认包含全部大类） */

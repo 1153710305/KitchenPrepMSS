@@ -14,10 +14,11 @@ import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { createPortal } from "react-dom";
 import { LedgerPrintStyle1 } from "./LedgerPrintStyle1.tsx";
 import { LedgerPrintStyle2 } from "./LedgerPrintStyle2.tsx";
+import { LedgerPrintStyle3Purchase } from "./LedgerPrintStyle3Purchase.tsx";
 
 interface LedgerPrintPreviewOverlayProps {
-  printPreviewStyle: "style1" | "style2";
-  setPrintPreviewStyle: (val: null | "style1" | "style2") => void;
+  printPreviewStyle: "style1" | "style2" | "style3";
+  setPrintPreviewStyle: (val: null | "style1" | "style2" | "style3") => void;
   activeLedger: Ledger | null;
   selectedDate: string;
   selectedPrintCategories: FoodCategory[];
@@ -47,6 +48,8 @@ export function LedgerPrintPreviewOverlay({
   setCustomDataRows
 }: LedgerPrintPreviewOverlayProps) {
   const isPrintStyle1 = printPreviewStyle === "style1";
+  const isPrintStyle2 = printPreviewStyle === "style2";
+  const isPrintStyle3 = printPreviewStyle === "style3";
   const dictItems = RawMaterialsDictService.getItems();
 
   return createPortal(
@@ -106,7 +109,7 @@ export function LedgerPrintPreviewOverlay({
         </div>
       </div>
 
-      {isPrintStyle1 ? (
+      {isPrintStyle1 && (
         <LedgerPrintStyle1
           activeLedger={activeLedger}
           selectedDate={selectedDate}
@@ -115,7 +118,9 @@ export function LedgerPrintPreviewOverlay({
           dictItems={dictItems}
           customDataRows={customDataRows}
         />
-      ) : (
+      )}
+      
+      {isPrintStyle2 && (
         <LedgerPrintStyle2
           activeLedger={activeLedger}
           activeItemId={activeItemId}
@@ -124,6 +129,15 @@ export function LedgerPrintPreviewOverlay({
           style2StartDate={style2StartDate}
           style2EndDate={style2EndDate}
           style2DatesArray={style2DatesArray}
+          customDataRows={customDataRows}
+        />
+      )}
+
+      {isPrintStyle3 && (
+        <LedgerPrintStyle3Purchase
+          activeLedger={activeLedger}
+          selectedDate={selectedDate}
+          ledgerItems={ledgerItems}
           customDataRows={customDataRows}
         />
       )}
