@@ -48,7 +48,7 @@ export function LedgerPrintStyle3Purchase({
   };
 
   return (
-    <div 
+    <div
       className="bg-white min-h-screen print:min-h-0 text-center"
       style={{
         color: "#000",
@@ -95,7 +95,7 @@ export function LedgerPrintStyle3Purchase({
               {/* 标题部分 */}
               <div className="relative text-center mb-4 mt-4">
                 <h1 className="text-2xl font-normal tracking-widest">采购与进货验收记录</h1>
-                <div className="absolute right-[7%] -bottom-2 text-sm">
+                <div className="absolute right-[4.5%] translate-x-1/2 -bottom-2 text-sm">
                   {activeLedger.name}
                 </div>
               </div>
@@ -104,7 +104,7 @@ export function LedgerPrintStyle3Purchase({
               <table className="purchase-table w-full border-collapse table-fixed">
                 <colgroup>
                   <col style={{ width: "3%" }} /> {/* 序号 */}
-                  <col style={{ width: "7%" }} /> {/* 进货日期 */}
+                  <col style={{ width: "5%" }} /> {/* 进货日期 */}
                   <col style={{ width: "5%" }} /> {/* 产品名称 */}
                   <col style={{ width: "5%" }} /> {/* 规格 */}
                   <col style={{ width: "4%" }} /> {/* 数量 */}
@@ -115,8 +115,8 @@ export function LedgerPrintStyle3Purchase({
                   <col style={{ width: "9%" }} /> {/* 地址及联系方式 */}
                   <col style={{ width: "4%" }} /> {/* 供货者资质证明 */}
                   <col style={{ width: "4%" }} /> {/* 购货凭证 */}
-                  <col style={{ width: "3%" }} /> {/* 产品合格证明 */}
-                  <col style={{ width: "3%" }} /> {/* 进口检疫 */}
+                  <col style={{ width: "4%" }} /> {/* 产品合格证明 */}
+                  <col style={{ width: "4%" }} /> {/* 进口检疫 */}
                   <col style={{ width: "4%" }} /> {/* 肉类 */}
                   <col style={{ width: "5%" }} /> {/* 外观 */}
                   <col style={{ width: "4%" }} /> {/* 温度 */}
@@ -164,7 +164,10 @@ export function LedgerPrintStyle3Purchase({
                     return (
                       <tr key={item.id} className="h-10">
                         <td>{absoluteIndex}</td>
-                        <td>{selectedDate.replace(/-/g, '/')}</td>
+                        <td>
+                          <div>{selectedDate.split('-')[0]}</div>
+                          <div>{selectedDate.split('-').slice(1).join('/')}</div>
+                        </td>
                         <td>{item.name}</td>
                         <td>{item.spec || ""}</td>
                         <td>{record.inQuantity}</td>
@@ -227,7 +230,7 @@ export function LedgerPrintStyle3Purchase({
               </table>
 
               {/* 底部备注 */}
-              <div className="mt-4 text-[11px] font-normal pl-2">
+              <div className="mt-4 text-[11px] font-normal pl-2 text-left">
                 注：食品安全管理人员应每周检查记录表格，发现异常情况时，立即督促有关人员采取整改措施。
               </div>
             </div>
