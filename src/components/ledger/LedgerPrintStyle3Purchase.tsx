@@ -54,16 +54,36 @@ export function LedgerPrintStyle3Purchase({
           size: A4 landscape;
           margin: 10mm 15mm;
         }
-        .purchase-table th, .purchase-table td {
-          border: 1px solid #000;
+        .purchase-table, .purchase-table th, .purchase-table td {
+          border: 1px solid #000000 !important;
           padding: 4px 2px;
           text-align: center;
           font-size: 11px;
           line-height: 1.2;
           word-break: break-all;
         }
+        @media print {
+          .purchase-table, .purchase-table th, .purchase-table td {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            border-color: #000000 !important;
+          }
+        }
         .purchase-table th {
-          font-weight: bold;
+          font-weight: normal;
+        }
+        .purchase-table thead th {
+          background-color: #ffffff !important;
+        }
+        .col-merged-first {
+          border-bottom-color: transparent !important;
+        }
+        .col-merged-middle {
+          border-top-color: transparent !important;
+          border-bottom-color: transparent !important;
+        }
+        .col-merged-last {
+          border-top-color: transparent !important;
         }
       `}</style>
 
@@ -72,12 +92,19 @@ export function LedgerPrintStyle3Purchase({
         const blankRows = Array.from({ length: emptyRowsCount }).map((_, i) => ({ id: `blank-${i}` }));
         const isLastPage = pageIndex === pages.length - 1;
 
+        const getMergeClass = (idx: number, total: number) => {
+          if (total <= 1) return "";
+          if (idx === 0) return "col-merged-first";
+          if (idx === total - 1) return "col-merged-last";
+          return "col-merged-middle";
+        };
+
         return (
           <div key={pageIndex}>
             <div className="relative mx-auto w-full max-w-[297mm] mb-6 print:mb-0">
               {/* 标题部分 */}
               <div className="relative text-center mb-4 mt-4">
-                <h1 className="text-2xl font-black tracking-widest">采购与进货验收记录</h1>
+                <h1 className="text-2xl font-normal tracking-widest">采购与进货验收记录</h1>
                 <div className="absolute right-[7%] -bottom-2 text-sm">
                   {activeLedger.name}
                 </div>
@@ -165,18 +192,15 @@ export function LedgerPrintStyle3Purchase({
                         <td></td> {/* 温度检查 */}
                         <td></td> {/* 自检和委检情况 */}
 
-                        {index === 0 && (
-                          <>
-                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
-                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
-                          </>
-                        )}
+                        <td className={getMergeClass(index, rowsPerPage)}></td> {/* 记录人 */}
+                        <td className={getMergeClass(index, rowsPerPage)}></td> {/* 备注 */}
                       </tr>
                     );
                   })}
 
                   {blankRows.map((_, index) => {
                     const absoluteIndex = pageIndex * rowsPerPage + pageItems.length + index + 1;
+                    const mergedIndex = pageItems.length + index;
                     return (
                       <tr key={`blank-${pageIndex}-${index}`} className="h-10">
                         <td>{absoluteIndex}</td>
@@ -197,12 +221,8 @@ export function LedgerPrintStyle3Purchase({
                         <td></td>
                         <td></td>
                         <td></td>
-                        {(pageItems.length === 0 && index === 0) && (
-                          <>
-                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
-                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
-                          </>
-                        )}
+                        <td className={getMergeClass(mergedIndex, rowsPerPage)}></td> {/* 记录人 */}
+                        <td className={getMergeClass(mergedIndex, rowsPerPage)}></td> {/* 备注 */}
                       </tr>
                     );
                   })}
@@ -210,7 +230,7 @@ export function LedgerPrintStyle3Purchase({
               </table>
 
               {/* 底部备注 */}
-              <div className="mt-4 text-[11px] font-bold pl-2">
+              <div className="mt-4 text-[11px] font-normal pl-2">
                 注：食品安全管理人员应每周检查记录表格，发现异常情况时，立即督促有关人员采取整改措施。
               </div>
             </div>
