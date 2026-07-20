@@ -172,8 +172,8 @@ describe("RawMaterialsDictService", () => {
       expect(fetchSpy).toHaveBeenCalledWith(`/api/raw-materials/${encodeURIComponent("土豆")}`, expect.objectContaining({ method: "PUT" }));
       const item = RawMaterialsDictService.getItems().find((i) => i.name === "马铃薯")!;
       expect(item).toEqual(updated);
-      // 级联更新台账/备餐报表已由后端一次事务完成，前端不再自行调用 cascade 方法，
-      // 而是立即刷新一次全量状态，避免等最多 10 秒的心跳才看到台账/备餐里的原料名同步变化
+      // 级联更新台账已由后端一次事务完成，前端不再自行调用 cascade 方法，
+      // 而是立即刷新一次全量状态，让操作者立即看到台账里的原料名同步变化
       expect(SyncHelper.refreshNow).toHaveBeenCalledTimes(1);
     });
 
@@ -227,13 +227,13 @@ describe("RawMaterialsDictService", () => {
 
       expect(fetchSpy).toHaveBeenCalledWith(`/api/raw-materials/${encodeURIComponent("自定义原料")}`, expect.objectContaining({ method: "DELETE" }));
       expect(RawMaterialsDictService.getItems().map((i) => i.name)).toEqual(["土豆"]);
-      // 级联删除台账/备餐报表里的同名条目已由后端一次事务完成，前端不再自行调用 cascade 方法，
-      // 而是立即刷新一次全量状态，避免等最多 10 秒的心跳才看到台账/备餐里的原料同步消失
+      // 级联删除台账里的同名条目已由后端一次事务完成，前端不再自行调用 cascade 方法，
+      // 而是立即刷新一次全量状态，让操作者立即看到台账里的原料同步消失
       expect(SyncHelper.refreshNow).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe("setRawMaterialsDictInMemory (heartbeat silent update)", () => {
+  describe("setRawMaterialsDictInMemory (refreshNow silent update)", () => {
     it("dedupes on silent overwrite without touching the server", () => {
       vi.spyOn(SyncHelper, "queueChange").mockClear();
       RawMaterialsDictService.setRawMaterialsDictInMemory([

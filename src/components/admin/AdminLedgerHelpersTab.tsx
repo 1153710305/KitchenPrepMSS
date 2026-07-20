@@ -21,6 +21,7 @@ export const AdminLedgerHelpersTab: React.FC = () => {
   // --- 每个列表的输入框状态 ---
   const [inputs, setInputs] = useState({
     suppliers: "",
+    supplierContact: "", // 供货商专属的联系方式输入
     buyers: "",
     inspectors: "",
     keepers: "",
@@ -36,12 +37,26 @@ export const AdminLedgerHelpersTab: React.FC = () => {
    * @description 一键添加项并保存
    */
   const handleAddItem = (key: keyof typeof inputs) => {
-    const val = inputs[key].trim();
+    if (key === "supplierContact") return;
+    
+    let val = inputs[key].trim();
     if (!val) return;
 
-    // 防止同名重复
+    if (key === "suppliers") {
+      const contact = inputs.supplierContact.trim();
+      val = contact ? `${val}|${contact}` : val;
+    }
+
+    // 防止同名重复 (供货商按名称去重)
     const currentList = dict[key] || [];
-    if (currentList.includes(val)) {
+    const isDuplicate = currentList.some(item => {
+      if (key === "suppliers") {
+        return item.split("|")[0] === val.split("|")[0];
+      }
+      return item === val;
+    });
+
+    if (isDuplicate) {
       alert("该项目已存在，请勿重复添加！");
       return;
     }
@@ -53,7 +68,7 @@ export const AdminLedgerHelpersTab: React.FC = () => {
     LedgerService.updateHelperDict(updated);
     
     // 清空对应输入框并触发重绘
-    setInputs(prev => ({ ...prev, [key]: "" }));
+    setInputs(prev => ({ ...prev, [key]: "", ...(key === "suppliers" ? { supplierContact: "" } : {}) }));
     setTick(t => t + 1);
   };
 
@@ -76,7 +91,7 @@ export const AdminLedgerHelpersTab: React.FC = () => {
       key: "suppliers" as const,
       title: "供货商及地址",
       emoji: "🚚",
-      placeholder: "例如: 绿野蔬菜配送中心",
+      placeholder: "名称 (例: 绿野蔬菜)",
       colorClass: "border-t-sky-500 bg-sky-50/10 text-sky-800"
     },
     {
@@ -172,29 +187,64 @@ export const AdminLedgerHelpersTab: React.FC = () => {
 
               {/* 输入区域 */}
               <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-                <div className="flex items-center space-x-1.5">
-                  <input
-                    type="text"
-                    value={inputs[config.key]}
-                    onChange={(e) => setInputs(prev => ({ ...prev, [config.key]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddItem(config.key);
-                      }
-                    }}
-                    placeholder={config.placeholder}
-                    className="flex-1 bg-white border border-slate-250 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-teal-500 placeholder-slate-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddItem(config.key)}
-                    className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg cursor-pointer transition-all shadow-xs shrink-0 flex items-center justify-center"
-                    title="添加新项"
-                  >
-                    <Plus size={15} />
-                  </button>
-                </div>
+                {config.key === "suppliers" ? (
+                  <div className="flex flex-col space-y-2">
+                    <input
+                      type="text"
+                      value={inputs[config.key]}
+                      onChange={(e) => setInputs(prev => ({ ...prev, [config.key]: e.target.value }))}
+                      placeholder={config.placeholder}
+                      className="w-full bg-white border border-slate-250 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-teal-500 placeholder-slate-400"
+                    />
+                    <div className="flex items-center space-x-1.5">
+                      <input
+                        type="text"
+                        value={inputs.supplierContact}
+                        onChange={(e) => setInputs(prev => ({ ...prev, supplierContact: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddItem(config.key);
+                          }
+                        }}
+                        placeholder="联系方式(电话等)"
+                        className="flex-1 bg-white border border-slate-250 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-teal-500 placeholder-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddItem(config.key)}
+                        className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg cursor-pointer transition-all shadow-xs shrink-0 flex items-center justify-center"
+                        title="添加新项"
+                      >
+                        <Plus size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-1.5">
+                    <input
+                      type="text"
+                      value={inputs[config.key]}
+                      onChange={(e) => setInputs(prev => ({ ...prev, [config.key]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddItem(config.key);
+                        }
+                      }}
+                      placeholder={config.placeholder}
+                      className="flex-1 bg-white border border-slate-250 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-teal-500 placeholder-slate-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddItem(config.key)}
+                      className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg cursor-pointer transition-all shadow-xs shrink-0 flex items-center justify-center"
+                      title="添加新项"
+                    >
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* 列表展示区 */}
@@ -204,21 +254,37 @@ export const AdminLedgerHelpersTab: React.FC = () => {
                     暂未录入任何名单
                   </div>
                 ) : (
-                  list.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 text-xs group hover:bg-slate-50 px-1 rounded transition-colors">
-                      <span className="text-slate-700 font-medium truncate pr-2" title={item}>
-                        {item}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteItem(config.key, item)}
-                        className="text-slate-350 hover:text-rose-600 cursor-pointer p-1 rounded hover:bg-rose-50 transition-colors shrink-0"
-                        title={`删除 ${item}`}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))
+                  list.map((item, idx) => {
+                    let displayName = item;
+                    let contactInfo = "";
+                    if (config.key === "suppliers" && item.includes("|")) {
+                      const parts = item.split("|");
+                      displayName = parts[0];
+                      contactInfo = parts[1] || "";
+                    }
+                    return (
+                      <div key={idx} className="flex items-center justify-between py-2 text-xs group hover:bg-slate-50 px-1 rounded transition-colors">
+                        <div className="flex flex-col pr-2 overflow-hidden">
+                          <span className="text-slate-700 font-medium truncate" title={displayName}>
+                            {displayName}
+                          </span>
+                          {contactInfo && (
+                            <span className="text-[10px] text-slate-400 truncate" title={contactInfo}>
+                              联系方式: {contactInfo}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(config.key, item)}
+                          className="text-slate-350 hover:text-rose-600 cursor-pointer p-1 rounded hover:bg-rose-50 transition-colors shrink-0"
+                          title={`删除 ${displayName}`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>

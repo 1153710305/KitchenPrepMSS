@@ -25,6 +25,8 @@ interface LedgerPrintStyle2ConsumableProps {
   style2EndDate: string;
   /** 样式二时间段内的全量日期列表 */
   style2DatesArray: string[];
+  /** 自定义补充空白行数 */
+  customDataRows: number;
 }
 
 /**
@@ -177,7 +179,7 @@ export function LedgerPrintStyle2Consumable({
                       const parts = dateStr.split("-");
                       if (parts.length >= 3) {
                         return (
-                          <div style={{ lineHeight: "1.1" }}>
+                          <div>
                             <div>{parts[0]}</div>
                             <div>{parts[1]}-{parts[2]}</div>
                           </div>

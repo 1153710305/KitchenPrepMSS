@@ -45,7 +45,7 @@ interface LedgerControlBarProps {
   handleExportOutwardCsv: () => void;
   triggerPrintDoc: (type: "in" | "out") => void;
   setPrintModalOpen: (val: boolean) => void;
-  setPrintPreviewStyle: (style: "style1" | "style2" | null) => void;
+  setPrintPreviewStyle: (style: "style1" | "style2" | "style3" | null) => void;
   activeLedgerId: string;
 }
 
@@ -174,6 +174,17 @@ export function LedgerControlBar({
                   >
                     <Printer size={13} className="text-blue-600" />
                     <span>打印记账登记表</span>
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setPrintPreviewStyle("style3");
+                    }}
+                    disabled={ledgerItems.length === 0}
+                    className="flex items-center gap-1.5 px-4 py-2 border border-purple-200 bg-purple-50 hover:bg-purple-100 disabled:bg-slate-50 disabled:border-slate-200 disabled:text-slate-400 text-purple-700 text-[13px] font-bold rounded-lg cursor-pointer transition-all shadow-sm"
+                  >
+                    <Printer size={13} className="text-purple-600" />
+                    <span>打印当日验收记录</span>
                   </button>
                 </>
               ) : (

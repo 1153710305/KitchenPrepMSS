@@ -219,7 +219,7 @@ describe("PrepReportService", () => {
     });
   });
 
-  describe("setActiveGroupsInMemory / setActiveCategoriesInMemory / forceNotify (heartbeat silent update)", () => {
+  describe("setActiveGroupsInMemory / setActiveCategoriesInMemory / forceNotify (refreshNow silent update)", () => {
     it("overwrites memory without triggering a server sync", () => {
       const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
       PrepReportService.setActiveGroupsInMemory([{ key: "KID", label: "幼儿" } as any]);

@@ -7,8 +7,8 @@
  * @description 客户端与后端持久化层之间的同步协调器（SyncHelper）：阶段三·增量写协议——收集调用方显式描述的
  * "这次到底变了什么"（SyncOp），去抖动 200ms 合并批量提交给服务端，并在系统初始化完成前加锁防止空状态覆写云端数据。
  * 取代此前"每次都整体拉取全部内存状态、整体 POST"的旧协议（BackendData/memoryFetcher/triggerSyncToServer）。
- * 另提供 refreshNow()：拉取全量最新状态并应用进各业务 service 内存，供 useAppData.ts 的心跳轮询与
- * "后端一次性完成级联后前端需要立即感知"两处场景共用同一份"拉取+比对+应用+分发"逻辑。
+ * 另提供 refreshNow()：拉取全量最新状态并应用进各业务 service 内存，供写操作完成后的主动刷新、以及
+ * 切换查看月份时的懒加载使用（心跳轮询已于 [2026-07-07] 随"按月懒加载 + 304 缓存"改造移除，见 useAppData.ts）。
  */
 
 import { PrepReportService } from "./store.ts";
@@ -55,9 +55,9 @@ export class SyncHelper {
    */
   public static currentDbVersion?: number;
 
-  /** 当前内存中缓存的每日流水/报表数据所属的起始日期 */
+  /** 当前内存中缓存的台账每日流水数据所属的起始日期 */
   private static loadedStartDate?: string;
-  /** 当前内存中缓存的每日流水/报表数据所属的结束日期 */
+  /** 当前内存中缓存的台账每日流水数据所属的结束日期 */
   private static loadedEndDate?: string;
 
   /**
@@ -107,11 +107,6 @@ export class SyncHelper {
   private static debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
-   * @description 最近一次发生真实本地数据变更（如录入保存）的时间戳，用于心跳静默同步识别并丢弃与之竞态的过期响应
-   */
-  private static lastLocalMutationAt: number = 0;
-
-  /**
    * @description flush() 失败后的连续重试计数，超过上限即放弃并打印明显日志，避免无限重试
    */
   private static retryCount = 0;
@@ -126,16 +121,9 @@ export class SyncHelper {
   private static isFlushing = false;
 
   /**
-   * @description 获取最近一次真实本地数据变更的时间戳
-   */
-  public static getLastLocalMutationAt(): number {
-    return this.lastLocalMutationAt;
-  }
-
-  /**
    * @description 是否存在尚未被服务器确认落盘的本地变更（排队等待防抖、或已发出请求等待响应）。
-   * 供心跳静默同步识别"这次本地变更是否已经真正写入后端"，避免用一份滞后于本地最新变更的服务器快照
-   * 覆盖内存，导致刚保存的数据在界面上短暂"消失"后要等下一轮心跳才重新出现。
+   * 供"保存"类交互在放行页面浏览前调用（见 waitForPendingSync()），确保用户看到的不是
+   * "本地已更新、服务器尚未确认"的中间态。
    */
   public static hasPendingSync(): boolean {
     return this.pendingOps.size > 0 || this.debounceTimer !== null || this.isFlushing;
@@ -247,7 +235,7 @@ export class SyncHelper {
   /**
    * @description 把一份已经拉取到的全量最新状态与当前内存逐字段比对，仅对真正变化的字段调用对应 service 的
    * setXxxInMemory() 覆盖内存，变化时统一 forceNotify() 触发 UI 重绘。纯函数式的"应用"步骤，不涉及网络请求，
-   * 供心跳轮询（先自行 loadFromServer() 并做竞态守卫判断，守卫通过后再调用本方法）复用这份 diff+应用逻辑。
+   * 供 refreshNow()（先自行 loadFromServer() 拉取最新状态，再调用本方法）复用这份 diff+应用逻辑。
    * @param {BackendData} freshData 已经拉取到的全量最新状态
    * @returns {boolean} 本次是否真的检测到并应用了变化
    */
@@ -309,9 +297,6 @@ export class SyncHelper {
       console.warn("[SYNC HELPER] 系统尚未初始化完成，拦截空内存数据同步云端，保护云端数据安全");
       return;
     }
-
-    // 记录本次真实本地数据变更发生的时间，供心跳静默同步识别并丢弃与之竞态的过期响应
-    this.lastLocalMutationAt = Date.now();
 
     const dedupeKey = `${op.entity}:${JSON.stringify(op.key ?? null)}`;
     this.pendingOps.set(dedupeKey, op);

@@ -6,7 +6,7 @@
 /**
  * @description 本地 SQLite（阶段二·规范化关系型表结构 + 阶段三·增量写协议，见 SQLite迁移规划.md）与腾讯云对象存储（COS）
  * 双模式持久化服务：save() 接收一批增量 SyncOp[]，通过 applyChangesIntoSqlite() 对规范化表做目标 upsert/delete；
- * load() 返回完整状态供 GET /load 与心跳轮询使用。
+ * load() 返回完整状态供 GET /load 使用（按月懒加载时附带日期区间，见 server/routes/storage.ts）。
  * 早期 JSON 文件存储、阶段一 kv_store 浅迁移格式、以及此前的本地/云端 JSON 备份快照功能均已彻底移除，
  * 不再保留任何迁移兼容代码——数据安全性完全依赖 SQLite 事务+WAL（本地模式）或云厂商多副本冗余（COS 模式），
  * 灾难恢复（如硬盘损坏）由客户自行定期做操作系统级的 data/ 目录整体备份，详见部署指南.md。
@@ -228,7 +228,7 @@ export class StorageService {
 
   /**
    * @description 当检测到 SQLite 为空时，在服务端内部直接生成所有的默认种子数据，
-   * 包含台账、备餐报表、三大受众、各类配置项与基础词典。避免再由前端发现后反向推送。
+   * 包含台账、三大受众、各类配置项与基础词典。避免再由前端发现后反向推送。
    * @returns {any} 全量的后端存储快照格式数据
    */
   private static generateDefaultSeeds(): any {
@@ -266,9 +266,7 @@ export class StorageService {
     }));
     const ledgerItems: LedgerItem[] = []; // 台账内容保持为空，等用户自行录入
 
-
-
-    // 6. ledgerHelperDict (空)
+    // 5. ledgerHelperDict
     const ledgerHelperDict: Record<string, string[]> = {
       suppliers: ["宾县宾州家家乐粮油店", "宾县鑫百达百货超市"], // 默认供货商
       buyers: [],                            // 默认采购员
@@ -1096,8 +1094,8 @@ export class StorageService {
   }
 
   /**
-   * @description 更新字典中的原料并级联同步台账/备餐报表里所有同名条目（阶段A·业务规则迁移到后端）：
-   * 校验规则、isDefault 保留逻辑、错误文案均与迁移前的前端实现逐字一致。级联通过构造附加的 ledgerItem/preparedItem
+   * @description 更新字典中的原料并级联同步台账里所有同名条目（阶段A·业务规则迁移到后端）：
+   * 校验规则、isDefault 保留逻辑、错误文案均与迁移前的前端实现逐字一致。级联通过构造附加的 ledgerItem
    * upsert op 一起交给 saveInternal()，与主体的 rawMaterial upsert op 共享同一次持久化（本地模式为同一个 SQLite
    * 事务，COS 模式为同一次整体对象覆盖写），原子性强于迁移前"前端两次独立调用各自 queueChange 靠防抖窗口凑巧合并"。
    * @param {string} oldName 原原料名称（主键）
@@ -1158,7 +1156,7 @@ export class StorageService {
   }
 
   /**
-   * @description 从字典中删除原料并级联物理删除台账/备餐报表里所有同名条目（阶段A·业务规则迁移到后端）：
+   * @description 从字典中删除原料并级联物理删除台账里所有同名条目（阶段A·业务规则迁移到后端）：
    * 系统默认原料（isDefault=true）禁止删除，错误文案与迁移前的前端实现逐字一致。
    * @param {string} name 待删除的原料名称
    * @returns {Promise<void>}
@@ -1222,10 +1220,9 @@ export class StorageService {
           ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { ...activeGroups[groupIndex], label: normalizedName } });
         }
       } else {
-        // 极端情形：台账存在但对应的餐位人群配置尚不存在，补齐一份并按需补一份当月空报表，
-        // 与迁移前 syncGroupFromLedger() 的"新建人群"分支保持一致
+        // 极端情形：台账存在但对应的餐位人群配置尚不存在，补齐一份，
+        // 与迁移前 syncGroupFromLedger() 的"新建人群"分支保持一致（备餐报表双状态已随本次重构整体删除，不再需要补空报表）
         ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { key: id, label: normalizedName, emoji: "🍽️" } });
-        // 此时已不再需要为其自动补充对应的备餐空报表（已弃用 physical tables）
       }
 
       const ok = await StorageService.saveInternal(ops);
@@ -1238,8 +1235,8 @@ export class StorageService {
 
   /**
    * @description 物理彻底删除某本台账，级联删除其下的所有原料采购项目（阶段B·业务规则迁移到后端）：
-   * 同时级联删除对应的餐位人群配置与其名下所有月度报表（对应此前 PrepReportService.syncDeleteGroupFromLedger
-   * 的既有行为），与主体的 ledger delete op 一起提交，同一次持久化内完成。
+   * 同时级联删除对应的餐位人群配置（对应此前 PrepReportService.syncDeleteGroupFromLedger 的既有行为），
+   * 与主体的 ledger delete op 一起提交，同一次持久化内完成。
    * @param {string} id 台账ID
    * @returns {Promise<void>}
    */
@@ -1587,8 +1584,8 @@ export class StorageService {
   }
 
   /**
-   * @description 删除一级人群配置及关联的所有报表（阶段C·业务规则迁移到后端）：系统默认人群禁止删除，
-   * 错误文案与迁移前的前端实现逐字一致。级联同步删除对应的台账（对应此前
+   * @description 删除一级人群配置（阶段C·业务规则迁移到后端）：系统默认人群禁止删除，
+   * 错误文案与迁移前的前端实现逐字一致。级联同步删除对应的台账及其下全部原料项目（对应此前
    * LedgerService.syncDeleteLedgerFromGroup 的既有行为），与主体的删除 op 一起提交，同一次持久化内完成。
    * @param {string} key 人群标识键
    * @returns {Promise<void>}
@@ -1654,7 +1651,7 @@ export class StorageService {
   }
 
   /**
-   * @description 删除二级大类配置并清空所有报表里属于此大类的细分项（阶段C·业务规则迁移到后端）：
+   * @description 删除二级大类配置（阶段C·业务规则迁移到后端）：
    * 系统默认大类禁止删除，错误文案与迁移前的前端实现逐字一致。
    * @param {string} key 大类标识键
    * @returns {Promise<void>}

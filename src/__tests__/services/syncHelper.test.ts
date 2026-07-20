@@ -6,7 +6,7 @@
 /**
  * @description SyncHelper（客户端与后端持久化层同步协调器）单元测试：初始化安全锁与回调队列、阶段三增量写协议的
  * 去抖动批量提交（同 key 去重合并为最后一次、不同 key 自然合批为一次请求）、flush 失败重试、
- * 以及心跳静默同步竞态守卫（lastLocalMutationAt）的回归测试。
+ * 以及 hasPendingSync/waitForPendingSync 的回归测试。
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -20,7 +20,6 @@ function resetSyncHelper() {
     clearTimeout((SyncHelper as any).debounceTimer);
   }
   (SyncHelper as any).debounceTimer = null;
-  (SyncHelper as any).lastLocalMutationAt = 0;
   (SyncHelper as any).retryCount = 0;
   (SyncHelper as any).isFlushing = false;
 }
@@ -170,51 +169,10 @@ describe("SyncHelper", () => {
     });
   });
 
-  describe("lastLocalMutationAt heartbeat race guard (regression)", () => {
-    it("is 0 before any local mutation has ever been triggered", () => {
-      expect(SyncHelper.getLastLocalMutationAt()).toBe(0);
-    });
-
-    it("does not update the timestamp when blocked by the initialization guard", () => {
-      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
-      expect(SyncHelper.getLastLocalMutationAt()).toBe(0);
-    });
-
-    it("stamps the current time the moment a real local mutation is triggered, before the debounce even fires", () => {
-      vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
-      SyncHelper.setInitialized(true);
-      const before = Date.now();
-
-      SyncHelper.queueChange({ entity: "ledger", op: "upsert", key: "KID", data: { id: "KID" } });
-
-      // 时间戳应在触发的一瞬间同步写入，不需要等待 200ms 的防抖计时器触发
-      expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThanOrEqual(before);
-    });
-
-    it("regression: a heartbeat GET issued before a local save resolves after it must be detected as stale by comparing timestamps", async () => {
-      // 复现 [V5.45.0] 修复过的心跳同步竞态：心跳发出 GET 请求的那一刻先记录下来，
-      // 如果这之后发生了真实的本地写入（lastLocalMutationAt 更新），
-      // 消费方（useAppData 的心跳回调）就应当据此判断该次心跳响应已过期、丢弃不覆盖内存。
-      // 这里只验证 SyncHelper 暴露的时间戳本身具备这个判别能力，具体丢弃逻辑在 useAppData 侧测试覆盖。
-      vi.useFakeTimers();
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({}) }));
-      SyncHelper.setInitialized(true);
-
-      const heartbeatRequestStartedAt = Date.now();
-
-      // 心跳请求发出之后，用户触发了一次真实的本地保存
-      vi.advanceTimersByTime(50);
-      SyncHelper.queueChange({ entity: "activeGroup", op: "upsert", key: "KID" });
-
-      expect(SyncHelper.getLastLocalMutationAt()).toBeGreaterThan(heartbeatRequestStartedAt);
-    });
-  });
-
   describe("hasPendingSync / waitForPendingSync [V5.89.0]", () => {
     // 真实的用户可感知问题：本地保存后 UI 认为"已保存"，但增量同步还在 200ms 防抖排队或已发出请求尚未
-    // 收到服务器确认，此时若心跳静默同步恰好用一份滞后的服务器快照覆盖内存，刚保存的记录会被短暂"冲掉"，
-    // 要等下一轮心跳（约 10 秒）才重新出现——表现为"细表/台账里刚加入的记录显示有延迟"。
+    // 收到服务器确认，此时若恰好触发了一次 refreshNow()（如切换查看月份），用一份滞后的服务器快照覆盖内存，
+    // 刚保存的记录会被短暂"冲掉"——表现为"细表/台账里刚加入的记录显示有延迟"。
     it("reports no pending sync before any mutation has been queued", () => {
       expect(SyncHelper.hasPendingSync()).toBe(false);
     });

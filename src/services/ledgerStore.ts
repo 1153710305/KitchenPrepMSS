@@ -4,7 +4,7 @@
  */
 
 /**
- * @description 原料购销台账业务数据服务层（LedgerService）：管理台账列表与采购原料项目、每日出入库流水记录的增删改查、台账常用人员/供货商字典配置，并与备餐报表服务（PrepReportService）联动同步。
+ * @description 原料购销台账业务数据服务层（LedgerService）：管理台账列表与采购原料项目、每日出入库流水记录的增删改查、台账常用人员/供货商字典配置，并与一二级配置服务（PrepReportService）联动同步。
  */
 
 import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
@@ -180,7 +180,7 @@ export class LedgerService {
     this.notifyListeners();
     LogBroker.publish("INFO", "LedgerService", `【修改台账】成功将台账「${oldName}」更名为「${body.ledger.name}」`);
 
-    // 级联结果（餐位人群 label 同步）只发生在后端，主动刷新一次而不是等最多 10 秒的心跳
+    // 级联结果（餐位人群 label 同步）只发生在后端，主动刷新一次让操作者立即看到最新数据
     await SyncHelper.refreshNow();
   }
 
@@ -189,7 +189,7 @@ export class LedgerService {
    * @param id 台账ID
    */
   public static async deleteLedger(id: string): Promise<void> {
-    // 校验、级联删除原料项目/对应餐位人群配置/月度报表（此前的 PrepReportService.syncDeleteGroupFromLedger）
+    // 校验、级联删除原料项目/对应餐位人群配置（此前的 PrepReportService.syncDeleteGroupFromLedger）
     // 均已迁移到后端一次事务完成，前端只负责发起请求
     const ledger = this.ledgers.find((l) => l.id === id);
     const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -202,7 +202,7 @@ export class LedgerService {
     this.notifyListeners();
     LogBroker.publish("WARN", "LedgerService", `【删除台账】物理清空了台账「${ledger?.name}」以及其下的所有原料出入库及库存账单`);
 
-    // 级联结果（餐位人群与月度报表移除）只发生在后端，主动刷新一次而不是等心跳
+    // 级联结果（餐位人群配置移除）只发生在后端，主动刷新一次让操作者立即看到最新数据
     await SyncHelper.refreshNow();
   }
 
@@ -486,14 +486,14 @@ export class LedgerService {
   }
 
   /**
-   * @description 供心跳轮询静默更新内存中的台账列表，防止 LocalStorage 覆写
+   * @description 供 SyncHelper.refreshNow() 静默更新内存中的台账列表，防止 LocalStorage 覆写
    */
   public static setLedgersInMemory(l: Ledger[]): void {
     this.ledgers = l;
   }
 
   /**
-   * @description 供心跳轮询静默更新内存中的台账条目明细
+   * @description 供 SyncHelper.refreshNow() 静默更新内存中的台账条目明细
    */
   public static setLedgerItemsInMemory(i: LedgerItem[]): void {
     this.ledgerItems = i;

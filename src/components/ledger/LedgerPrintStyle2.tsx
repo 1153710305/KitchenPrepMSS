@@ -29,8 +29,10 @@ interface LedgerPrintStyle2Props {
   style2StartDate: string;
   /** 采购时间段 - 结束日期 */
   style2EndDate: string;
-  /** 样式二时间段内的全量日期列表 */
+  /** 生成的期间每一天的日期字符串数组 */
   style2DatesArray: string[];
+  /** 自定义补充空白行数 */
+  customDataRows: number;
 }
 
 /**

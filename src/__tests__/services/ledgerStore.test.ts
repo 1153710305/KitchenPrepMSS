@@ -622,7 +622,7 @@ describe("LedgerService", () => {
     });
   });
 
-  describe("setLedgersInMemory / setLedgerItemsInMemory / forceNotify (heartbeat silent update)", () => {
+  describe("setLedgersInMemory / setLedgerItemsInMemory / forceNotify (refreshNow silent update)", () => {
     it("overwrites memory without triggering a server sync", () => {
       const queueChangeSpy = vi.spyOn(SyncHelper, "queueChange").mockImplementation(() => {});
       LedgerService.setLedgersInMemory([makeLedger("A", "台账A")]);

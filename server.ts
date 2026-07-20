@@ -75,7 +75,7 @@ app.use("/api/raw-materials", rawMaterialsRouter);
 app.use("/api/ledgers", ledgersRouter);
 app.use("/api/ledger-items", ledgerItemsRouter);
 
-// 挂载备餐报表业务路由（阶段C·校验/级联已迁移到后端，见 SQLite迁移规划.md）
+// 挂载一二级配置业务路由（阶段C·校验/级联已迁移到后端，见 SQLite迁移规划.md）
 app.use("/api/groups", groupsRouter);
 app.use("/api/categories", categoriesRouter);
 
