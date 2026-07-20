@@ -48,11 +48,18 @@ export function LedgerPrintStyle3Purchase({
   };
 
   return (
-    <div className="bg-white text-black min-h-screen print:min-h-0 p-8 print:p-0 mx-auto w-full max-w-[297mm]">
+    <div 
+      className="bg-white min-h-screen print:min-h-0 text-center"
+      style={{
+        color: "#000",
+        marginLeft: "6mm",
+        marginRight: "6mm"
+      }}
+    >
       <style>{`
         @page {
           size: A4 landscape;
-          margin: 10mm 15mm;
+          margin: 12mm 18mm;
         }
         .purchase-table, .purchase-table th, .purchase-table td {
           border: 1px solid #000000 !important;
@@ -75,16 +82,6 @@ export function LedgerPrintStyle3Purchase({
         .purchase-table thead th {
           background-color: #ffffff !important;
         }
-        .col-merged-first {
-          border-bottom-color: transparent !important;
-        }
-        .col-merged-middle {
-          border-top-color: transparent !important;
-          border-bottom-color: transparent !important;
-        }
-        .col-merged-last {
-          border-top-color: transparent !important;
-        }
       `}</style>
 
       {pages.map((pageItems, pageIndex) => {
@@ -92,16 +89,9 @@ export function LedgerPrintStyle3Purchase({
         const blankRows = Array.from({ length: emptyRowsCount }).map((_, i) => ({ id: `blank-${i}` }));
         const isLastPage = pageIndex === pages.length - 1;
 
-        const getMergeClass = (idx: number, total: number) => {
-          if (total <= 1) return "";
-          if (idx === 0) return "col-merged-first";
-          if (idx === total - 1) return "col-merged-last";
-          return "col-merged-middle";
-        };
-
         return (
           <div key={pageIndex}>
-            <div className="relative mx-auto w-full max-w-[297mm] mb-6 print:mb-0">
+            <div className="relative mb-6 print:mb-0">
               {/* 标题部分 */}
               <div className="relative text-center mb-4 mt-4">
                 <h1 className="text-2xl font-normal tracking-widest">采购与进货验收记录</h1>
@@ -192,15 +182,18 @@ export function LedgerPrintStyle3Purchase({
                         <td></td> {/* 温度检查 */}
                         <td></td> {/* 自检和委检情况 */}
 
-                        <td className={getMergeClass(index, rowsPerPage)}></td> {/* 记录人 */}
-                        <td className={getMergeClass(index, rowsPerPage)}></td> {/* 备注 */}
+                        {index === 0 && (
+                          <>
+                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
+                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
+                          </>
+                        )}
                       </tr>
                     );
                   })}
 
                   {blankRows.map((_, index) => {
                     const absoluteIndex = pageIndex * rowsPerPage + pageItems.length + index + 1;
-                    const mergedIndex = pageItems.length + index;
                     return (
                       <tr key={`blank-${pageIndex}-${index}`} className="h-10">
                         <td>{absoluteIndex}</td>
@@ -221,8 +214,12 @@ export function LedgerPrintStyle3Purchase({
                         <td></td>
                         <td></td>
                         <td></td>
-                        <td className={getMergeClass(mergedIndex, rowsPerPage)}></td> {/* 记录人 */}
-                        <td className={getMergeClass(mergedIndex, rowsPerPage)}></td> {/* 备注 */}
+                        {(pageItems.length === 0 && index === 0) && (
+                          <>
+                            <td rowSpan={rowsPerPage}></td> {/* 记录人 */}
+                            <td rowSpan={rowsPerPage}></td> {/* 备注 */}
+                          </>
+                        )}
                       </tr>
                     );
                   })}
