@@ -196,10 +196,9 @@ export function LedgerPrintStyle3Purchase({
                   })}
 
                   {blankRows.map((_, index) => {
-                    const absoluteIndex = pageIndex * rowsPerPage + pageItems.length + index + 1;
                     return (
                       <tr key={`blank-${pageIndex}-${index}`} className="h-10">
-                        <td>{absoluteIndex}</td>
+                        <td></td>
                         <td></td>
                         <td></td>
                         <td></td>
