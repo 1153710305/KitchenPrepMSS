@@ -170,7 +170,7 @@ export function LedgerPrintStyle3Purchase({
                         </td>
                         <td>{item.name}</td>
                         <td className="text-[9px]">{item.spec || ""}</td>
-                        <td>{record.inQuantity}</td>
+                        <td>{record.inQuantity}{item.unit || ""}</td>
                         <td>{record.produceDate || ""}</td>
                         <td></td> {/* 生产者 */}
                         <td></td> {/* 生产者联系方式 */}
