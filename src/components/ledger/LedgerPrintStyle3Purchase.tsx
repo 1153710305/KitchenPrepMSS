@@ -169,7 +169,7 @@ export function LedgerPrintStyle3Purchase({
                           <div>{selectedDate.split('-').slice(1).join('/')}</div>
                         </td>
                         <td>{item.name}</td>
-                        <td>{item.spec || ""}</td>
+                        <td className="text-[9px]">{item.spec || ""}</td>
                         <td>{record.inQuantity}</td>
                         <td>{record.produceDate || ""}</td>
                         <td></td> {/* 生产者 */}
