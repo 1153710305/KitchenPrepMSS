@@ -161,6 +161,14 @@ export function LedgerPrintStyle3Purchase({
                     const hasItem = "有";
                     const absoluteIndex = pageIndex * rowsPerPage + index + 1;
 
+                    const specText = item.spec || "";
+                    let specDisplayLen = 0;
+                    for (let i = 0; i < specText.length; i++) {
+                      specDisplayLen += specText.charCodeAt(i) > 255 ? 1 : 0.55;
+                    }
+                    // A4 landscape 减去两边 18mm margin，表格宽约 261mm。5% 宽约 13mm ≈ 49px，减去 padding 大约 45px
+                    const specFontSize = specDisplayLen > 0 ? Math.min(11, 45 / specDisplayLen) : 11;
+
                     return (
                       <tr key={item.id} className="h-10">
                         <td>{absoluteIndex}</td>
@@ -169,7 +177,9 @@ export function LedgerPrintStyle3Purchase({
                           <div>{selectedDate.split('-').slice(1).join('/')}</div>
                         </td>
                         <td>{item.name}</td>
-                        <td className="text-[9px]">{item.spec || ""}</td>
+                        <td style={{ whiteSpace: "nowrap", fontSize: `${specFontSize}px`, wordBreak: "keep-all", overflow: "hidden" }}>
+                          {specText}
+                        </td>
                         <td>{record.inQuantity}{item.unit || ""}</td>
                         <td>{record.produceDate || ""}</td>
                         <td></td> {/* 生产者 */}
