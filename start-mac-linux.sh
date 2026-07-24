@@ -4,6 +4,15 @@
 
 cd "$(dirname "$0")" || exit 1
 
+PORT="${PORT:-3000}"
+if [ -f ".env" ]; then
+  env_port=$(grep -E '^PORT=' ".env" | head -n 1 | cut -d= -f2- | tr -d '"\r')
+  if [ -n "$env_port" ]; then
+    PORT="$env_port"
+  fi
+fi
+URL="http://localhost:${PORT}"
+
 echo "========================================"
 echo "  食堂用餐服务管理系统 - 单机启动脚本"
 echo "========================================"
@@ -31,8 +40,16 @@ if [ ! -f "dist/server.cjs" ]; then
 fi
 
 echo "正在启动服务，请稍候..."
-echo "启动后请用浏览器打开 http://localhost:端口号 （端口号见 .env 中的 PORT 配置，默认为 3000）"
+echo "启动后请用浏览器打开 ${URL}"
 echo "关闭本窗口即可停止服务。"
 echo "----------------------------------------"
+
+if command -v open >/dev/null 2>&1; then
+  open "$URL" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "$URL" >/dev/null 2>&1 &
+else
+  echo "未检测到可用浏览器打开命令，请手动访问 ${URL}"
+fi
 
 node dist/server.cjs
