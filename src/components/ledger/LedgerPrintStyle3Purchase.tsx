@@ -161,6 +161,15 @@ export function LedgerPrintStyle3Purchase({
                     const hasItem = "有";
                     const absoluteIndex = pageIndex * rowsPerPage + index + 1;
 
+                    const specText = item.spec || "";
+                    let specDisplayLen = 0;
+                    for (let i = 0; i < specText.length; i++) {
+                      specDisplayLen += specText.charCodeAt(i) > 255 ? 1 : 0.65;
+                    }
+                    // A4 landscape 减去两边 18mm margin，表格宽约 261mm。5% 宽约 13mm ≈ 49px，减去 padding 大约 45px
+                    const estimatedWidth = specDisplayLen * 11; // 假设常规字号为11px时的预估宽度
+                    const scaleRatio = estimatedWidth > 45 ? 45 / estimatedWidth : 1;
+
                     return (
                       <tr key={item.id} className="h-10">
                         <td>{absoluteIndex}</td>
@@ -169,7 +178,19 @@ export function LedgerPrintStyle3Purchase({
                           <div>{selectedDate.split('-').slice(1).join('/')}</div>
                         </td>
                         <td>{item.name}</td>
-                        <td className="text-[9px]">{item.spec || ""}</td>
+                        <td style={{ overflow: "hidden", padding: "4px 2px" }}>
+                          <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                            <span style={{ 
+                              whiteSpace: "nowrap", 
+                              transform: `scale(${scaleRatio})`, 
+                              transformOrigin: "center", 
+                              display: "inline-block",
+                              fontSize: "11px"
+                            }}>
+                              {specText}
+                            </span>
+                          </div>
+                        </td>
                         <td>{record.inQuantity}{item.unit || ""}</td>
                         <td>{record.produceDate || ""}</td>
                         <td></td> {/* 生产者 */}
