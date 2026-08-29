@@ -8,8 +8,8 @@
  */
 
 import React from "react";
-import { Search, Filter, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
-import { LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { Search, Filter, X, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { LedgerItem, DailyStockRecord, LedgerSortField, LedgerSortOrder } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
@@ -41,6 +41,12 @@ interface LedgerStyle1TableProps {
   filterInspector: string;
   filterKeeper: string;
   hasActiveFilters: boolean;
+  /** 当前排序字段 */
+  sortField?: LedgerSortField;
+  /** 当前排序方向 (asc: 顺序, desc: 逆序) */
+  sortOrder?: LedgerSortOrder;
+  /** 切换排序回调 */
+  onToggleSort?: (field: LedgerSortField) => void;
   setFilterName: (val: string) => void;
   setFilterCategory: (val: string) => void;
   setFilterBuyer: (val: string) => void;
@@ -78,6 +84,9 @@ export function LedgerStyle1Table({
   filterInspector,
   filterKeeper,
   hasActiveFilters,
+  sortField = "category",
+  sortOrder = "asc",
+  onToggleSort,
   setFilterName,
   setFilterCategory,
   setFilterBuyer,
@@ -116,6 +125,41 @@ export function LedgerStyle1Table({
   const tableScrollRef = React.useRef<HTMLDivElement>(null);
   const scrollTable = (dir: number) => {
     tableScrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
+
+  /**
+   * @description 渲染支持点击排序的表头单元格
+   */
+  const renderSortableHeader = (
+    field: LedgerSortField,
+    label: string,
+    className: string = "",
+    extraWrapClass: string = ""
+  ) => {
+    const isCurrentSort = sortField === field;
+    const nextOrderText = isCurrentSort && sortOrder === "asc" ? "逆序 (降序)" : "顺序 (升序)";
+    return (
+      <th
+        onClick={() => onToggleSort?.(field)}
+        className={`cursor-pointer select-none group/th transition-all hover:bg-slate-100/90 ${className}`}
+        title={`点击按“${label}”进行分类或${nextOrderText}排序`}
+      >
+        <div className={`flex items-center gap-1.5 ${extraWrapClass}`}>
+          <span className="truncate">{label}</span>
+          <span className="inline-flex items-center shrink-0">
+            {isCurrentSort ? (
+              sortOrder === "asc" ? (
+                <ArrowUp size={13} className="text-emerald-600 stroke-[2.5] animate-in fade-in" />
+              ) : (
+                <ArrowDown size={13} className="text-emerald-600 stroke-[2.5] animate-in fade-in" />
+              )
+            ) : (
+              <ArrowUpDown size={11} className="text-slate-300 opacity-40 group-hover/th:opacity-100 group-hover/th:text-slate-500 transition-opacity" />
+            )}
+          </span>
+        </div>
+      </th>
+    );
   };
 
   return (
@@ -229,24 +273,24 @@ export function LedgerStyle1Table({
           <table className="w-full text-left border-collapse text-[13px] min-w-[1380px] relative">
             <thead className="sticky top-0 z-10 shadow-sm">
               <tr className="bg-white border-b border-slate-200 text-slate-500 font-bold uppercase">
-                <th className="px-4 py-2.5 text-slate-600 font-bold w-44">{LEDGER_HEADERS.materialName}</th>
-                <th className="px-3 py-2.5 text-center text-violet-700 font-bold bg-violet-50/40 whitespace-nowrap">二级品类</th>
+                {renderSortableHeader("materialName", LEDGER_HEADERS.materialName, "px-4 py-2.5 text-slate-600 font-bold w-44")}
+                {renderSortableHeader("category", "二级品类", "px-3 py-2.5 text-violet-700 font-bold bg-violet-50/40 whitespace-nowrap", "justify-center")}
                 <th className="px-3 py-2.5 text-center text-slate-600 font-bold w-20">单位</th>
                 <th className="px-3 py-2.5 text-emerald-800 font-bold bg-emerald-50/30 w-28">{LEDGER_HEADERS.inQuantity}</th>
                 <th className="px-3 py-2.5 text-emerald-800 font-bold bg-emerald-50/30 w-24">单价(元)</th>
                 <th className="px-3 py-2.5 text-indigo-800 font-bold bg-indigo-50/30 w-28">{LEDGER_HEADERS.outQuantity}</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.certification}</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.sensoryProperty}</th>
-                <th className="px-3 py-2.5 text-slate-600 font-bold w-48">{LEDGER_HEADERS.supplier}</th>
+                {renderSortableHeader("supplier", LEDGER_HEADERS.supplier, "px-3 py-2.5 text-slate-600 font-bold w-48")}
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-36">生产日期</th>
                 <th className="px-3 py-2.5 text-slate-600 font-bold w-36">保质期</th>
-                <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.buyer}</th>
-                <th className="px-3 py-2.5 text-emerald-700 font-bold bg-emerald-50/20 w-36">采购/入库时间</th>
+                {renderSortableHeader("buyer", LEDGER_HEADERS.buyer, "px-3 py-2.5 text-slate-600 font-bold w-28")}
+                {renderSortableHeader("purchaseDate", "采购/入库时间", "px-3 py-2.5 text-emerald-700 font-bold bg-emerald-50/20 w-36")}
                 <th className="px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-36">出库时间</th>
-                <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.inspector}</th>
-                <th className="px-3 py-2.5 text-slate-600 font-bold w-28">{LEDGER_HEADERS.keeper}</th>
-                <th className="px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-28">出库人</th>
-                <th className="px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-28">接收人</th>
+                {renderSortableHeader("inspector", LEDGER_HEADERS.inspector, "px-3 py-2.5 text-slate-600 font-bold w-28")}
+                {renderSortableHeader("keeper", LEDGER_HEADERS.keeper, "px-3 py-2.5 text-slate-600 font-bold w-28")}
+                {renderSortableHeader("outHandler", "出库人", "px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-28")}
+                {renderSortableHeader("outRecipient", "接收人", "px-3 py-2.5 text-indigo-700 font-bold bg-indigo-50/20 w-28")}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

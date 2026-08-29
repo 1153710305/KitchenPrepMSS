@@ -1,11 +1,27 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @description 采购与进货验收记录纯净打印模板（样式三）：以总表展示的原料排序顺序排版当天有采购入库记录的明细清单，供打印与归档留存。
+ */
+
 import React from "react";
 import { Ledger, LedgerItem } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 
+/**
+ * @description 采购与进货验收记录打印组件入参属性
+ */
 interface LedgerPrintStyle3PurchaseProps {
+  /** 当前选中的购销台账对象 */
   activeLedger: Ledger | null;
+  /** 当前选定的打印日期 (YYYY-MM-DD) */
   selectedDate: string;
+  /** 已经按照总表顺序排列好的原料列表 */
   ledgerItems: LedgerItem[];
+  /** 每页自定义打印行数 */
   customDataRows: number;
 }
 
@@ -17,7 +33,7 @@ export function LedgerPrintStyle3Purchase({
 }: LedgerPrintStyle3PurchaseProps) {
   if (!activeLedger) return null;
 
-  // 1. 根据选中日期筛选当天有入库数量的数据，且必须属于当前选中的台账
+  // 1. 根据选中日期筛选当天有入库数量的数据，且必须属于当前选中的台账（保持总表当前排序顺序）
   const purchaseItems = ledgerItems.filter(item => {
     if (item.ledgerId !== activeLedger.id) return false;
     const dailyRecord = item.dailyRecords[selectedDate];

@@ -96,3 +96,22 @@ export interface LedgerItem {
   /** 每日出入库及明细记录，以 YYYY-MM-DD 为 Key 进行索引 */
   dailyRecords: Record<string, DailyStockRecord>;
 }
+
+/**
+ * @description 台账总表（样式一）支持点击表头进行排序的字段枚举
+ */
+export type LedgerSortField =
+  | "materialName"   // 原材料名称
+  | "category"       // 二级品类
+  | "supplier"       // 供货商及地址
+  | "buyer"          // 采购员
+  | "purchaseDate"   // 采购/入库时间
+  | "inspector"      // 检验员
+  | "keeper"         // 保管员
+  | "outHandler"     // 出库人
+  | "outRecipient";  // 接收人
+
+/**
+ * @description 台账总表排序顺序 (asc: 顺序/升序, desc: 逆序/降序)
+ */
+export type LedgerSortOrder = "asc" | "desc";

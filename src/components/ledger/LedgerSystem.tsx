@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
-import { Ledger, LedgerItem, DailyStockRecord } from "../../types/ledgerTypes.ts";
+import { Ledger, LedgerItem, DailyStockRecord, LedgerSortField, LedgerSortOrder } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
 import { LEDGER_UI_TEXT, LEDGER_HEADERS, LEDGER_PRINT_OUT_CONFIG, LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
 import { LogBroker, matchPinyin, getDatesBetween } from "../../utils.ts";
@@ -131,7 +131,26 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   /** 筛选检验员（空字符串表示全部不限）*/
   const [filterInspector, setFilterInspector] = useState<string>("");
   /** 筛选保管员（空字符串表示全部不限）*/
-  const [filterKeeper, setFilterKeeper] = useState<string>("");
+  const [filterKeeper, setFilterKeeper] = useState<string>("" );
+
+  // --- 台账总表表头排序状态（默认按二级品类顺序/升序排序）---
+  /** 当前总表排序字段，默认按照二级品类排序 */
+  const [sortField, setSortField] = useState<LedgerSortField>("category");
+  /** 当前总表排序方向 (asc: 顺序/升序, desc: 逆序/降序)，默认顺序 */
+  const [sortOrder, setSortOrder] = useState<LedgerSortOrder>("asc");
+
+  /**
+   * @description 切换总表表头字段的排序方向或排序字段
+   * @param field 要排序的表头字段
+   */
+  const handleToggleSort = (field: LedgerSortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
 
   /** 仅供打印使用的纯净弹出视图状态: null | "in" | "out" */
   const [printDocType, setPrintDocType] = useState<null | "in" | "out">(null);
@@ -340,6 +359,70 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
       return true;
     });
   }, [currentLedgerItems, filterName, filterCategory, filterBuyer, filterInspector, filterKeeper, selectedDate]);
+
+  /**
+   * @description 按照当前所选表头字段及排序方向对过滤后的台账原料进行排序
+   * 默认按二级品类分类排序；支持按原材料名称、供货商、采购员、采购时间、检验员、保管员、出库人、接收人升序或降序排列
+   */
+  const sortedFilteredLedgerItems = useMemo(() => {
+    const dictItems = RawMaterialsDictService.getItems();
+    const activeCats = PrepReportService.getActiveCategories();
+
+    /** 获取某个原料在指定排序字段下的对比文本值 */
+    const getFieldValue = (item: LedgerItem, field: LedgerSortField): string => {
+      const draftRec = isRecordingMode ? draftRecords[item.id] : undefined;
+      const dailyRec = item.dailyRecords[selectedDate];
+      const rec = draftRec || dailyRec || {};
+
+      switch (field) {
+        case "materialName":
+          return item.name || "";
+        case "category": {
+          const dictItem = dictItems.find((d) => d.name === item.name);
+          const catKey = dictItem?.category || "";
+          const catObj = activeCats.find((c) => c.key === catKey);
+          return catObj ? catObj.label : catKey;
+        }
+        case "supplier":
+          return rec.supplier || "";
+        case "buyer":
+          return rec.buyer || "";
+        case "purchaseDate":
+          return rec.purchaseDate || selectedDate;
+        case "inspector":
+          return rec.inspector || "";
+        case "keeper":
+          return rec.keeper || "";
+        case "outHandler":
+          return rec.outHandler || "";
+        case "outRecipient":
+          return rec.outRecipient || "";
+        default:
+          return "";
+      }
+    };
+
+    return [...filteredLedgerItems].sort((a, b) => {
+      const valA = getFieldValue(a, sortField);
+      const valB = getFieldValue(b, sortField);
+
+      let cmp = 0;
+      if (sortField === "category") {
+        cmp = valA.localeCompare(valB, "zh-CN");
+      } else {
+        if (!valA && valB) cmp = 1;
+        else if (valA && !valB) cmp = -1;
+        else cmp = valA.localeCompare(valB, "zh-CN", { numeric: true });
+      }
+
+      // 次级排序：当主字段值相同时，按原料名称拼音升序以保证排序展示稳定
+      if (cmp === 0) {
+        cmp = (a.name || "").localeCompare(b.name || "", "zh-CN");
+      }
+
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [filteredLedgerItems, sortField, sortOrder, isRecordingMode, draftRecords, selectedDate]);
 
   /** 当前台账存在的品类集合（动态），用于品类筛选下拉 */
   const availableCategories = useMemo(() => {
@@ -695,7 +778,7 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
         selectedPrintCategories={selectedPrintCategories}
         currentLedgerItems={currentLedgerItems}
         activeItemId={activeItemId}
-        ledgerItems={ledgerItems}
+        ledgerItems={sortedFilteredLedgerItems}
         style2StartDate={style2StartDate}
         style2EndDate={style2EndDate}
         style2DatesArray={style2DatesArray}
@@ -830,7 +913,7 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
               {ledgerStyle === "style1" && (
                 <LedgerStyle1Table
                   currentLedgerItems={currentLedgerItems}
-                  filteredLedgerItems={filteredLedgerItems}
+                  filteredLedgerItems={sortedFilteredLedgerItems}
                   selectedDate={selectedDate}
                   isRecordingMode={isRecordingMode}
                   draftRecords={draftRecords}
@@ -850,6 +933,9 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
                   filterInspector={filterInspector}
                   filterKeeper={filterKeeper}
                   hasActiveFilters={hasActiveFilters}
+                  sortField={sortField}
+                  sortOrder={sortOrder}
+                  onToggleSort={handleToggleSort}
                   setFilterName={setFilterName}
                   setFilterCategory={setFilterCategory}
                   setFilterBuyer={setFilterBuyer}
