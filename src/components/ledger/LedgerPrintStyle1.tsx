@@ -134,7 +134,16 @@ export function LedgerPrintStyle1({
         };
 
         const suppliers = getUniqueFieldValues(r => r.supplier || "");
-        const purchaseDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
+        const purchaseDates = getUniqueFieldValues(r => {
+          if (!(r.inQuantity > 0)) return "";
+          const base = r.purchaseDate || selectedDate;
+          const d = new Date(`${base}T00:00:00`);
+          d.setDate(d.getDate() - 1);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          return `${yyyy}-${mm}-${dd}`;
+        });
         const buyers = getUniqueFieldValues(r => r.buyer || "");
         const inspectors = getUniqueFieldValues(r => r.inspector || "");
         const inDates = getUniqueFieldValues(r => r.inQuantity > 0 ? (r.purchaseDate || selectedDate) : "");
@@ -145,170 +154,170 @@ export function LedgerPrintStyle1({
           <div key={pageIndex}>
             <div style={{ position: "relative" }}>
               <table className="w-full border-collapse mb-0" style={{ tableLayout: "fixed" }}>
-              <tbody>
-                <tr>
-                  <td style={{ border: "none", padding: "12px 0 4px", textAlign: "center" }}>
-                    <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }}>
-                      {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}
-                    </div>
-                    <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.subtitleFontSize, marginTop: "2px" }}>
-                      {activeLedger?.name || ""}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            
-            <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "8%" }} />
-              </colgroup>
-
-              <thead>
-                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品<br />索证</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
-                  <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
-                  <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
-                </tr>
-                <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
-                  <th className="border border-black px-1 py-1 align-middle">入库</th>
-                  <th className="border border-black px-1 py-1 align-middle">出库</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {pageItems.length === 0 ? (
-            /* 当无明细时，至少渲染 15 行空行，并且后 7 列合并为一个大空单元格 */
-            Array.from({ length: customDataRows }).map((_, i) => (
-              <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
-                <td className="border border-black"></td>
-                <td className="border border-black"></td>
-                <td className="border border-black"></td>
-                <td className="border border-black"></td>
-                {i === 0 && (
-                  <>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                    <td className="border border-black align-middle" rowSpan={customDataRows}></td>
-                  </>
-                )}
-              </tr>
-            ))
-          ) : (
-                <>
-                  {pageItems.map((item, idx) => {
-                    const record = item.dailyRecords[selectedDate] || {
-                  inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
-                  certification: "", sensoryProperty: "", supplier: "",
-                  purchaseDate: "", buyer: "", inspector: "", keeper: "", outDate: ""
-                };
-
-                const isFirstRow = idx === 0;
-
-                // 数量列：优先展示换算后的数量与换算单位，无换算配置时展示原始数量与默认单位
-                const dictItem = dictItems.find(d => d.name === item.name);
-                const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
-                const displayUnit = hasConversion ? dictItem.conversionUnit : (dictItem?.unit || item.unit);
-                const displayQty = record.inQuantity > 0
-                  ? (hasConversion ? Number((record.inQuantity * dictItem.conversionRatio).toFixed(2)) : record.inQuantity)
-                  : "";
-
-                const nameFontSize = item.name.length > 5 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
-                const nameLineHeight = item.name.length > 5 ? "1.2" : "normal";
-                const cert = record.certification || "";
-                const certFontSize = cert.length > 4 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
-                const certLineHeight = cert.length > 4 ? "1.2" : "normal";
-                const sensory = record.sensoryProperty || "";
-                const sensoryFontSize = sensory.length > 10 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
-                const sensoryLineHeight = sensory.length > 10 ? "1.2" : "normal";
-
-                return (
-                  <tr key={item.id} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
-                    <td className="border border-black px-1 py-1 text-center" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{item.name}</td>
-                    <td className="border border-black px-1 py-1">
-                      {displayQty !== "" ? `${displayQty}${displayUnit}` : ""}
+                <tbody>
+                  <tr>
+                    <td style={{ border: "none", padding: "12px 0 4px", textAlign: "center" }}>
+                      <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.titleFontSize, fontWeight: "bold", textDecoration: "underline" }}>
+                        {LEDGER_PRINT_STYLE1_CONFIG.titlePrefix}
+                      </div>
+                      <div style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.subtitleFontSize, marginTop: "2px" }}>
+                        {activeLedger?.name || ""}
+                      </div>
                     </td>
-                    <td className="border border-black px-1 py-1" style={{ fontSize: certFontSize, lineHeight: certLineHeight }}>{cert}</td>
-                    <td className="border border-black px-1 py-1" style={{ fontSize: sensoryFontSize, lineHeight: sensoryLineHeight }}>{sensory}</td>
-                    {isFirstRow && (
-                      <>
-                        <td className="border border-black px-1 py-1 text-center align-top" rowSpan={totalRows}>
-                          {renderMergedCell(suppliers, mergedCellHeightPx, 10)}
-                        </td>
-                        <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(purchaseDates, mergedCellHeightPx, 8)}
-                        </td>
-                        <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(buyers, mergedCellHeightPx, 5)}
-                        </td>
-                        <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inspectors, mergedCellHeightPx, 5)}
-                        </td>
-                        <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(inDates, mergedCellHeightPx, 8)}
-                        </td>
-                        <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
-                          {renderMergedCell(outDates, mergedCellHeightPx, 8)}
-                        </td>
-                        <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
-                          {renderMergedCell(keepers, mergedCellHeightPx, 5)}
-                        </td>
-                      </>
-                    )}
                   </tr>
-                );
-              })}
+                </tbody>
+              </table>
 
-              {/* 补充空行，只渲染前 4 列，后 7 列由首行 rowSpan 覆盖 */}
-                {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    <td className="border border-black"></td>
-                    {pageItems.length === 0 && i === 0 && (
-                      <>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                        <td className="border border-black align-middle" rowSpan={totalRows}></td>
-                      </>
-                    )}
+              <table className="ledger-print-style1-table w-full border-collapse text-center" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "8%" }} />
+                </colgroup>
+
+                <thead>
+                  <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">原材料<br />名称</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">数量</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">食品<br />索证</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">感官性状</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">供货商<br />及地址</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购时间</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">采购员</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">检验员</th>
+                    <th colSpan={2} className="border border-black px-1 py-1 align-middle">出入库时间</th>
+                    <th rowSpan={2} className="border border-black px-1 py-2 align-middle">保管员</th>
                   </tr>
-                ))}
-              </>
-            )}
-          </tbody>
-        </table>
-        </div>
-        {!isLastPage && <div style={{ breakAfter: "page", pageBreakAfter: "always", height: 0, overflow: "hidden" }}></div>}
-      </div>
-    );
-  })}
-</div>
-);
+                  <tr className=" bg-white" style={{ fontSize: LEDGER_PRINT_STYLE1_CONFIG.headerFontSize }}>
+                    <th className="border border-black px-1 py-1 align-middle">入库</th>
+                    <th className="border border-black px-1 py-1 align-middle">出库</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {pageItems.length === 0 ? (
+                    /* 当无明细时，至少渲染 15 行空行，并且后 7 列合并为一个大空单元格 */
+                    Array.from({ length: customDataRows }).map((_, i) => (
+                      <tr key={`empty-all-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        <td className="border border-black"></td>
+                        {i === 0 && (
+                          <>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                            <td className="border border-black align-middle" rowSpan={customDataRows}></td>
+                          </>
+                        )}
+                      </tr>
+                    ))
+                  ) : (
+                    <>
+                      {pageItems.map((item, idx) => {
+                        const record = item.dailyRecords[selectedDate] || {
+                          inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0,
+                          certification: "", sensoryProperty: "", supplier: "",
+                          purchaseDate: "", buyer: "", inspector: "", keeper: "", outDate: ""
+                        };
+
+                        const isFirstRow = idx === 0;
+
+                        // 数量列：优先展示换算后的数量与换算单位，无换算配置时展示原始数量与默认单位
+                        const dictItem = dictItems.find(d => d.name === item.name);
+                        const hasConversion = !!(dictItem && dictItem.conversionUnit && dictItem.conversionRatio);
+                        const displayUnit = hasConversion ? dictItem.conversionUnit : (dictItem?.unit || item.unit);
+                        const displayQty = record.inQuantity > 0
+                          ? (hasConversion ? Number((record.inQuantity * dictItem.conversionRatio).toFixed(2)) : record.inQuantity)
+                          : "";
+
+                        const nameFontSize = item.name.length > 5 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                        const nameLineHeight = item.name.length > 5 ? "1.2" : "normal";
+                        const cert = record.certification || "";
+                        const certFontSize = cert.length > 4 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                        const certLineHeight = cert.length > 4 ? "1.2" : "normal";
+                        const sensory = record.sensoryProperty || "";
+                        const sensoryFontSize = sensory.length > 10 ? "11px" : LEDGER_PRINT_STYLE1_CONFIG.dataFontSize;
+                        const sensoryLineHeight = sensory.length > 10 ? "1.2" : "normal";
+
+                        return (
+                          <tr key={item.id} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
+                            <td className="border border-black px-1 py-1 text-center" style={{ fontSize: nameFontSize, lineHeight: nameLineHeight }}>{item.name}</td>
+                            <td className="border border-black px-1 py-1">
+                              {displayQty !== "" ? `${displayQty}${displayUnit}` : ""}
+                            </td>
+                            <td className="border border-black px-1 py-1" style={{ fontSize: certFontSize, lineHeight: certLineHeight }}>{cert}</td>
+                            <td className="border border-black px-1 py-1" style={{ fontSize: sensoryFontSize, lineHeight: sensoryLineHeight }}>{sensory}</td>
+                            {isFirstRow && (
+                              <>
+                                <td className="border border-black px-1 py-1 text-center align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(suppliers, mergedCellHeightPx, 10)}
+                                </td>
+                                <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(purchaseDates, mergedCellHeightPx, 8)}
+                                </td>
+                                <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(buyers, mergedCellHeightPx, 5)}
+                                </td>
+                                <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(inspectors, mergedCellHeightPx, 5)}
+                                </td>
+                                <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(inDates, mergedCellHeightPx, 8)}
+                                </td>
+                                <td className="border border-black px-1 py-1  align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(outDates, mergedCellHeightPx, 8)}
+                                </td>
+                                <td className="border border-black px-1 py-1 align-top" rowSpan={totalRows}>
+                                  {renderMergedCell(keepers, mergedCellHeightPx, 5)}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
+
+                      {/* 补充空行，只渲染前 4 列，后 7 列由首行 rowSpan 覆盖 */}
+                      {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                        <tr key={`empty-${i}`} style={{ height: LEDGER_PRINT_STYLE1_CONFIG.dataRowHeight, fontSize: LEDGER_PRINT_STYLE1_CONFIG.dataFontSize }}>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          <td className="border border-black"></td>
+                          {pageItems.length === 0 && i === 0 && (
+                            <>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                              <td className="border border-black align-middle" rowSpan={totalRows}></td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {!isLastPage && <div style={{ breakAfter: "page", pageBreakAfter: "always", height: 0, overflow: "hidden" }}></div>}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
