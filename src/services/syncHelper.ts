@@ -55,6 +55,17 @@ export class SyncHelper {
    */
   public static currentDbVersion?: number;
 
+  /**
+   * @description 版本冲突（HTTP 409）时的通知回调。数据层只负责“把冲突这件事告诉出去”，具体如何提示由此回调决定——
+   * 默认是一个阻断式 window.alert（保持既有 UX），上层（如 App.tsx）可替换为更友好的浮层，测试里可替换为 spy，
+   * 设为 null 则完全静默（仅靠调用方 catch VERSION_CONFLICT）。传入的 message 已是拼好的中文提示文案。
+   */
+  public static onVersionConflict: ((message: string) => void) | null = (message: string) => {
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+  };
+
   /** 当前内存中缓存的台账每日流水数据所属的起始日期 */
   private static loadedStartDate?: string;
   /** 当前内存中缓存的台账每日流水数据所属的结束日期 */
@@ -172,8 +183,13 @@ export class SyncHelper {
 
     if (response.status === 409) {
       const errJson = await response.json().catch(() => ({}));
-      // 使用 window.alert 阻断当前操作，强制提醒用户
-      window.alert(`🚨 数据冲突保护\n\n${errJson.error || "数据已被其他设备修改！"}\n为防止覆盖他人数据，请立即刷新页面以获取最新数据。`);
+      // 数据层只负责把“发生了版本冲突”这件事通知出去，如何提示交给 onVersionConflict 回调（默认阻断式 alert）
+      const message = `🚨 数据冲突保护\n\n${errJson.error || "数据已被其他设备修改！"}\n为防止覆盖他人数据，请立即刷新页面以获取最新数据。`;
+      try {
+        SyncHelper.onVersionConflict?.(message);
+      } catch (notifyErr) {
+        console.error("[SYNC HELPER] 版本冲突通知回调执行失败:", notifyErr);
+      }
       throw new Error("VERSION_CONFLICT");
     }
 

@@ -319,4 +319,61 @@ describe("SyncHelper", () => {
       expect(r2).not.toBeNull();
     });
   });
+
+  describe("fetchWithVersion 版本冲突（409）通知解耦，bug 4", () => {
+    const defaultOnConflict = SyncHelper.onVersionConflict;
+
+    afterEach(() => {
+      SyncHelper.onVersionConflict = defaultOnConflict;
+    });
+
+    it("routes a 409 through the injectable onVersionConflict callback (not a hard-coded window.alert) and throws VERSION_CONFLICT", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({
+        status: 409,
+        ok: false,
+        headers: new Headers(),
+        json: async () => ({ error: "数据已被其他终端修改，请刷新页面获取最新数据后重试" })
+      })));
+      const spy = vi.fn();
+      SyncHelper.onVersionConflict = spy;
+
+      await expect(SyncHelper.fetchWithVersion("/api/ledgers/KID", { method: "PUT" }))
+        .rejects.toThrow("VERSION_CONFLICT");
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0]).toContain("数据已被其他终端修改");
+    });
+
+    it("still throws VERSION_CONFLICT when the notifier is disabled (onVersionConflict = null)", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({
+        status: 409, ok: false, headers: new Headers(), json: async () => ({})
+      })));
+      SyncHelper.onVersionConflict = null;
+
+      await expect(SyncHelper.fetchWithVersion("/api/ledgers/KID", { method: "PUT" }))
+        .rejects.toThrow("VERSION_CONFLICT");
+    });
+
+    it("a throwing notifier does not mask the VERSION_CONFLICT error", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({
+        status: 409, ok: false, headers: new Headers(), json: async () => ({})
+      })));
+      SyncHelper.onVersionConflict = () => { throw new Error("notifier blew up"); };
+
+      await expect(SyncHelper.fetchWithVersion("/api/ledgers/KID", { method: "PUT" }))
+        .rejects.toThrow("VERSION_CONFLICT");
+    });
+
+    it("does not invoke the conflict notifier on a normal 2xx response", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({
+        status: 200, ok: true, headers: new Headers(), json: async () => ({ success: true })
+      })));
+      const spy = vi.fn();
+      SyncHelper.onVersionConflict = spy;
+
+      await SyncHelper.fetchWithVersion("/api/ledgers/KID", { method: "PUT" });
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
 });

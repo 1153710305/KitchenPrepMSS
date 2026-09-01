@@ -1218,16 +1218,20 @@ export class StorageService {
       const updatedLedger: Ledger = { ...ledgers[ledgerIndex], name: normalizedName };
       const ops: SyncOp[] = [{ entity: "ledger", op: "upsert", key: id, data: updatedLedger }];
 
+      // 台账 ↔ 一级人群通过 id/key 关联，历史上一律规范化为大写（见 saveGroup / generateDefaultSeeds）。
+      // 这里按大小写不敏感匹配（与 deleteLedger / deleteGroup 保持一致），命中则沿用人群原有 key 落 op、
+      // 不猜测重新大小写；未命中才补齐一份，用大写规范形，避免因大小写不匹配误判成“不存在”而写出重复人群行。
       const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
-      const groupIndex = activeGroups.findIndex((g) => g.key === id);
-      if (groupIndex > -1) {
-        if (activeGroups[groupIndex].label !== normalizedName) {
-          ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { ...activeGroups[groupIndex], label: normalizedName } });
+      const linkedGroup = activeGroups.find((g) => g.key.toUpperCase() === id.toUpperCase());
+      if (linkedGroup) {
+        if (linkedGroup.label !== normalizedName) {
+          ops.push({ entity: "activeGroup", op: "upsert", key: linkedGroup.key, data: { ...linkedGroup, label: normalizedName } });
         }
       } else {
         // 极端情形：台账存在但对应的餐位人群配置尚不存在，补齐一份，
         // 与迁移前 syncGroupFromLedger() 的"新建人群"分支保持一致（备餐报表双状态已随本次重构整体删除，不再需要补空报表）
-        ops.push({ entity: "activeGroup", op: "upsert", key: id, data: { key: id, label: normalizedName, emoji: "🍽️" } });
+        const canonicalKey = id.toUpperCase();
+        ops.push({ entity: "activeGroup", op: "upsert", key: canonicalKey, data: { key: canonicalKey, label: normalizedName, emoji: "🍽️" } });
       }
 
       const ok = await StorageService.saveInternal(ops);
@@ -1254,17 +1258,19 @@ export class StorageService {
         throw new Error("找不到待删除的台账");
       }
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      const removedItems = ledgerItems.filter((item) => item.ledgerId === id);
+      // 用命中的 ledger.id 作为关联键（而非路由传入的 id），避免大小写差异导致漏删子项 / 误删他人行
+      const removedItems = ledgerItems.filter((item) => item.ledgerId === ledger.id);
 
-      const ops: SyncOp[] = [{ entity: "ledger", op: "delete", key: id }];
+      const ops: SyncOp[] = [{ entity: "ledger", op: "delete", key: ledger.id }];
       removedItems.forEach((item) => {
         ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
       });
 
-      const upperId = id.toUpperCase();
+      // 大小写不敏感匹配对应人群，删除时按人群实际行的 key 下 op（与 updateLedger / deleteGroup 一致）
       const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
-      if (activeGroups.some((g) => g.key === upperId)) {
-        ops.push({ entity: "activeGroup", op: "delete", key: upperId });
+      const linkedGroup = activeGroups.find((g) => g.key.toUpperCase() === ledger.id.toUpperCase());
+      if (linkedGroup) {
+        ops.push({ entity: "activeGroup", op: "delete", key: linkedGroup.key });
       }
 
 
@@ -1593,28 +1599,30 @@ export class StorageService {
       const current = await StorageService.load();
       const upperKey = key.trim().toUpperCase();
       const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
-      const existingIndex = activeGroups.findIndex((g) => g.key === upperKey);
+      // 大小写不敏感匹配已有人群；命中则沿用其原有 key（不猜测重新大小写），未命中才用大写规范形新建
+      const existingIndex = activeGroups.findIndex((g) => g.key.toUpperCase() === upperKey);
+      const groupKey = existingIndex > -1 ? activeGroups[existingIndex].key : upperKey;
 
       const ops: SyncOp[] = [];
       let savedGroup: DynamicGroup;
       if (existingIndex > -1) {
         savedGroup = {
-          key: upperKey, label: label.trim(), emoji: emoji.trim() || "🍽️",
+          key: groupKey, label: label.trim(), emoji: emoji.trim() || "🍽️",
           isDefault: activeGroups[existingIndex].isDefault
         };
       } else {
-        savedGroup = { key: upperKey, label: label.trim(), emoji: emoji.trim() || "🍽️" };
+        savedGroup = { key: groupKey, label: label.trim(), emoji: emoji.trim() || "🍽️" };
       }
-      ops.push({ entity: "activeGroup", op: "upsert", key: upperKey, data: savedGroup });
+      ops.push({ entity: "activeGroup", op: "upsert", key: groupKey, data: savedGroup });
 
       const ledgers: Ledger[] = current.ledgers ?? [];
-      const existingLedger = ledgers.find((l) => l.id === upperKey);
+      const existingLedger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
       if (existingLedger) {
         if (existingLedger.name !== label.trim()) {
-          ops.push({ entity: "ledger", op: "upsert", key: upperKey, data: { ...existingLedger, name: label.trim() } });
+          ops.push({ entity: "ledger", op: "upsert", key: existingLedger.id, data: { ...existingLedger, name: label.trim() } });
         }
       } else {
-        ops.push({ entity: "ledger", op: "upsert", key: upperKey, data: { id: upperKey, name: label.trim(), createdAt: new Date().toISOString() } });
+        ops.push({ entity: "ledger", op: "upsert", key: groupKey, data: { id: groupKey, name: label.trim(), createdAt: new Date().toISOString() } });
       }
 
       const ok = await StorageService.saveInternal(ops);
@@ -1642,14 +1650,15 @@ export class StorageService {
         throw new Error(`「${target.label}」是系统默认人群，不允许删除，如需调整可编辑其名称或图标`);
       }
 
-      const ops: SyncOp[] = [{ entity: "activeGroup", op: "delete", key: upperKey }];
+      // 按人群实际行的 key 下删除 op（命中时），而不是重新大写猜一个——避免历史上存在非大写 key 时删不掉
+      const ops: SyncOp[] = [{ entity: "activeGroup", op: "delete", key: target ? target.key : upperKey }];
 
       const ledgers: Ledger[] = current.ledgers ?? [];
       const ledger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
       if (ledger) {
         ops.push({ entity: "ledger", op: "delete", key: ledger.id });
         const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-        ledgerItems.filter((item) => item.ledgerId.toUpperCase() === upperKey).forEach((item) => {
+        ledgerItems.filter((item) => item.ledgerId.toUpperCase() === ledger.id.toUpperCase()).forEach((item) => {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
         });
       }
@@ -1679,12 +1688,14 @@ export class StorageService {
       const current = await StorageService.load();
       const upperKey = key.trim().toUpperCase();
       const activeCategories: DynamicCategory[] = current.activeCategories ?? [];
-      const existingIndex = activeCategories.findIndex((c) => c.key === upperKey);
+      // 大小写不敏感匹配已有大类；命中则沿用其原有 key，未命中才用大写规范形新建
+      const existingIndex = activeCategories.findIndex((c) => c.key.toUpperCase() === upperKey);
+      const categoryKey = existingIndex > -1 ? activeCategories[existingIndex].key : upperKey;
       const savedCategory: DynamicCategory = existingIndex > -1
-        ? { key: upperKey, label: label.trim(), isDefault: activeCategories[existingIndex].isDefault }
-        : { key: upperKey, label: label.trim() };
+        ? { key: categoryKey, label: label.trim(), isDefault: activeCategories[existingIndex].isDefault }
+        : { key: categoryKey, label: label.trim() };
 
-      const ok = await StorageService.saveInternal([{ entity: "activeCategory", op: "upsert", key: upperKey, data: savedCategory }]);
+      const ok = await StorageService.saveInternal([{ entity: "activeCategory", op: "upsert", key: categoryKey, data: savedCategory }]);
       if (!ok) {
         throw new Error("保存大类配置失败");
       }
@@ -1703,12 +1714,13 @@ export class StorageService {
       const current = await StorageService.load();
       const upperKey = key.toUpperCase();
       const activeCategories: DynamicCategory[] = current.activeCategories ?? [];
-      const target = activeCategories.find((c) => c.key === upperKey);
+      // 大小写不敏感匹配，并按大类实际行的 key 下删除 op（与 deleteGroup 一致），避免历史非大写 key 删不掉
+      const target = activeCategories.find((c) => c.key.toUpperCase() === upperKey);
       if (target?.isDefault) {
         throw new Error(`「${target.label}」是系统默认大类，不允许删除，如需调整可编辑其名称`);
       }
 
-      const ops: SyncOp[] = [{ entity: "activeCategory", op: "delete", key: upperKey }];
+      const ops: SyncOp[] = [{ entity: "activeCategory", op: "delete", key: target ? target.key : upperKey }];
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
