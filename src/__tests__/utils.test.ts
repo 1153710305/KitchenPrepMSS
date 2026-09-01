@@ -16,6 +16,8 @@ import {
   createSystemLog,
   convertItemsToCsv,
   computeLedgerDailyAmountsByGroup,
+  computeLedgerTrueCurrentStock,
+  computeLedgerDailyStockBalances,
   LogBroker
 } from "@/src/utils.ts";
 import { PreparedItem, FoodCategory, TargetGroup } from "@/src/types/types.ts";
@@ -106,6 +108,93 @@ describe("computeLedgerDailyAmountsByGroup", () => {
     const total = Object.values(result).reduce((a, b) => a + b, 0);
 
     expect(total).toBe(10);
+  });
+});
+
+describe("computeLedgerTrueCurrentStock", () => {
+  const makeItem = (overrides: Partial<LedgerItem> = {}): LedgerItem => ({
+    id: "item_1",
+    ledgerId: "KID",
+    name: "大米",
+    unit: "斤",
+    initialStock: overrides.initialStock ?? 0,
+    currentStock: overrides.currentStock ?? 0,
+    historicalTotalIn: overrides.historicalTotalIn,
+    historicalTotalOut: overrides.historicalTotalOut,
+    dailyRecords: overrides.dailyRecords || {}
+  });
+
+  it("uses server-side historicalTotalIn/Out when present (whole-history scope), ignoring the partially-loaded dailyRecords", () => {
+    // 8 月入库 250、8 月出库 200、9 月出库 29；前端切到 9 月时 dailyRecords 只剩 9 月这一条
+    const item = makeItem({
+      initialStock: 0,
+      historicalTotalIn: 250,
+      historicalTotalOut: 229,
+      dailyRecords: { "2026-09-15": { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 29 } }
+    });
+    expect(computeLedgerTrueCurrentStock(item)).toBe(21);
+  });
+
+  it("falls back to summing dailyRecords when the historical totals are absent (e.g. COS mode returns full records)", () => {
+    const item = makeItem({
+      initialStock: 10,
+      dailyRecords: {
+        "2026-07-01": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 },
+        "2026-07-02": { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 3 }
+      }
+    });
+    expect(computeLedgerTrueCurrentStock(item)).toBe(12);
+  });
+});
+
+describe("computeLedgerDailyStockBalances", () => {
+  const makeItem = (overrides: Partial<LedgerItem> = {}): LedgerItem => ({
+    id: "item_1",
+    ledgerId: "KID",
+    name: "大米",
+    unit: "斤",
+    initialStock: overrides.initialStock ?? 0,
+    currentStock: overrides.currentStock ?? 0,
+    historicalTotalIn: overrides.historicalTotalIn,
+    historicalTotalOut: overrides.historicalTotalOut,
+    dailyRecords: overrides.dailyRecords || {}
+  });
+
+  it("anchors the running balance to the true current stock even when earlier months are not in dailyRecords", () => {
+    // 幼儿台账大米：8 月入库 250 斤，9 月 15 日出库 29 斤。切到 9 月查看时，dailyRecords 只含 9 月，
+    // historicalTotalIn=250 / historicalTotalOut=29 反映全历史。9 月每天的当日库存不能算成负数。
+    const item = makeItem({
+      initialStock: 0,
+      historicalTotalIn: 250,
+      historicalTotalOut: 29,
+      dailyRecords: { "2026-09-15": { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 29 } }
+    });
+    const dates = getDatesBetween("2026-09-14", "2026-09-16");
+    const balances = computeLedgerDailyStockBalances(item, dates);
+
+    expect(balances["2026-09-14"]).toBe(250); // 出库前仍是真实库存 250
+    expect(balances["2026-09-15"]).toBe(221); // 出库 29 后 = 221（真实库存），绝不是 -29
+    expect(balances["2026-09-16"]).toBe(221);
+    // 区间最后一天恒等于真实当前库存
+    expect(balances["2026-09-16"]).toBe(computeLedgerTrueCurrentStock(item));
+  });
+
+  it("matches the naive forward-accumulation when every record lies inside the window", () => {
+    const item = makeItem({
+      initialStock: 2,
+      historicalTotalIn: 8,
+      historicalTotalOut: 3,
+      dailyRecords: {
+        "2026-07-01": { inQuantity: 5, inPrice: 1, inAmount: 5, outQuantity: 0 },
+        "2026-07-02": { inQuantity: 3, inPrice: 1, inAmount: 3, outQuantity: 3 }
+      }
+    });
+    const dates = getDatesBetween("2026-07-01", "2026-07-03");
+    const balances = computeLedgerDailyStockBalances(item, dates);
+
+    expect(balances["2026-07-01"]).toBe(7); // 2 + 5
+    expect(balances["2026-07-02"]).toBe(7); // 7 + 3 - 3
+    expect(balances["2026-07-03"]).toBe(7);
   });
 });
 

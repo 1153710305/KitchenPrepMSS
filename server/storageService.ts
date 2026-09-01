@@ -782,8 +782,12 @@ export class StorageService {
 
     const ledgers = db.prepare("SELECT id, name, created_at as createdAt FROM ledgers").all();
 
+    // currentStock 一律由 initialStock + 全历史入库累计 − 全历史出库累计 现算，不读 li.current_stock 存量列：
+    // 存量列的维护历来只按“写操作发生当时前端加载的月份区间”重算，跨月编辑会写歪；这里以逐日流水表的无条件
+    // SUM 为准，使 GET /load 返回的 currentStock 永远是真实库存，并自动修复任何历史写歪的存量值。
     const ledgerItemsRaw = db.prepare(`
-      SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock, li.current_stock as currentStock,
+      SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock,
+             (li.initial_stock + COALESCE(SUM(dr.in_quantity), 0) - COALESCE(SUM(dr.out_quantity), 0)) as currentStock,
              COALESCE(SUM(dr.in_quantity), 0) as historicalTotalIn,
              COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut
       FROM ledger_items li
@@ -1334,19 +1338,24 @@ export class StorageService {
         throw new Error(`台账内已有名为 "${normalizedName}" 的原料`);
       }
       const initialStock = Math.max(0, input.initialStock);
-      let sumIn = 0;
-      let sumOut = 0;
-      Object.values(oldItem.dailyRecords ?? {}).forEach((record: any) => {
-        sumIn += record.inQuantity || 0;
-        sumOut += record.outQuantity || 0;
-      });
+      // 库存按全历史累计口径重算：本次只改基础信息、不动任何逐日流水，故直接沿用 readDataFromSqlite() 预聚合的
+      // historicalTotalIn/Out（对该原料全部逐日流水的无条件 SUM），不再对 oldItem.dailyRecords（仅含前端当前
+      // 加载的月份区间）逐日求和 —— 那样跨月编辑基础信息会把更早月份的出入库丢掉，算出错误的库存。
+      const historicalTotalIn = Number.isFinite(oldItem.historicalTotalIn as number)
+        ? (oldItem.historicalTotalIn as number)
+        : Object.values(oldItem.dailyRecords ?? {}).reduce((s: number, r: any) => s + (r.inQuantity || 0), 0);
+      const historicalTotalOut = Number.isFinite(oldItem.historicalTotalOut as number)
+        ? (oldItem.historicalTotalOut as number)
+        : Object.values(oldItem.dailyRecords ?? {}).reduce((s: number, r: any) => s + (r.outQuantity || 0), 0);
       const updatedItem: LedgerItem = {
         ...oldItem,
         name: normalizedName,
         unit: (input.unit ?? "").trim() || "斤",
         spec: (input.spec ?? "").trim() || "常规",
         initialStock,
-        currentStock: initialStock + sumIn - sumOut
+        historicalTotalIn,
+        historicalTotalOut,
+        currentStock: Math.round((initialStock + historicalTotalIn - historicalTotalOut) * 100) / 100
       };
       const ok = await StorageService.saveInternal([{ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem }]);
       if (!ok) {
@@ -1506,17 +1515,35 @@ export class StorageService {
       updatedDailyRecords[dateStr] = mergedRecord;
     }
 
-    let sumIn = 0;
-    let sumOut = 0;
-    Object.values(updatedDailyRecords).forEach((record) => {
-      sumIn += record.inQuantity || 0;
-      sumOut += record.outQuantity || 0;
-    });
-    const newCurrentStock = item.initialStock + sumIn - sumOut;
+    // 库存按全历史累计口径重算，而不是对 updatedDailyRecords（仅含前端当前加载的月份区间）逐日求和 ——
+    // 否则跨月查看/编辑时会把更早月份的出入库整段丢掉，算出错误（甚至为负）的库存。
+    // readDataFromSqlite() 返回的 historicalTotalIn/Out 是对该原料全部逐日流水的无条件 SUM；这里按
+    // “旧值 − 本次该天的旧数量 + 本次该天的新数量”做增量调整，使其继续等于全历史累计。
+    // 注意：若正在编辑的 dateStr 落在写操作发生当时 load() 加载区间之外（如把 selectedDate 切到往月补录），
+    // oldRecord 会退化为全 0，本次 REST 响应里的库存/累计可能短暂偏差，但下一次 GET /load 会用逐日流水表的
+    // 无条件 SUM 重新算准（见 readDataFromSqlite），不会持久写歪。
+    const priorHistoricalTotalIn = Number.isFinite(item.historicalTotalIn as number)
+      ? (item.historicalTotalIn as number)
+      : Object.values(item.dailyRecords ?? {}).reduce((s, r) => s + (r.inQuantity || 0), 0);
+    const priorHistoricalTotalOut = Number.isFinite(item.historicalTotalOut as number)
+      ? (item.historicalTotalOut as number)
+      : Object.values(item.dailyRecords ?? {}).reduce((s, r) => s + (r.outQuantity || 0), 0);
+
+    const oldDayIn = oldRecord.inQuantity || 0;
+    const oldDayOut = oldRecord.outQuantity || 0;
+    const newDayIn = mergedRecord.inQuantity || 0;
+    const newDayOut = mergedRecord.outQuantity || 0;
+
+    const newHistoricalTotalIn = Math.round((priorHistoricalTotalIn - oldDayIn + newDayIn) * 100) / 100;
+    const newHistoricalTotalOut = Math.round((priorHistoricalTotalOut - oldDayOut + newDayOut) * 100) / 100;
+    const newCurrentStock = Math.round((item.initialStock + newHistoricalTotalIn - newHistoricalTotalOut) * 100) / 100;
+
     const updatedItem: LedgerItem = {
       ...item,
       dailyRecords: updatedDailyRecords,
-      currentStock: Math.round(newCurrentStock * 100) / 100
+      historicalTotalIn: newHistoricalTotalIn,
+      historicalTotalOut: newHistoricalTotalOut,
+      currentStock: newCurrentStock
     };
 
     const ops: SyncOp[] = [];
