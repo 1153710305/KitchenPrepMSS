@@ -61,6 +61,15 @@ export class SyncHelper {
   private static loadedEndDate?: string;
 
   /**
+   * @description 串行化所有 loadFromServer 的 Promise 链。多个 effect（App.tsx 的侧边栏月度合计、
+   * LedgerSystem 的账期/样式切换、以及首屏三个服务各自的初始化）会在同一次渲染里并发触发拉取，
+   * 若不串行化，响应可能乱序返回并彼此覆盖 loadedStartDate/End 与三大 service 的内存——尤其是一个更窄
+   * 区间的响应最后落地，会把更宽区间的内存数据“冲掉”，且缓存标记还停留在窄区间导致后续不再补拉。
+   * 串行化后每个拉取都能看到前一个更新过的 loadedStartDate/End，配合“区间只扩不缩”的并集逻辑彻底消除竞态。
+   */
+  private static loadChain: Promise<unknown> = Promise.resolve();
+
+  /**
    * @description 全局初始化安全锁，只有在首屏 Promise.all 完美拉取就绪后才允许上传，防止引导时空内存覆盖服务器数据
    */
   private static isInitialized = false;
@@ -177,24 +186,59 @@ export class SyncHelper {
   }
 
   /**
-   * @description 从服务器拉取最新的完整数据并返回给调用层（包含按月懒加载逻辑）
+   * @description 从服务器拉取最新的完整数据并返回给调用层（包含按月懒加载逻辑）。
+   * 所有拉取都排进 loadChain 串行执行（见该字段说明），杜绝多个 effect 并发触发时响应乱序落地互相覆盖。
    * @param {string} [startDate] 可选。需要拉取流水的起始日期 (YYYY-MM-DD)
    * @param {string} [endDate] 可选。需要拉取流水的结束日期 (YYYY-MM-DD)
    * @returns {Promise<BackendData | null>} 获取到的后端数据，若返回 304 则返回 null (或特殊标记)
    */
-  public static async loadFromServer(startDate?: string, endDate?: string): Promise<BackendData | null> {
+  public static loadFromServer(startDate?: string, endDate?: string): Promise<BackendData | null> {
+    const run = this.loadChain.then(
+      () => this.loadFromServerInner(startDate, endDate),
+      () => this.loadFromServerInner(startDate, endDate)
+    );
+    // 链上只保留“已完成”信号，吞掉结果与异常，避免某次失败的拉取阻断后续排队的拉取
+    this.loadChain = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  /**
+   * @description loadFromServer 的实际执行体（已在 loadChain 串行保护下运行）。
+   * 关键约束：
+   *  1. 区间“只扩不缩” —— 把请求区间与当前已加载区间取并集再去拉，避免一个更窄的请求把更宽的内存数据覆盖掉；
+   *  2. 不带区间参数 = 级联/强制刷新 —— 按当前已加载区间重新拉一次并强制绕过 304，务必拿到写操作连带的级联结果；
+   *  3. 只有真正扩了窗（或首次带区间拉取）才附加 bypassCache，其余情况交给 X-Base-Version 走 304 快路径。
+   * @param {string} [reqStart] 调用方请求的起始日期
+   * @param {string} [reqEnd] 调用方请求的结束日期
+   * @returns {Promise<BackendData | null>}
+   */
+  private static async loadFromServerInner(reqStart?: string, reqEnd?: string): Promise<BackendData | null> {
     try {
-      const isNewRange = startDate !== this.loadedStartDate || endDate !== this.loadedEndDate;
+      // 不带区间参数：级联后的主动刷新，按当前已加载区间重拉并强制绕过 304
+      const isForceRefresh = !reqStart || !reqEnd;
+
+      // 区间只扩不缩：与已加载区间取并集
+      let startDate = reqStart;
+      let endDate = reqEnd;
+      if (this.loadedStartDate && this.loadedEndDate) {
+        startDate = startDate && startDate < this.loadedStartDate ? startDate : this.loadedStartDate;
+        endDate = endDate && endDate > this.loadedEndDate ? endDate : this.loadedEndDate;
+      }
+
+      const isRangeExtension =
+        !!startDate && !!endDate &&
+        (startDate !== this.loadedStartDate || endDate !== this.loadedEndDate);
+
       const params = new URLSearchParams();
       if (startDate) params.append("start", startDate);
       if (endDate) params.append("end", endDate);
-      if (isNewRange) params.append("bypassCache", "true");
+      if (isForceRefresh || isRangeExtension) params.append("bypassCache", "true");
 
       const url = `/api/storage/load${params.toString() ? '?' + params.toString() : ''}`;
-      
+
       // 使用 fetchWithVersion 以便在请求头带上 X-Base-Version 支持 304 判断，并自动更新返回的新版本号
       const response = await this.fetchWithVersion(url);
-      
+
       if (response.status === 304) {
         console.log("[SYNC HELPER] 数据未修改 (304 Not Modified)，无需重新拉取");
         return null;
@@ -203,17 +247,17 @@ export class SyncHelper {
       if (!response.ok) {
         throw new Error(`服务器拉取失败: ${response.statusText}`);
       }
-      
+
       const data: BackendData = await response.json();
 
-      // 更新当前已加载的日期区间缓存
+      // 更新当前已加载的日期区间缓存（已按并集扩窗）
       if (startDate && endDate) {
         this.loadedStartDate = startDate;
         this.loadedEndDate = endDate;
       }
 
       if (!data) return null;
-      
+
       // 更新内存中的数据库版本号
       if ((data as any).dbVersion !== undefined) {
         this.currentDbVersion = (data as any).dbVersion;
@@ -271,9 +315,11 @@ export class SyncHelper {
   }
 
   /**
-   * @description 拉取一次全量最新状态并立即应用（fetch + applyFreshData 的组合），不做任何竞态守卫。
-   * 供"某个操作已确定成功、且后端可能连带级联修改了其它实体"的场景在拿到成功响应后主动调用。
-   * 也用于按需懒加载切换日期区间时，强制刷新数据。
+   * @description 拉取一次全量最新状态并立即应用（fetch + applyFreshData 的组合）。
+   * 供"某个操作已确定成功、且后端可能连带级联修改了其它实体"的场景在拿到成功响应后主动调用（不带参数：
+   * 按当前已加载区间强制刷新），也用于按需懒加载切换日期区间时刷新数据（带区间：与已加载区间取并集）。
+   * 底层 loadFromServer 已在 loadChain 上串行执行且区间只扩不缩，因此并发的多次 refreshNow 不会互相覆盖，
+   * 最终落地的一定是最宽区间的数据。
    * @returns {Promise<boolean>} 本次是否真的检测到并应用了变化
    */
   public static async refreshNow(startDate?: string, endDate?: string): Promise<boolean> {
