@@ -132,6 +132,31 @@ export function computeLedgerDailyStockBalances(
 }
 
 /**
+ * @description 计算某本台账下全部原料的“全历史累计入库金额”（全部账期口径），不受前端按月懒加载的影响。
+ * 优先用服务端在 GET /api/storage/load 预聚合的 historicalTotalInAmount（对该原料全部逐日流水 inAmount 的
+ * 无条件 SUM，与前端当前加载的月份区间无关）；缺失时（如 COS 模式返回的本就是完整 dailyRecords）退回按内存中
+ * 现有 dailyRecords 求和。用于左侧边栏“台账原料累计入库”切到“全部”时，避免只统计到已切换浏览过的月份。
+ * @param ledgerItems 全部台账原料项目列表
+ * @param ledgerId 目标台账 ID（只统计 ledgerId 匹配的原料）
+ * @returns 该台账全历史累计入库金额（保留两位小数）
+ */
+export function computeLedgerHistoricalInAmount(ledgerItems: LedgerItem[], ledgerId: string): number {
+  let total = 0;
+  for (const item of ledgerItems) {
+    if (item.ledgerId !== ledgerId) continue;
+    const hist = item.historicalTotalInAmount;
+    if (typeof hist === "number" && Number.isFinite(hist)) {
+      total += hist;
+    } else {
+      Object.values(item.dailyRecords || {}).forEach((r) => {
+        total += r?.inAmount || 0;
+      });
+    }
+  }
+  return Math.round(total * 100) / 100;
+}
+
+/**
  * @description 获取两个日期之间的所有日期字符串数组 (格式: YYYY-MM-DD)
  * @param startDate 开始日期 (YYYY-MM-DD)
  * @param endDate 结束日期 (YYYY-MM-DD)

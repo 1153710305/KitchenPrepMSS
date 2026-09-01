@@ -18,6 +18,7 @@ import {
   computeLedgerDailyAmountsByGroup,
   computeLedgerTrueCurrentStock,
   computeLedgerDailyStockBalances,
+  computeLedgerHistoricalInAmount,
   LogBroker
 } from "@/src/utils.ts";
 import { PreparedItem, FoodCategory, TargetGroup } from "@/src/types/types.ts";
@@ -195,6 +196,58 @@ describe("computeLedgerDailyStockBalances", () => {
     expect(balances["2026-07-01"]).toBe(7); // 2 + 5
     expect(balances["2026-07-02"]).toBe(7); // 7 + 3 - 3
     expect(balances["2026-07-03"]).toBe(7);
+  });
+});
+
+describe("computeLedgerHistoricalInAmount", () => {
+  const makeItem = (overrides: Partial<LedgerItem> = {}): LedgerItem => ({
+    id: overrides.id || "item_1",
+    ledgerId: overrides.ledgerId || "KID",
+    name: overrides.name || "大米",
+    unit: overrides.unit || "斤",
+    initialStock: overrides.initialStock ?? 0,
+    currentStock: overrides.currentStock ?? 0,
+    historicalTotalInAmount: overrides.historicalTotalInAmount,
+    dailyRecords: overrides.dailyRecords || {}
+  });
+
+  it("uses server-side historicalTotalInAmount when present, ignoring the partially-loaded dailyRecords", () => {
+    // 内存里只有 9 月一天的记录（¥58），但服务端预聚合的全历史入库金额是 ¥1234.5
+    const items: LedgerItem[] = [
+      makeItem({
+        historicalTotalInAmount: 1234.5,
+        dailyRecords: { "2026-09-03": { inQuantity: 2, inPrice: 29, inAmount: 58, outQuantity: 0 } }
+      })
+    ];
+    expect(computeLedgerHistoricalInAmount(items, "KID")).toBe(1234.5);
+  });
+
+  it("falls back to summing dailyRecords inAmount when historicalTotalInAmount is absent (COS mode)", () => {
+    const items: LedgerItem[] = [
+      makeItem({
+        dailyRecords: {
+          "2026-07-01": { inQuantity: 5, inPrice: 2, inAmount: 10, outQuantity: 0 },
+          "2026-08-02": { inQuantity: 3, inPrice: 4, inAmount: 12, outQuantity: 0 }
+        }
+      })
+    ];
+    expect(computeLedgerHistoricalInAmount(items, "KID")).toBe(22);
+  });
+
+  it("only counts items belonging to the given ledgerId", () => {
+    const items: LedgerItem[] = [
+      makeItem({ id: "a", ledgerId: "KID", historicalTotalInAmount: 100 }),
+      makeItem({ id: "b", ledgerId: "TEACHER", historicalTotalInAmount: 999 }),
+      makeItem({ id: "c", ledgerId: "KID", historicalTotalInAmount: 50 })
+    ];
+    expect(computeLedgerHistoricalInAmount(items, "KID")).toBe(150);
+  });
+
+  it("treats a legit zero historicalTotalInAmount as authoritative (does not fall back)", () => {
+    const items: LedgerItem[] = [
+      makeItem({ historicalTotalInAmount: 0, dailyRecords: { "2026-09-01": { inQuantity: 0, inPrice: 0, inAmount: 99, outQuantity: 0 } } })
+    ];
+    expect(computeLedgerHistoricalInAmount(items, "KID")).toBe(0);
   });
 });
 

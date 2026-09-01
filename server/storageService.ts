@@ -789,7 +789,8 @@ export class StorageService {
       SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock,
              (li.initial_stock + COALESCE(SUM(dr.in_quantity), 0) - COALESCE(SUM(dr.out_quantity), 0)) as currentStock,
              COALESCE(SUM(dr.in_quantity), 0) as historicalTotalIn,
-             COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut
+             COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut,
+             COALESCE(SUM(dr.in_amount), 0) as historicalTotalInAmount
       FROM ledger_items li
       LEFT JOIN ledger_item_daily_records dr ON li.id = dr.item_id
       GROUP BY li.id
@@ -1347,6 +1348,10 @@ export class StorageService {
       const historicalTotalOut = Number.isFinite(oldItem.historicalTotalOut as number)
         ? (oldItem.historicalTotalOut as number)
         : Object.values(oldItem.dailyRecords ?? {}).reduce((s: number, r: any) => s + (r.outQuantity || 0), 0);
+      // 本次不动逐日流水，累计入库金额保持不变；沿用 readDataFromSqlite() 预聚合值，缺失时回退按内存求和
+      const historicalTotalInAmount = Number.isFinite(oldItem.historicalTotalInAmount as number)
+        ? (oldItem.historicalTotalInAmount as number)
+        : Object.values(oldItem.dailyRecords ?? {}).reduce((s: number, r: any) => s + (r.inAmount || 0), 0);
       const updatedItem: LedgerItem = {
         ...oldItem,
         name: normalizedName,
@@ -1355,6 +1360,7 @@ export class StorageService {
         initialStock,
         historicalTotalIn,
         historicalTotalOut,
+        historicalTotalInAmount,
         currentStock: Math.round((initialStock + historicalTotalIn - historicalTotalOut) * 100) / 100
       };
       const ok = await StorageService.saveInternal([{ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem }]);
@@ -1528,14 +1534,22 @@ export class StorageService {
     const priorHistoricalTotalOut = Number.isFinite(item.historicalTotalOut as number)
       ? (item.historicalTotalOut as number)
       : Object.values(item.dailyRecords ?? {}).reduce((s, r) => s + (r.outQuantity || 0), 0);
+    // 累计入库金额同理按增量调整，供左侧边栏“台账原料累计入库 → 全部”统计（不受前端按月懒加载影响）
+    const priorHistoricalTotalInAmount = Number.isFinite(item.historicalTotalInAmount as number)
+      ? (item.historicalTotalInAmount as number)
+      : Object.values(item.dailyRecords ?? {}).reduce((s, r) => s + (r.inAmount || 0), 0);
 
     const oldDayIn = oldRecord.inQuantity || 0;
     const oldDayOut = oldRecord.outQuantity || 0;
+    const oldDayInAmount = oldRecord.inAmount || 0;
     const newDayIn = mergedRecord.inQuantity || 0;
     const newDayOut = mergedRecord.outQuantity || 0;
+    // hasData 为 false 时该天记录被删除，inQuantity 必为 0 ⇒ inAmount 也为 0，这里与 newDayIn/newDayOut 同口径
+    const newDayInAmount = mergedRecord.inAmount || 0;
 
     const newHistoricalTotalIn = Math.round((priorHistoricalTotalIn - oldDayIn + newDayIn) * 100) / 100;
     const newHistoricalTotalOut = Math.round((priorHistoricalTotalOut - oldDayOut + newDayOut) * 100) / 100;
+    const newHistoricalTotalInAmount = Math.round((priorHistoricalTotalInAmount - oldDayInAmount + newDayInAmount) * 100) / 100;
     const newCurrentStock = Math.round((item.initialStock + newHistoricalTotalIn - newHistoricalTotalOut) * 100) / 100;
 
     const updatedItem: LedgerItem = {
@@ -1543,6 +1557,7 @@ export class StorageService {
       dailyRecords: updatedDailyRecords,
       historicalTotalIn: newHistoricalTotalIn,
       historicalTotalOut: newHistoricalTotalOut,
+      historicalTotalInAmount: newHistoricalTotalInAmount,
       currentStock: newCurrentStock
     };
 
