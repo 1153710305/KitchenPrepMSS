@@ -140,10 +140,7 @@ export function useLedgerRecording({
     const baseline: Record<string, Partial<DailyStockRecord>> = {};
     const realIds = new Set<string>();
     const freshSeedDraft: Record<string, DailyStockRecord> = {};
-    dictItems.forEach((dictItem) => {
-      const dbItem = dbItemsMap.get(dictItem.name);
-      const itemId = dbItem ? dbItem.id : `temp_${dictItem.name}`;
-      const realRecord = dbItem?.dailyRecords[selectedDate];
+    const seedRow = (itemId: string, realRecord?: DailyStockRecord) => {
       if (realRecord) {
         baseline[itemId] = { ...realRecord };
         realIds.add(itemId);
@@ -152,7 +149,17 @@ export function useLedgerRecording({
         baseline[itemId] = { ...BLANK_DRAFT };
         freshSeedDraft[itemId] = { ...BLANK_DRAFT };
       }
+    };
+    dictItems.forEach((dictItem) => {
+      const dbItem = dbItemsMap.get(dictItem.name);
+      seedRow(dbItem ? dbItem.id : `temp_${dictItem.name}`, dbItem?.dailyRecords[selectedDate]);
     });
+    // [字典与台账解耦] 台账里已有、但已不在字典里的孤立原料项也要种一行基线，
+    // 否则录入模式下它会以空行出现、无法从既有记录起编辑。
+    const dictNames = new Set(dictItems.map((d) => d.name));
+    ledgerItems
+      .filter((item) => item.ledgerId === activeLedgerId && !dictNames.has(item.name) && !baseline[item.id])
+      .forEach((item) => seedRow(item.id, item.dailyRecords[selectedDate]));
 
     // 2) 工作草稿：有本地缓存就用缓存（找回上次未提交的编辑），否则用刚算出的基线。
     //    注意基线（baselineRecordsRef）始终按第 1 步独立算，不受这里用不用缓存影响——
@@ -301,7 +308,8 @@ export function useLedgerRecording({
                   dictItem.name,
                   dictItem.unit,
                   dictItem.remark || "",
-                  0
+                  0,
+                  dictItem.category
                 );
                 targetItemId = newItem.id;
               }

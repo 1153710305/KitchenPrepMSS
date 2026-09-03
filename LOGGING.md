@@ -60,7 +60,7 @@ LogService.audit(
 | `ledger.dailyRecord.batch.skip` | 批量录入里某 `itemId` 找不到 → **该原料这一行录入被静默丢弃**（数据丢失高发点） | **warn** |
 | `ledger.item.add` / `ledger.item.update` / `ledger.item.delete` | 台账采购原料项增改删（删除时列出连带清掉的逐日流水条数与日期范围） | info；删除有流水时 **warn** |
 | `ledger.rename` / `ledger.delete` | 台账改名 / 物理删除（删除列出级联清掉的原料项与流水条数） | info / **warn** |
-| `dict.rawMaterial.add` / `dict.rawMaterial.update` / `dict.rawMaterial.delete` | 原料字典增改删（改名/删除列出级联影响的台账原料项） | info；删除有级联时 **warn** |
+| `dict.rawMaterial.add` / `dict.rawMaterial.update` / `dict.rawMaterial.delete` | 原料字典增改删。**字典与台账已解耦**：改名/删除字典条目**不再**级联改动台账里的同名采购项，只影响录入联想，日志会注明"台账已有数据不受影响" | info |
 | `config.group.save` / `config.group.delete` | 一级人群配置增改删（删除列出级联清掉的台账与原料项） | info / **warn** |
 | `config.category.save` / `config.category.delete` | 二级食材大类配置增改删 | info |
 | `system.clearDailyRecords` / `system.clearDailyRecords.fail` | 后台「一键清空所有台账流水」（列出删除的行数） | **warn** / **error** |

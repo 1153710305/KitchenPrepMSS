@@ -266,13 +266,15 @@ export class LedgerService {
     name: string,
     unit: string,
     spec: string,
-    initialStock: number
+    initialStock: number,
+    category?: string
   ): Promise<LedgerItem> {
-    // 校验规则已迁移到后端（阶段B，见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存
+    // 校验规则已迁移到后端（阶段B，见 SQLite迁移规划.md），前端只负责发起请求并用响应更新内存缓存。
+    // category 是快照：传字典里查到的大类，后端也会兜底再查一次（字典查不到就留空）。
     const res = await SyncHelper.fetchWithVersion(`/api/ledgers/${encodeURIComponent(ledgerId)}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, unit, spec, initialStock })
+      body: JSON.stringify({ name, unit, spec, initialStock, category })
     });
     const body = await res.json();
     if (!res.ok) {
@@ -297,13 +299,14 @@ export class LedgerService {
     name: string,
     unit: string,
     spec: string,
-    initialStock: number
+    initialStock: number,
+    category?: string
   ): Promise<void> {
     const oldName = this.ledgerItems.find((item) => item.id === id)?.name;
     const res = await SyncHelper.fetchWithVersion(`/api/ledger-items/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, unit, spec, initialStock })
+      body: JSON.stringify({ name, unit, spec, initialStock, category })
     });
     const body = await res.json();
     if (!res.ok) {
@@ -469,48 +472,8 @@ export class LedgerService {
     }
   }
 
-  /**
-   * @description 当从后台原料大底库修改了原料属性时，级联同步更新所有关联的已存台账采购原料项目参数
-   * @param newSpec 新规格描述（原料字典的备注字段），可选——不传时保留台账原料项目原有的规格不变
-   */
-  public static cascadeUpdateMaterial(oldName: string, newName: string, newUnit: string, newSpec?: string): void {
-    let changed = false;
-    const changedItems: LedgerItem[] = [];
-    this.ledgerItems = this.ledgerItems.map((item) => {
-      if (item.name === oldName) {
-        changed = true;
-        const updated = {
-          ...item,
-          name: newName,
-          unit: newUnit,
-          spec: newSpec !== undefined ? newSpec : item.spec
-        };
-        changedItems.push(updated);
-        return updated;
-      }
-      return item;
-    });
-    if (changed) {
-      this.notifyListeners();
-      changedItems.forEach((item) => {
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "upsert", key: item.id, data: item });
-      });
-    }
-  }
-
-  /**
-   * @description 当从后台原料大底库删除了原料时，级联同步删除所有关联的已存台账采购项
-   */
-  public static cascadeDeleteMaterial(name: string): void {
-    const removedItems = this.ledgerItems.filter((item) => item.name === name);
-    if (removedItems.length > 0) {
-      this.ledgerItems = this.ledgerItems.filter((item) => item.name !== name);
-      this.notifyListeners();
-      removedItems.forEach((item) => {
-        SyncHelper.queueChange({ entity: "ledgerItem", op: "delete", key: item.id });
-      });
-    }
-  }
+  // [字典与台账解耦] 原先的 cascadeUpdateMaterial / cascadeDeleteMaterial（后台改/删原料字典时反向刷台账里的
+  // 同名采购项）已随"字典改动不影响台账"整体删除——台账项的 name/unit/spec/category 是建项时的快照，各自独立。
 
   /**
    * @description 供 SyncHelper.refreshNow() 静默更新内存中的台账列表，防止 LocalStorage 覆写

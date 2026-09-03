@@ -414,6 +414,9 @@ export class StorageService {
           name TEXT NOT NULL,
           unit TEXT NOT NULL,
           spec TEXT,
+          -- category：原料所属二级大类的**快照**。新建原料项时从原料字典抄一次，此后字典怎么改名/删除都不影响台账。
+          -- 台账展示层直接读这一列，不再回原料字典按 name 反查（字典与台账彻底解耦）。
+          category TEXT,
           initial_stock REAL NOT NULL DEFAULT 0,
           current_stock REAL NOT NULL DEFAULT 0
         );
@@ -486,6 +489,25 @@ export class StorageService {
         INSERT OR IGNORE INTO sys_config (key, value) VALUES ('db_version', '1');
       `);
 
+      // 幂等升级：旧库的 ledger_items 没有 category 列时补上，并按 name 从原料字典回填一次历史行。
+      // 这是一次性的解耦迁移——回填后台账不再依赖字典，字典改动不会再回来动这一列。
+      // ALTER 与回填 UPDATE 放在同一个事务里，避免"加了列但没回填"的半迁移状态（一旦发生，下次启动因
+      // PRAGMA 已能查到 category 列而整段跳过，NULL 会一直留着）。
+      const ledgerItemCols = StorageService.db
+        .prepare("PRAGMA table_info(ledger_items)")
+        .all() as Array<{ name: string }>;
+      if (!ledgerItemCols.some((c) => c.name === "category")) {
+        StorageService.db.transaction(() => {
+          StorageService.db!.exec("ALTER TABLE ledger_items ADD COLUMN category TEXT");
+          StorageService.db!.exec(`
+            UPDATE ledger_items
+            SET category = (SELECT rm.category FROM raw_materials_dict rm WHERE rm.name = ledger_items.name)
+            WHERE category IS NULL
+          `);
+        })();
+        console.log("[SYSTEM BOOT] 已为 ledger_items 增加 category 快照列，并按原料字典回填历史行（此后台账与字典解耦）");
+      }
+
       if (StorageService.countNormalizedRows(StorageService.db) === 0) {
         if (process.env.SKIP_SEEDING === "1") {
           console.log("[SYSTEM BOOT] 数据库全表空置，当前处于测试模式并设置了 SKIP_SEEDING，跳过自动注入种子数据...");
@@ -552,10 +574,10 @@ export class StorageService {
     if (data.ledgerItems !== undefined) {
       db.prepare("DELETE FROM ledger_items").run();
       const insertItem = db.prepare(
-        "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, initial_stock, current_stock) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, category, initial_stock, current_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       );
       for (const item of data.ledgerItems) {
-        insertItem.run(item.id, item.ledgerId, item.name, item.unit, item.spec ?? null, item.initialStock ?? 0, item.currentStock ?? 0);
+        insertItem.run(item.id, item.ledgerId, item.name, item.unit, item.spec ?? null, item.category ?? null, item.initialStock ?? 0, item.currentStock ?? 0);
       }
     }
 
@@ -619,9 +641,9 @@ export class StorageService {
       ));
       stmts.set("deleteLedger", db.prepare("DELETE FROM ledgers WHERE id = ?"));
       stmts.set("upsertLedgerItem", db.prepare(
-        "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, initial_stock, current_stock) " +
-        "VALUES (@id, @ledgerId, @name, @unit, @spec, @initialStock, @currentStock) " +
-        "ON CONFLICT(id) DO UPDATE SET ledger_id=@ledgerId, name=@name, unit=@unit, spec=@spec, " +
+        "INSERT INTO ledger_items (id, ledger_id, name, unit, spec, category, initial_stock, current_stock) " +
+        "VALUES (@id, @ledgerId, @name, @unit, @spec, @category, @initialStock, @currentStock) " +
+        "ON CONFLICT(id) DO UPDATE SET ledger_id=@ledgerId, name=@name, unit=@unit, spec=@spec, category=@category, " +
         "initial_stock=@initialStock, current_stock=@currentStock"
       ));
       stmts.set("deleteLedgerItem", db.prepare("DELETE FROM ledger_items WHERE id = ?"));
@@ -742,7 +764,8 @@ export class StorageService {
               const d = op.data;
               runStmt("upsertLedgerItem", {
                 id: d.id, ledgerId: d.ledgerId, name: d.name, unit: d.unit,
-                spec: d.spec ?? null, initialStock: d.initialStock ?? 0, currentStock: d.currentStock ?? 0
+                spec: d.spec ?? null, category: d.category ?? null,
+                initialStock: d.initialStock ?? 0, currentStock: d.currentStock ?? 0
               });
             }
             break;
@@ -848,7 +871,8 @@ export class StorageService {
         for (const item of rows) {
           stmts.get("upsertLedgerItem")!.run({
             id: item.id, ledgerId: item.ledgerId, name: item.name, unit: item.unit,
-            spec: item.spec ?? null, initialStock: item.initialStock ?? 0, currentStock: item.currentStock ?? 0
+            spec: item.spec ?? null, category: item.category ?? null,
+            initialStock: item.initialStock ?? 0, currentStock: item.currentStock ?? 0
           });
           for (const [dateStr, record] of Object.entries(item.dailyRecords ?? {}) as [string, any][]) {
             if (!dateStr || !record) continue;
@@ -908,7 +932,7 @@ export class StorageService {
     // 供前端在按月懒加载、内存里只有部分月份数据时，仍能准确判断"这本台账最近一次录入是哪天"，
     // 避免出现"明明 8-28 有记录却提示最近是 9-23"这类因视野不全导致的误报。
     const ledgerItemsRaw = db.prepare(`
-      SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock,
+      SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.category, li.initial_stock as initialStock,
              (li.initial_stock + COALESCE(SUM(dr.in_quantity), 0) - COALESCE(SUM(dr.out_quantity), 0)) as currentStock,
              COALESCE(SUM(dr.in_quantity), 0) as historicalTotalIn,
              COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut,
@@ -1301,21 +1325,12 @@ export class StorageService {
         isDefault: existingList[existingIndex].isDefault
       };
 
+      // 原料字典与台账已解耦：编辑/改名字典条目**不再**级联改动台账里的同名采购项。
+      // 台账项的 name/unit/spec/category 都是新建那一刻抄好的快照，此后各自独立。
       const ops: SyncOp[] = [{
         entity: "rawMaterial", op: "upsert", key: trimmedName, data: updatedItem,
         previousKey: trimmedName !== oldName ? oldName : undefined
       }];
-
-      // 级联：台账里所有同名采购项目的 name/unit/spec（spec 即原料备注）
-      const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      const cascadedItemIds: string[] = [];
-      for (const item of ledgerItems) {
-        if (item.name === oldName) {
-          ops.push({ entity: "ledgerItem", op: "upsert", key: item.id, data: { ...item, name: trimmedName, unit: finalUnit, spec: finalRemark } });
-          cascadedItemIds.push(`${item.id}(${item.ledgerId})`);
-        }
-      }
-
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -1327,7 +1342,7 @@ export class StorageService {
           existingList[existingIndex] as any,
           updatedItem as any,
           ["name", "category", "unit", "remark", "conversionUnit", "conversionRatio"]
-        )} | 级联更新台账同名原料项 ${cascadedItemIds.length} 个${cascadedItemIds.length ? ": [" + cascadedItemIds.join(", ") + "]" : ""}`,
+        )} | 台账已有采购项不受影响（字典与台账已解耦）`,
         StorageService.auditCtx()
       );
       return updatedItem;
@@ -1335,8 +1350,9 @@ export class StorageService {
   }
 
   /**
-   * @description 从字典中删除原料并级联物理删除台账里所有同名条目（阶段A·业务规则迁移到后端）：
-   * 系统默认原料（isDefault=true）禁止删除，错误文案与迁移前的前端实现逐字一致。
+   * @description 从字典中删除原料（阶段A·业务规则迁移到后端）：系统默认原料（isDefault=true）禁止删除。
+   * 【字典与台账解耦】删除字典条目**只**移除录入联想项，**不再**触碰台账里的同名采购项与历史流水——
+   * 那些数据是交易记录，其 name/unit/spec/category 都是建项时抄好的快照，字典删了照样独立存在与展示。
    * @param {string} name 待删除的原料名称
    * @returns {Promise<void>}
    */
@@ -1351,26 +1367,15 @@ export class StorageService {
 
       const ops: SyncOp[] = [{ entity: "rawMaterial", op: "delete", key: name }];
 
-      const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      const removedItemsInfo: string[] = [];
-      for (const item of ledgerItems) {
-        if (item.name === name) {
-          ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
-          const dayCount = Object.keys(item.dailyRecords ?? {}).length;
-          removedItemsInfo.push(`${item.id}(台账${item.ledgerId}, ${dayCount}天流水)`);
-        }
-      }
-
-
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
         throw new Error("删除原料失败");
       }
+      const stillReferenced = (current.ledgerItems ?? []).filter((i: LedgerItem) => i.name === name).length;
       LogService.audit(
         "dict.rawMaterial.delete",
-        `删除原料字典条目 name=${LogService.fmt(name)} | 级联物理删除台账同名原料项及其全部逐日流水 ${removedItemsInfo.length} 个${removedItemsInfo.length ? ": [" + removedItemsInfo.join(", ") + "]" : ""}`,
-        StorageService.auditCtx(),
-        removedItemsInfo.length ? "warn" : "info"
+        `删除原料字典条目 name=${LogService.fmt(name)} | 仅移除录入联想项，不影响已有台账数据${stillReferenced ? `（当前仍有 ${stillReferenced} 个台账采购项使用此名称，保持不变）` : ""}`,
+        StorageService.auditCtx()
       );
     });
   }
@@ -1484,7 +1489,7 @@ export class StorageService {
    * @returns {Promise<LedgerItem>} 新增后的完整原料项目
    */
   public static async addLedgerItem(input: {
-    ledgerId: string; name: string; unit: string; spec?: string; initialStock: number;
+    ledgerId: string; name: string; unit: string; spec?: string; initialStock: number; category?: string;
   }): Promise<LedgerItem> {
     const trimmedName = (input.name ?? "").trim();
     if (!trimmedName) {
@@ -1501,12 +1506,17 @@ export class StorageService {
         throw new Error(`该台账内已有名为 "${trimmedName}" 的采购项目原料`);
       }
       const initialStock = Math.max(0, input.initialStock);
+      // category 是**快照**：优先用调用方显式传的，否则新建这一刻从原料字典按 name 抄一份。
+      // 抄完即与字典解耦——之后字典改名/删除都不会回来动这一列。字典里查不到就留空（前端归到“未分类”）。
+      const dictCategory = (current.rawMaterialsDict ?? []).find((d: RawMaterialDictItem) => d.name === trimmedName)?.category;
+      const category = ((input.category ?? "").trim() || dictCategory || "") || undefined;
       const newItem: LedgerItem = {
         id: `ledger_item_${input.ledgerId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         ledgerId: input.ledgerId,
         name: trimmedName,
         unit: (input.unit ?? "").trim() || "斤",
         spec: (input.spec ?? "").trim() || "常规",
+        category,
         initialStock,
         currentStock: initialStock,
         dailyRecords: {}
@@ -1517,7 +1527,7 @@ export class StorageService {
       }
       LogService.audit(
         "ledger.item.add",
-        `台账新增采购原料项 id=${newItem.id} ledger=${newItem.ledgerId} name=${LogService.fmt(newItem.name)} | 字段: unit=${LogService.fmt(newItem.unit)}, spec=${LogService.fmt(newItem.spec)}, initialStock=${newItem.initialStock}, currentStock=${newItem.currentStock}`,
+        `台账新增采购原料项 id=${newItem.id} ledger=${newItem.ledgerId} name=${LogService.fmt(newItem.name)} | 字段: unit=${LogService.fmt(newItem.unit)}, spec=${LogService.fmt(newItem.spec)}, category=${LogService.fmt(newItem.category)}, initialStock=${newItem.initialStock}, currentStock=${newItem.currentStock}`,
         StorageService.auditCtx()
       );
       return newItem;
@@ -1532,7 +1542,7 @@ export class StorageService {
    * @returns {Promise<LedgerItem>} 更新后的完整原料项目
    */
   public static async updateLedgerItem(id: string, input: {
-    name: string; unit: string; spec?: string; initialStock: number;
+    name: string; unit: string; spec?: string; initialStock: number; category?: string;
   }): Promise<LedgerItem> {
     return StorageService.withWriteLock(async () => {
       const current = await StorageService.load();
@@ -1559,11 +1569,21 @@ export class StorageService {
       const historicalTotalInAmount = Number.isFinite(oldItem.historicalTotalInAmount as number)
         ? (oldItem.historicalTotalInAmount as number)
         : Object.values(oldItem.dailyRecords ?? {}).reduce((s: number, r: any) => s + (r.inAmount || 0), 0);
+      // category 快照的取值优先级（体现“字典改动不影响台账”）：
+      //  1) 调用方显式传的 category（前端编辑表单主动选了大类）
+      //  2) 仅当**改了原料名**（等于换了一种原料）时，按新名字重新从字典抄一次——这是“换原料”而非“字典变了”
+      //  3) 否则一律沿用该台账项原有的 category 快照，绝不因为“字典里这个名字的分类后来被人改了”而跟着变
+      const nameChanged = normalizedName !== (oldItem.name ?? "").trim();
+      const dictCategoryForNewName = nameChanged
+        ? (current.rawMaterialsDict ?? []).find((d: RawMaterialDictItem) => d.name === normalizedName)?.category
+        : undefined;
+      const category = ((input.category ?? "").trim() || dictCategoryForNewName || oldItem.category || "") || undefined;
       const updatedItem: LedgerItem = {
         ...oldItem,
         name: normalizedName,
         unit: (input.unit ?? "").trim() || "斤",
         spec: (input.spec ?? "").trim() || "常规",
+        category,
         initialStock,
         historicalTotalIn,
         historicalTotalOut,
@@ -1579,7 +1599,7 @@ export class StorageService {
         `编辑台账采购原料项 id=${id} ledger=${oldItem.ledgerId} | 变更: ${LogService.diffFields(
           oldItem as any,
           updatedItem as any,
-          ["name", "unit", "spec", "initialStock", "currentStock"]
+          ["name", "unit", "spec", "category", "initialStock", "currentStock"]
         )} | 库存按全历史累计重算: ${oldItem.currentStock} -> ${updatedItem.currentStock} (histIn=${historicalTotalIn}, histOut=${historicalTotalOut})`,
         StorageService.auditCtx()
       );

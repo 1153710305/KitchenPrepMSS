@@ -85,6 +85,11 @@ export interface LedgerItem {
   unit: string;
   /** 原料规格或辅助备注描述 */
   spec?: string;
+  /**
+   * 所属二级食材大类的 key（如 VEGETABLE / MEAT）。**新建该原料项时从原料字典抄一次的快照**，
+   * 此后与字典解耦——字典改名/删除都不会改它。为空表示当时字典里查不到，展示层归到"未分类"。
+   */
+  category?: string | null;
   /** 初始库存数量 (系统新建该原料项目时的默认库存) */
   initialStock: number;
   /** 当前实时库存数量 (计算公式: 初始库存 + 历史所有天入库累加 - 历史所有天出库累加) */

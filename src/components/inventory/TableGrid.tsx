@@ -10,7 +10,7 @@
 import React, { useState, useMemo } from "react";
 import { FoodCategory, DynamicGroup, DynamicCategory } from "../../types/types.ts";
 import { PrepReportService } from "../../services/store.ts";
-import { UI_TEXT } from "../../constants/constants.ts";
+import { UI_TEXT, resolveLedgerItemCategory, UNCATEGORIZED_CATEGORY_KEY, UNCATEGORIZED_CATEGORY_LABEL } from "../../constants/constants.ts";
 import { getDaysInMonth, LogBroker, matchPinyin, convertItemsToCsv, computeLedgerDailyAmountsByGroup } from "../../utils.ts";
 import { Grid, Search, CalendarDays, Check, Flame, Download, TrendingUp } from "lucide-react";
 import { SearchableSelect } from "../shared/SearchableSelect.tsx";
@@ -82,13 +82,8 @@ export const TableGrid: React.FC<TableGridProps> = ({
 
     return groupLedgerItems
       .filter((item) => {
-        // 解析该台账原料在字典里的所属品类大类
-        const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
-
-        // 安全防呆校验：必须确保台账明细原料存在于后台原料字典大底库中，避免后台不存在的品类出现
-        if (!dictItem) return false;
-
-        const cat = dictItem.category;
+        // [字典与台账解耦] 分类走 item.category 快照，缺失回退字典、再缺失归“未分类”——不再因“字典里查不到”而丢行。
+        const cat = resolveLedgerItemCategory(item, (n) => RawMaterialsDictService.getCategoryForMaterial(n));
         const matchCat = selectedCategory === null ? true : cat === selectedCategory;
         const matchSearch = matchPinyin(item.name, searchQuery);
         return matchCat && matchSearch;
@@ -118,11 +113,10 @@ export const TableGrid: React.FC<TableGridProps> = ({
         });
 
         // 返回由台账映射而成的标准备餐明细项
-        const dictItem = RawMaterialsDictService.getItems().find((d) => d.name === item.name);
         return {
           id: item.id,
           name: item.name,
-          category: dictItem ? dictItem.category : (activeCategoriesList[0]?.key || ""),
+          category: resolveLedgerItemCategory(item, (n) => RawMaterialsDictService.getCategoryForMaterial(n)),
           targetGroup: targetGroup,
           unit: item.unit,
           dailyData: alignedDailyData
@@ -199,35 +193,33 @@ export const TableGrid: React.FC<TableGridProps> = ({
     const allLedgerItems = ledgerItemsList;
     const groupLedgerItems = allLedgerItems.filter((i) => i.ledgerId === targetGroup);
 
-    // 聚合各大类的总金额
-    const categoryRows = PrepReportService.getActiveCategories().map((cat) => {
-      let costSum = 0;
-      const dictItems = RawMaterialsDictService.getItems();
-      
-      const catItems = groupLedgerItems.filter((item) => {
-        const dictItem = dictItems.find(d => d.name === item.name);
-        return dictItem && dictItem.category === cat.key;
-      });
-
+    // [字典与台账解耦] 按 item.category 快照把本月每笔入库金额归到大类；查不到分类的归“未分类”桶，
+    // 保证合计汇总不会因为某原料脱离字典而漏计。
+    const amountByCat: Record<string, number> = {};
+    groupLedgerItems.forEach((item) => {
+      const catKey = resolveLedgerItemCategory(item, (n) => RawMaterialsDictService.getCategoryForMaterial(n));
       days.forEach((day) => {
-        const monthStr = String(month).padStart(2, "0");
-        const dayStr = String(day).padStart(2, "0");
-        const targetDateKey = `${year}-${monthStr}-${dayStr}`;
-
-        catItems.forEach((item) => {
-          const record = item.dailyRecords?.[targetDateKey];
-          if (record) {
-            costSum += record.inAmount || 0;
-          }
-        });
+        const targetDateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const record = item.dailyRecords?.[targetDateKey];
+        if (record) {
+          amountByCat[catKey] = (amountByCat[catKey] || 0) + (record.inAmount || 0);
+        }
       });
-
-      return {
-        key: cat.key,
-        label: cat.label,
-        amount: Math.round(costSum * 100) / 100
-      };
     });
+
+    const categoryRows = PrepReportService.getActiveCategories().map((cat) => ({
+      key: cat.key,
+      label: cat.label,
+      amount: Math.round((amountByCat[cat.key] || 0) * 100) / 100
+    }));
+    // 只有当真有未归类的采购金额时，才补一行“未分类”
+    if ((amountByCat[UNCATEGORIZED_CATEGORY_KEY] || 0) > 0) {
+      categoryRows.push({
+        key: UNCATEGORIZED_CATEGORY_KEY,
+        label: UNCATEGORIZED_CATEGORY_LABEL,
+        amount: Math.round(amountByCat[UNCATEGORIZED_CATEGORY_KEY] * 100) / 100
+      });
+    }
 
     const grandTotal = categoryRows.reduce((sum, r) => sum + r.amount, 0);
 
