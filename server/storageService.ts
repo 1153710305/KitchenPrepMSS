@@ -22,6 +22,16 @@ import COS from "cos-nodejs-sdk-v5";
 import { FoodCategory, TargetGroup, DynamicGroup, DynamicCategory } from "../src/types/types.ts";
 import { Ledger, LedgerItem, DailyStockRecord } from "../src/types/ledgerTypes.ts";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
+import { LogService } from "./logService.ts";
+
+/**
+ * @description 台账逐日流水记录（DailyStockRecord）的全部字段名，供审计日志逐字段比对"这次录入在原有基础上增加/减少/修改了什么"
+ */
+const DAILY_RECORD_FIELDS = [
+  "inQuantity", "inPrice", "inAmount", "outQuantity", "outPrice", "outAmount", "note",
+  "certification", "sensoryProperty", "supplier", "purchaseDate", "buyer", "inspector", "keeper",
+  "produceDate", "shelfLife", "outHandler", "outRecipient", "conversionUnitQuantity", "outDate"
+] as const;
 
 /** ledgerHelperDict 的 8 个 string[] 字段名，打平存入 ledger_helper_options 表 */
 const HELPER_DICT_CATEGORIES = [
@@ -53,7 +63,15 @@ export interface SyncOp {
   previousKey?: any;
 }
 
-export const RequestContext = new AsyncLocalStorage<{ baseVersion?: number }>();
+export const RequestContext = new AsyncLocalStorage<{
+  baseVersion?: number;
+  /** 每个 HTTP 请求的短随机 ID，用于串联运行日志与数据审计日志里同一次请求产生的多条记录 */
+  reqId?: string;
+  /** 触发本次写操作的 HTTP 方法（同进程内直接调用业务方法时可能为空） */
+  method?: string;
+  /** 触发本次写操作的请求 URL */
+  url?: string;
+}>();
 
 /**
  * @description 后端持久化数据同步引擎，支持本地 SQLite 与腾讯云 COS 对象存储双模式切换
@@ -78,12 +96,22 @@ export class StorageService {
       try {
         if (StorageService.storageType === "local") {
           const db = StorageService.getDb();
+          const before = db.prepare(
+            "SELECT (SELECT COUNT(*) FROM ledger_items) AS items, (SELECT COUNT(*) FROM ledger_item_daily_records) AS records"
+          ).get() as { items: number; records: number };
           db.prepare("DELETE FROM ledger_item_daily_records").run();
           db.prepare("DELETE FROM ledger_items").run();
+          LogService.audit(
+            "system.clearDailyRecords",
+            `一键清空所有台账流水：物理删除 ledger_items ${before.items} 行、ledger_item_daily_records ${before.records} 行（保留台账/人群/大类/字典配置）`,
+            StorageService.auditCtx(),
+            "warn"
+          );
           return true;
         } else {
           // COS 模式下，直接读取全量数据并过滤，然后强制整体上传
           const data = await StorageService.loadCurrentFromCos();
+          const removedCount = Array.isArray(data.ledgerItems) ? data.ledgerItems.length : 0;
           data.ledgerItems = [];
           // COS 模式下，直接移除不再使用的备餐冗余数据字段
           delete data.reports;
@@ -102,10 +130,22 @@ export class StorageService {
               else resolve();
             });
           });
+          LogService.audit(
+            "system.clearDailyRecords",
+            `一键清空所有台账流水（COS 模式）：清空 ledgerItems ${removedCount} 项及其全部逐日流水`,
+            StorageService.auditCtx(),
+            "warn"
+          );
           return true;
         }
       } catch (err: any) {
         console.error("[STORAGE ERROR] 清空台账记录失败:", err);
+        LogService.audit(
+          "system.clearDailyRecords.fail",
+          `一键清空所有台账流水失败: ${err?.message || String(err)}`,
+          StorageService.auditCtx(),
+          "error"
+        );
         return false;
       }
     });
@@ -192,6 +232,23 @@ export class StorageService {
     if (StorageService.storageType === "local" && StorageService.db) {
       StorageService.db.prepare("UPDATE sys_config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'db_version'").run();
     }
+  }
+
+  /**
+   * @description 从 RequestContext 组装一段紧凑的请求上下文串，作为数据审计日志每条记录的 ctx 前缀，
+   * 用于把同一次 HTTP 请求在运行日志/审计日志里的多条记录串起来，并记录本次变更所基于的数据库版本号
+   * （日后出现 409 冲突或数据对不上时可据此定位是哪一次写、基于哪个版本）。
+   * @returns {string} 形如 `req=ab12cd34 PUT /api/ledger-items/x/daily/2026-09-03 baseVer=5 dbVer=5`
+   */
+  private static auditCtx(): string {
+    const c = RequestContext.getStore();
+    const bits: string[] = [];
+    if (c?.reqId) bits.push(`req=${c.reqId}`);
+    if (c?.method && c?.url) bits.push(`${c.method} ${c.url}`);
+    else if (c?.url) bits.push(c.url);
+    bits.push(`baseVer=${c?.baseVersion ?? "∅"}`);
+    bits.push(`dbVer=${StorageService.getDbVersion()}`);
+    return bits.join(" ");
   }
 
   /**
@@ -1022,6 +1079,21 @@ export class StorageService {
   }
 
   /**
+   * @description 把一批增量 SyncOp 概括成紧凑的一行，用于审计日志（`entity:op:key` 逗号分隔，key 是复合键时取 JSON）
+   * @param {SyncOp[]} ops 一批增量同步操作
+   * @returns {string} 形如 `ledgerItemDailyRecord:upsert:{"itemId":"x","date":"2026-09-03"}, ledgerItem:upsert:x`
+   */
+  private static summarizeOps(ops: SyncOp[]): string {
+    if (!ops.length) return "(空批次)";
+    return ops
+      .map((op) => {
+        const k = op.key === undefined ? "" : (typeof op.key === "object" ? JSON.stringify(op.key) : String(op.key));
+        return `${op.entity}:${op.op}${k ? ":" + k : ""}`;
+      })
+      .join(", ");
+  }
+
+  /**
    * @description save() 的实际执行体，被写锁包裹调用，禁止在锁外单独调用
    * @param {SyncOp[]} ops 一批增量同步操作
    * @returns {Promise<boolean>} 保存成功返回 true，失败返回 false
@@ -1042,9 +1114,20 @@ export class StorageService {
         }, (err) => {
           if (err) {
             console.error("[STORAGE COS] 保存主数据至云端失败:", err);
+            LogService.audit(
+              "persist.cos.fail",
+              `${ops.length} 个操作整体覆盖写回 COS 失败，本批变更未落盘: ${StorageService.summarizeOps(ops)} | 原因: ${err.message || String(err)}`,
+              StorageService.auditCtx(),
+              "error"
+            );
             resolve(false);
           } else {
             console.log("[STORAGE COS] 主数据已成功落盘至腾讯云 COS");
+            LogService.audit(
+              "persist.cos.ok",
+              `${ops.length} 个操作已整体覆盖写回 COS: ${StorageService.summarizeOps(ops)}`,
+              StorageService.auditCtx()
+            );
             resolve(true);
           }
         });
@@ -1054,9 +1137,20 @@ export class StorageService {
       try {
         StorageService.applyChangesIntoSqlite(ops);
         console.log(`[STORAGE SQLITE] 已通过事务增量应用 ${ops.length} 个同步操作至本地规范化关系型表结构。`);
+        LogService.audit(
+          "persist.sqlite.ok",
+          `${ops.length} 个增量操作已在一个事务内落盘: ${StorageService.summarizeOps(ops)}`,
+          StorageService.auditCtx()
+        );
         return true;
-      } catch (err) {
+      } catch (err: any) {
         console.error("[STORAGE SQLITE] 写入本地数据失败:", err);
+        LogService.audit(
+          "persist.sqlite.fail",
+          `SQLite 事务写入失败并整体回滚，本批变更未落盘: ${StorageService.summarizeOps(ops)} | 原因: ${err?.message || String(err)}`,
+          StorageService.auditCtx(),
+          "error"
+        );
         return false;
       }
     }
@@ -1094,6 +1188,11 @@ export class StorageService {
       if (!ok) {
         throw new Error("新增原料失败");
       }
+      LogService.audit(
+        "dict.rawMaterial.add",
+        `新增原料字典条目 name=${LogService.fmt(newItem.name)} | 字段: category=${LogService.fmt(newItem.category)}, unit=${LogService.fmt(newItem.unit)}, remark=${LogService.fmt(newItem.remark)}, conversionUnit=${LogService.fmt(newItem.conversionUnit)}, conversionRatio=${LogService.fmt(newItem.conversionRatio)}`,
+        StorageService.auditCtx()
+      );
       return newItem;
     });
   }
@@ -1145,9 +1244,11 @@ export class StorageService {
 
       // 级联：台账里所有同名采购项目的 name/unit/spec（spec 即原料备注）
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+      const cascadedItemIds: string[] = [];
       for (const item of ledgerItems) {
         if (item.name === oldName) {
           ops.push({ entity: "ledgerItem", op: "upsert", key: item.id, data: { ...item, name: trimmedName, unit: finalUnit, spec: finalRemark } });
+          cascadedItemIds.push(`${item.id}(${item.ledgerId})`);
         }
       }
 
@@ -1156,6 +1257,15 @@ export class StorageService {
       if (!ok) {
         throw new Error("更新原料失败");
       }
+      LogService.audit(
+        "dict.rawMaterial.update",
+        `编辑原料字典条目 ${LogService.fmt(oldName)}${trimmedName !== oldName ? ` -> ${LogService.fmt(trimmedName)}` : ""} | 变更: ${LogService.diffFields(
+          existingList[existingIndex] as any,
+          updatedItem as any,
+          ["name", "category", "unit", "remark", "conversionUnit", "conversionRatio"]
+        )} | 级联更新台账同名原料项 ${cascadedItemIds.length} 个${cascadedItemIds.length ? ": [" + cascadedItemIds.join(", ") + "]" : ""}`,
+        StorageService.auditCtx()
+      );
       return updatedItem;
     });
   }
@@ -1178,9 +1288,12 @@ export class StorageService {
       const ops: SyncOp[] = [{ entity: "rawMaterial", op: "delete", key: name }];
 
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
+      const removedItemsInfo: string[] = [];
       for (const item of ledgerItems) {
         if (item.name === name) {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
+          const dayCount = Object.keys(item.dailyRecords ?? {}).length;
+          removedItemsInfo.push(`${item.id}(台账${item.ledgerId}, ${dayCount}天流水)`);
         }
       }
 
@@ -1189,6 +1302,12 @@ export class StorageService {
       if (!ok) {
         throw new Error("删除原料失败");
       }
+      LogService.audit(
+        "dict.rawMaterial.delete",
+        `删除原料字典条目 name=${LogService.fmt(name)} | 级联物理删除台账同名原料项及其全部逐日流水 ${removedItemsInfo.length} 个${removedItemsInfo.length ? ": [" + removedItemsInfo.join(", ") + "]" : ""}`,
+        StorageService.auditCtx(),
+        removedItemsInfo.length ? "warn" : "info"
+      );
     });
   }
 
@@ -1238,6 +1357,11 @@ export class StorageService {
       if (!ok) {
         throw new Error("更新台账失败");
       }
+      LogService.audit(
+        "ledger.rename",
+        `台账改名 id=${id} ${LogService.fmt(ledgers[ledgerIndex].name)} -> ${LogService.fmt(normalizedName)} | 级联同步一级人群配置 label（${linkedGroup ? `key=${linkedGroup.key}` : "对应人群不存在，已补建"}）`,
+        StorageService.auditCtx()
+      );
       return updatedLedger;
     });
   }
@@ -1262,8 +1386,10 @@ export class StorageService {
       const removedItems = ledgerItems.filter((item) => item.ledgerId === ledger.id);
 
       const ops: SyncOp[] = [{ entity: "ledger", op: "delete", key: ledger.id }];
+      let removedDayRecordCount = 0;
       removedItems.forEach((item) => {
         ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
+        removedDayRecordCount += Object.keys(item.dailyRecords ?? {}).length;
       });
 
       // 大小写不敏感匹配对应人群，删除时按人群实际行的 key 下 op（与 updateLedger / deleteGroup 一致）
@@ -1278,6 +1404,12 @@ export class StorageService {
       if (!ok) {
         throw new Error("删除台账失败");
       }
+      LogService.audit(
+        "ledger.delete",
+        `物理删除台账 id=${ledger.id} name=${LogService.fmt(ledger.name)} | 级联删除原料项 ${removedItems.length} 个、逐日流水合计 ${removedDayRecordCount} 条${linkedGroup ? `、一级人群配置 key=${linkedGroup.key}` : ""} | 被删原料项: [${removedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]`,
+        StorageService.auditCtx(),
+        "warn"
+      );
     });
   }
 
@@ -1319,6 +1451,11 @@ export class StorageService {
       if (!ok) {
         throw new Error("新增原料失败");
       }
+      LogService.audit(
+        "ledger.item.add",
+        `台账新增采购原料项 id=${newItem.id} ledger=${newItem.ledgerId} name=${LogService.fmt(newItem.name)} | 字段: unit=${LogService.fmt(newItem.unit)}, spec=${LogService.fmt(newItem.spec)}, initialStock=${newItem.initialStock}, currentStock=${newItem.currentStock}`,
+        StorageService.auditCtx()
+      );
       return newItem;
     });
   }
@@ -1373,6 +1510,15 @@ export class StorageService {
       if (!ok) {
         throw new Error("更新原料失败");
       }
+      LogService.audit(
+        "ledger.item.update",
+        `编辑台账采购原料项 id=${id} ledger=${oldItem.ledgerId} | 变更: ${LogService.diffFields(
+          oldItem as any,
+          updatedItem as any,
+          ["name", "unit", "spec", "initialStock", "currentStock"]
+        )} | 库存按全历史累计重算: ${oldItem.currentStock} -> ${updatedItem.currentStock} (histIn=${historicalTotalIn}, histOut=${historicalTotalOut})`,
+        StorageService.auditCtx()
+      );
       return updatedItem;
     });
   }
@@ -1387,13 +1533,21 @@ export class StorageService {
     return StorageService.withWriteLock(async () => {
       const current = await StorageService.load();
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      if (!ledgerItems.some((item) => item.id === id)) {
+      const target = ledgerItems.find((item) => item.id === id);
+      if (!target) {
         throw new Error("找不到要删除的原料项目");
       }
+      const dayKeys = Object.keys(target.dailyRecords ?? {}).sort();
       const ok = await StorageService.saveInternal([{ entity: "ledgerItem", op: "delete", key: id }]);
       if (!ok) {
         throw new Error("删除原料失败");
       }
+      LogService.audit(
+        "ledger.item.delete",
+        `物理删除台账采购原料项 id=${id} ledger=${target.ledgerId} name=${LogService.fmt(target.name)} | 连带删除其逐日流水 ${dayKeys.length} 条${dayKeys.length ? ` (${dayKeys[0]} ~ ${dayKeys[dayKeys.length - 1]})` : ""}、当前库存 ${target.currentStock}`,
+        StorageService.auditCtx(),
+        dayKeys.length ? "warn" : "info"
+      );
     });
   }
 
@@ -1421,12 +1575,18 @@ export class StorageService {
         throw new Error("找不到对应的采购原料项目");
       }
 
-      const { updatedItem, mergedRecord, ops } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
+      const { updatedItem, mergedRecord, ops, changeSummary } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
         throw new Error("保存出入库记录失败");
       }
+      LogService.audit(
+        "ledger.dailyRecord.update",
+        `台账逐日流水录入 item=${itemId}(${item.name}/${item.ledgerId}) date=${dateStr} | 请求字段: ${JSON.stringify(fields)} | 当日记录: ${changeSummary.dayAction} | 变更: ${changeSummary.fieldDiff} | 库存: ${changeSummary.stockBefore} -> ${changeSummary.stockAfter} (累计入库 ${changeSummary.histInBefore} -> ${changeSummary.histInAfter}, 累计出库 ${changeSummary.histOutBefore} -> ${changeSummary.histOutAfter})`,
+        StorageService.auditCtx(),
+        changeSummary.dayAction === "deleted" ? "warn" : "info"
+      );
       return { item: updatedItem, mergedRecord };
     });
   }
@@ -1449,20 +1609,36 @@ export class StorageService {
       const updatedItems: LedgerItem[] = [];
       const mergedRecords: Record<string, DailyStockRecord> = {};
       const allOps: SyncOp[] = [];
+      const ctx = StorageService.auditCtx();
+      const requestedIds = Object.keys(updates);
+      const perItemLines: string[] = [];
+      const skippedIds: string[] = [];
 
       for (const [itemId, fields] of Object.entries(updates)) {
         const item = ledgerItems.find((i) => i.id === itemId);
         if (!item) {
-          // 找不到对应的原料说明它可能已被删除。我们选择忽略并记录警告，而非抛出异常，
-          // 因为抛出异常会导致整个批量提交失败，同时可能导致前端在缓存草稿时陷入无限失败循环。
+          // 找不到对应的原料说明它可能已被删除（多端并发删除、或前端草稿里的 itemId 已过期）。
+          // 我们选择忽略并记录告警，而非抛出异常，因为抛出异常会导致整个批量提交失败，
+          // 同时可能导致前端在缓存草稿时陷入无限失败循环。
+          // ——但这意味着用户为该原料录入的这一整行数据会被静默丢弃，属于数据丢失的高发点，务必留痕。
           console.warn(`[WARN] 找不到对应的采购原料项目(ID: ${itemId})，跳过该项的更新`);
+          skippedIds.push(itemId);
+          LogService.audit(
+            "ledger.dailyRecord.batch.skip",
+            `批量录入时找不到原料项 itemId=${itemId}（可能已被删除/草稿ID过期），该原料 ${dateStr} 这一行录入数据被丢弃未落盘 | 丢弃字段: ${JSON.stringify(fields)}`,
+            ctx,
+            "warn"
+          );
           continue;
         }
 
-        const { updatedItem, mergedRecord, ops } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
+        const { updatedItem, mergedRecord, ops, changeSummary } = StorageService.mergeLedgerDailyRecord(item, dateStr, fields);
         updatedItems.push(updatedItem);
         mergedRecords[itemId] = mergedRecord;
         allOps.push(...ops);
+        perItemLines.push(
+          `${itemId}(${item.name}) ${changeSummary.dayAction}${changeSummary.dayAction === "noop" ? "" : `[${changeSummary.fieldDiff}]`} 库存${changeSummary.stockBefore}->${changeSummary.stockAfter}`
+        );
 
         // 关键：为了防止同一个批次里对其它项的查找受影响，实际上这里只需将 updatedItem 替换掉内存中的 item
         // 但由于本批次修改的是不同的 itemId，直接 push ops 并不会互相冲突。
@@ -1474,6 +1650,13 @@ export class StorageService {
           throw new Error("批量保存出入库记录失败");
         }
       }
+
+      LogService.audit(
+        "ledger.dailyRecord.batch",
+        `批量录入 date=${dateStr} | 请求 ${requestedIds.length} 项、落盘 ${updatedItems.length} 项、跳过 ${skippedIds.length} 项${skippedIds.length ? `(丢弃: [${skippedIds.join(", ")}])` : ""} | 明细: ${perItemLines.length ? perItemLines.join(" ;; ") : "(无有效变更)"}`,
+        ctx,
+        skippedIds.length ? "warn" : "info"
+      );
 
       return { updatedItems, mergedRecords };
     });
@@ -1492,7 +1675,26 @@ export class StorageService {
     item: LedgerItem,
     dateStr: string,
     fields: Partial<DailyStockRecord>
-  ): { updatedItem: LedgerItem; mergedRecord: DailyStockRecord; ops: SyncOp[] } {
+  ): {
+    updatedItem: LedgerItem;
+    mergedRecord: DailyStockRecord;
+    ops: SyncOp[];
+    /** 供调用方组装数据审计日志的前后对照摘要（这次录入在原有基础上增加/减少/改了什么、库存与累计如何变化） */
+    changeSummary: {
+      existedBefore: boolean;
+      /** 该日流水记录经本次合并后的归宿：created 新建 / updated 覆盖 / deleted 因清空而整条删除 / noop 本就不存在且仍无数据 */
+      dayAction: "created" | "updated" | "deleted" | "noop";
+      /** 逐字段差异串，形如 `inQuantity 0 -> 10, supplier ∅ -> "宾县..."`（deleted 时展示被清掉的旧值） */
+      fieldDiff: string;
+      stockBefore: number;
+      stockAfter: number;
+      histInBefore: number;
+      histInAfter: number;
+      histOutBefore: number;
+      histOutAfter: number;
+    };
+  } {
+    const existedBefore = !!(item.dailyRecords && item.dailyRecords[dateStr]);
     const updatedDailyRecords: Record<string, DailyStockRecord> = { ...(item.dailyRecords ?? {}) };
     const oldRecord: DailyStockRecord = updatedDailyRecords[dateStr] || { inQuantity: 0, inPrice: 0, inAmount: 0, outQuantity: 0, note: "" };
     const mergedRecord: DailyStockRecord = { ...oldRecord, ...fields };
@@ -1575,7 +1777,35 @@ export class StorageService {
     }
     ops.push({ entity: "ledgerItem", op: "upsert", key: updatedItem.id, data: updatedItem });
 
-    return { updatedItem, mergedRecord, ops };
+    const stockBefore = Number.isFinite(item.currentStock as number)
+      ? (item.currentStock as number)
+      : Math.round((item.initialStock + priorHistoricalTotalIn - priorHistoricalTotalOut) * 100) / 100;
+    const dayAction: "created" | "updated" | "deleted" | "noop" = hasData
+      ? (existedBefore ? "updated" : "created")
+      : (existedBefore ? "deleted" : "noop");
+    // deleted 时 after 传空对象，让 diffFields 把被清掉的旧值逐个列出来（体现"减少了什么"）
+    const fieldDiff = LogService.diffFields(
+      oldRecord as any,
+      hasData ? (mergedRecord as any) : {},
+      DAILY_RECORD_FIELDS as unknown as string[]
+    );
+
+    return {
+      updatedItem,
+      mergedRecord,
+      ops,
+      changeSummary: {
+        existedBefore,
+        dayAction,
+        fieldDiff,
+        stockBefore,
+        stockAfter: newCurrentStock,
+        histInBefore: priorHistoricalTotalIn,
+        histInAfter: newHistoricalTotalIn,
+        histOutBefore: priorHistoricalTotalOut,
+        histOutAfter: newHistoricalTotalOut
+      }
+    };
   }
 
   /**
@@ -1629,6 +1859,15 @@ export class StorageService {
       if (!ok) {
         throw new Error("保存人群配置失败");
       }
+      LogService.audit(
+        "config.group.save",
+        `${existingIndex > -1 ? "编辑" : "新增"}一级人群 key=${groupKey} | 变更: ${
+          existingIndex > -1
+            ? LogService.diffFields(activeGroups[existingIndex] as any, savedGroup as any, ["label", "emoji"])
+            : `label=${LogService.fmt(savedGroup.label)}, emoji=${LogService.fmt(savedGroup.emoji)}`
+        } | 级联${existingLedger ? "同步" : "新建"}对应台账 name=${LogService.fmt(label.trim())}`,
+        StorageService.auditCtx()
+      );
       return savedGroup;
     });
   }
@@ -1655,11 +1894,15 @@ export class StorageService {
 
       const ledgers: Ledger[] = current.ledgers ?? [];
       const ledger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
+      const cascadedItems: LedgerItem[] = [];
+      let cascadedDayRecordCount = 0;
       if (ledger) {
         ops.push({ entity: "ledger", op: "delete", key: ledger.id });
         const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
         ledgerItems.filter((item) => item.ledgerId.toUpperCase() === ledger.id.toUpperCase()).forEach((item) => {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
+          cascadedItems.push(item);
+          cascadedDayRecordCount += Object.keys(item.dailyRecords ?? {}).length;
         });
       }
 
@@ -1667,6 +1910,12 @@ export class StorageService {
       if (!ok) {
         throw new Error("删除人群配置失败");
       }
+      LogService.audit(
+        "config.group.delete",
+        `删除一级人群 key=${target ? target.key : upperKey} label=${LogService.fmt(target?.label)} | 级联删除对应台账${ledger ? ` id=${ledger.id}` : "(无)"}、原料项 ${cascadedItems.length} 个、逐日流水合计 ${cascadedDayRecordCount} 条${cascadedItems.length ? ` | 被删原料项: [${cascadedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]` : ""}`,
+        StorageService.auditCtx(),
+        ledger || cascadedItems.length ? "warn" : "info"
+      );
     });
   }
 
@@ -1699,6 +1948,15 @@ export class StorageService {
       if (!ok) {
         throw new Error("保存大类配置失败");
       }
+      LogService.audit(
+        "config.category.save",
+        `${existingIndex > -1 ? "编辑" : "新增"}二级食材大类 key=${categoryKey} | 变更: ${
+          existingIndex > -1
+            ? LogService.diffFields(activeCategories[existingIndex] as any, savedCategory as any, ["label"])
+            : `label=${LogService.fmt(savedCategory.label)}`
+        }`,
+        StorageService.auditCtx()
+      );
       return savedCategory;
     });
   }
@@ -1726,6 +1984,11 @@ export class StorageService {
       if (!ok) {
         throw new Error("删除大类配置失败");
       }
+      LogService.audit(
+        "config.category.delete",
+        `删除二级食材大类 key=${target ? target.key : upperKey} label=${LogService.fmt(target?.label)}`,
+        StorageService.auditCtx()
+      );
     });
   }
 }

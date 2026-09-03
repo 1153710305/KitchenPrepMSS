@@ -58,6 +58,7 @@ KPMSS/
 ├── 提示词历史记录.md / prompt_history.md   # AI 提示词变更历史（仅追加，不改历史）
 ├── 部署指南.md                  # 单机离线部署操作手册（权威部署文档）
 ├── SQLite迁移规划.md            # SQLite 迁移三阶段规划与实施记录（历史参考文档）
+├── LOGGING.md                  # 日志与数据审计约定（新增/改动落库功能必须按此补日志，见八）
 └── ARCHITECTURE.md              # 本文档
 ```
 
@@ -218,3 +219,9 @@ npm run test:coverage  # 生成覆盖率报告
 - 后端 `StorageService`/`LogService` 在模块加载时从 `process.env.*` 读取路径并绑定到 `private static` 字段；测试通过 `vi.resetModules()` + 动态 `import()` + 临时目录（`fs.mkdtempSync`）为每个用例拿到全新绑定的类实例，杜绝相互污染，也**杜绝任何测试清理逻辑触碰真实的 `data/` 目录**。
 - 涉及"删除唯一一行数据"的测试需额外造一条不相关的"锚点"数据（如多加一本台账），避免规范化表结构全空时 `GET /load` 退化返回首启空壳 `{}`，无法验证"确实只删了目标行"（已知边界行为，详见 `storageService.test.ts`）。
 - 阶段A/B/C迁移后新增的 REST 集成测试统一使用镜像后端语义的轻量假 `fetch` 路由（如 `fakeLedgerFetch`/`fakePrepReportFetch`）支撑前端 service 测试文件里大量"先增后改/先增后删"的多步测试序列，而非逐个用例手写 canned 响应。
+
+## 八、日志与数据审计
+
+服务端有两条独立归档流写入 `data/logs/`：`app-YYYY-MM-DD.log`（运行日志，`LogService.write`）与 `audit-YYYY-MM-DD.log`（**数据审计**，`LogService.audit`——只记「某条数据在哪一刻由哪个请求从什么值改成了什么值 / 在哪一步被丢弃」，是数据丢失排查的首要依据）。`StorageService` 的**每一个落库方法**都会在成功/失败后写一条 `audit` 记录（逐字段 `旧值 -> 新值`、级联影响、库存与累计重算前后值），`server.ts` 中间件为每个写请求分配 `reqId` 串联两条流。前端 `SyncHelper` 把"增量同步彻底放弃（数据丢失）""服务器快照覆盖了未落盘的本地录入"经 `LogBroker.publish` 上报进 `app-*.log`。
+
+**新增或修改任何会落库的功能，必须按 [LOGGING.md](LOGGING.md) 的检查清单补齐 `LogService.audit(...)`**（含失败/跳过分支）。Code review 把这一项作为必查项。

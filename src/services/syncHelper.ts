@@ -14,6 +14,23 @@
 import { PrepReportService } from "./store.ts";
 import { LedgerService } from "./ledgerStore.ts";
 import { RawMaterialsDictService } from "./rawMaterialDict.ts";
+import { LogBroker } from "../utils.ts";
+
+/**
+ * @description 把一批增量 SyncOp 概括成紧凑的一行，用于日志（`entity:op:key` 逗号分隔）
+ * @param {Array<[string, SyncOp]> | SyncOp[]} batch 批次（可含去重 key）或纯 op 数组
+ * @returns {string} 形如 `ledgerItemDailyRecord:upsert:{"itemId":"x","date":"2026-09-03"}, ledgerItem:upsert:x`
+ */
+function summarizeOps(batch: Array<[string, SyncOp]> | SyncOp[]): string {
+  const ops: SyncOp[] = batch.map((entry) => (Array.isArray(entry) ? entry[1] : entry));
+  if (!ops.length) return "(空批次)";
+  return ops
+    .map((op) => {
+      const k = op.key === undefined ? "" : (typeof op.key === "object" ? JSON.stringify(op.key) : String(op.key));
+      return `${op.entity}:${op.op}${k ? ":" + k : ""}`;
+    })
+    .join(", ");
+}
 
 /**
  * @description 后端读取接口 GET /api/storage/load 返回的完整状态数据结构（读路径不受本次改造影响，仍是整体状态）
@@ -301,31 +318,50 @@ export class SyncHelper {
    */
   public static applyFreshData(freshData: BackendData): boolean {
     let memoryChanged = false;
+    const changedParts: string[] = [];
+
+    // 数据丢失高发点：若此刻还有未落盘的本地变更（排队防抖 / 正在提交），用服务器快照整体覆盖内存
+    // 可能把用户刚录入、尚未确认落盘的数据"冲掉"。这里在覆盖前留痕，便于事后按时间点核对。
+    const hadPendingWhenRefreshed = this.hasPendingSync();
 
     if (freshData.activeGroups && JSON.stringify(freshData.activeGroups) !== JSON.stringify(PrepReportService.getActiveGroups())) {
       PrepReportService.setActiveGroupsInMemory(freshData.activeGroups);
       memoryChanged = true;
+      changedParts.push("activeGroups");
     }
     if (freshData.activeCategories && JSON.stringify(freshData.activeCategories) !== JSON.stringify(PrepReportService.getActiveCategories())) {
       PrepReportService.setActiveCategoriesInMemory(freshData.activeCategories);
       memoryChanged = true;
+      changedParts.push("activeCategories");
     }
     if (freshData.ledgers && JSON.stringify(freshData.ledgers) !== JSON.stringify(LedgerService.getLedgers())) {
       LedgerService.setLedgersInMemory(freshData.ledgers);
       memoryChanged = true;
+      changedParts.push("ledgers");
     }
     if (freshData.ledgerItems && JSON.stringify(freshData.ledgerItems) !== JSON.stringify(LedgerService.getLedgerItems())) {
+      const beforeCount = LedgerService.getLedgerItems().length;
+      const afterCount = freshData.ledgerItems.length;
       LedgerService.setLedgerItemsInMemory(freshData.ledgerItems);
       memoryChanged = true;
+      changedParts.push(`ledgerItems(${beforeCount}->${afterCount}项)`);
     }
     if (freshData.rawMaterialsDict && JSON.stringify(freshData.rawMaterialsDict) !== JSON.stringify(RawMaterialsDictService.getItems())) {
       RawMaterialsDictService.setRawMaterialsDictInMemory(freshData.rawMaterialsDict);
       memoryChanged = true;
+      changedParts.push("rawMaterialsDict");
     }
 
     if (memoryChanged) {
       PrepReportService.forceNotify();
       LedgerService.forceNotify();
+      LogBroker.publish(
+        hadPendingWhenRefreshed ? "WARN" : "INFO",
+        "SyncHelper",
+        `已用服务器最新快照覆盖本地内存（${changedParts.join(", ")}）` +
+          (hadPendingWhenRefreshed ? "；注意：覆盖时仍有未落盘的本地变更，可能覆盖掉尚未同步的录入" : ""),
+        `dbVersion=${this.currentDbVersion ?? "∅"}`
+      );
     }
     return memoryChanged;
   }
@@ -412,7 +448,14 @@ export class SyncHelper {
       this.retryCount = 0;
       console.log(`[SYNC HELPER] ${ops.length} 个增量同步操作已成功提交至服务器后端:`, resJson);
     } catch (err) {
-      console.error("[SYNC HELPER] 增量同步操作提交至后端失败:", err);
+      // 仅打印到控制台，不在这里上报 /api/log：真正需要留痕的是"彻底放弃"的那一刻（见 retryFailedBatch），
+      // 中间每次瞬时失败都上报会放大噪音，也会干扰对重试次数的精确断言。
+      console.error(
+        `[SYNC HELPER] 增量同步提交失败（将重试 ${this.retryCount + 1}/${this.MAX_RETRY}）:`,
+        err,
+        "ops:",
+        summarizeOps(batch)
+      );
       this.retryFailedBatch(batch);
     } finally {
       this.isFlushing = false;
@@ -430,6 +473,13 @@ export class SyncHelper {
       console.error(
         `[SYNC HELPER] 已连续重试 ${this.retryCount} 次仍失败，放弃这批 ${batch.length} 个同步操作，` +
         `本地数据可能未能同步至服务器，请检查网络连接与后端服务状态。`
+      );
+      // 数据丢失高发点：这批本地变更已彻底放弃、不会再尝试落盘。把丢了什么完整记进日志，供后续按时间点排查。
+      LogBroker.publish(
+        "ERROR",
+        "SyncHelper",
+        `增量同步连续重试 ${this.MAX_RETRY} 次仍失败，已放弃 ${batch.length} 个操作，这些本地变更未能同步至服务器（数据丢失）`,
+        `被放弃的 ops: ${summarizeOps(batch)}`
       );
       this.retryCount = 0;
       return;
