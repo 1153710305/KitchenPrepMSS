@@ -630,12 +630,31 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
 
     const hasRecordsBeyondSelectedDate = memOtherDates || serverDatesBeyondSelected || serverTotalsBeyondSelected;
 
+    // 是否拿到了服务端预聚合的“全历史首/末记录日期”这对字段。正常本地模式的 GET /load 一定带上（有记录时是日期串，
+    // 无记录时是 null）；只有“本次部署之前加载、还没刷新的老标签页”或 COS 模式才会整键缺失（undefined）。
+    const historyDatesKnown = firstDate !== undefined || lastDate !== undefined;
+    // 敢走“物理删除整个原料 + 全部历史”的前提：确信除了当前所选日之外没有别的历史。
+    // 字段已知 → 首/末记录日期要么不存在、要么就等于当前所选日（历史全在这一天，删掉只损失眼前看到的这条）。
+    const confidentSafeToFullyDelete =
+      historyDatesKnown &&
+      (!firstDate || firstDate === selectedDate) &&
+      (!lastDate || lastDate === selectedDate);
+
     LogBroker.publish(
       "INFO",
       "LedgerSystem",
-      `点击删除台账原料【${item.name}】(id=${item.id})：判定为${hasRecordsBeyondSelectedDate ? "「仅清除当天记录」" : "「物理删除整个原料及全部历史」"}`,
-      `依据 -> 内存中其它日期有记录:${memOtherDates}, 服务端首/末记录日期越界:${serverDatesBeyondSelected}(first=${firstDate ?? "∅"},last=${lastDate ?? "∅"}), 服务端累计量越界:${serverTotalsBeyondSelected}(histIn=${item.historicalTotalIn ?? "∅"},histOut=${item.historicalTotalOut ?? "∅"}); selectedDate=${selectedDate}`
+      `点击删除台账原料【${item.name}】(id=${item.id})：判定为${
+        hasRecordsBeyondSelectedDate ? "「仅清除当天记录」" : confidentSafeToFullyDelete ? "「物理删除整个原料及全部历史」" : "「无法确认历史，拦截并提示刷新」"
+      }`,
+      `依据 -> 内存中其它日期有记录:${memOtherDates}, 服务端首/末记录日期越界:${serverDatesBeyondSelected}(first=${firstDate ?? "∅"},last=${lastDate ?? "∅"}), 服务端累计量越界:${serverTotalsBeyondSelected}(histIn=${item.historicalTotalIn ?? "∅"},histOut=${item.historicalTotalOut ?? "∅"}), 服务端首末日期字段已知:${historyDatesKnown}; selectedDate=${selectedDate}`
     );
+
+    if (!hasRecordsBeyondSelectedDate && !confidentSafeToFullyDelete) {
+      // 没有“别处还有记录”的正向信号，但服务端首/末日期字段缺失（多半是数据尚未完整加载 / 老标签页），
+      // 无法确认是否有跨月历史。绝不物理删除——一旦确有历史就是连根删。拦下来让用户刷新页面后再操作。
+      triggerError(`暂时无法确认【${item.name}】在其它日期是否还有记录（数据可能尚未完整加载），请刷新页面后再删除该原料，以免误删历史数据。`);
+      return;
+    }
 
     if (hasRecordsBeyondSelectedDate) {
       if (confirm(`【${item.name}】在其它日期还有出入库记录，这里只会清除（${selectedDate}）当天的记录，不会影响其它日期。确定清除吗？`)) {

@@ -448,6 +448,13 @@ export class SyncHelper {
       this.retryCount = 0;
       console.log(`[SYNC HELPER] ${ops.length} 个增量同步操作已成功提交至服务器后端:`, resJson);
     } catch (err) {
+      // 版本冲突（409）：重试只会继续冲突，补传/暂存则会覆盖他人数据——直接放弃这批、不重试也不暂存。
+      // fetchWithVersion 已经触发过 onVersionConflict（提示用户刷新），这里只需清账。
+      if (err instanceof Error && err.message === "VERSION_CONFLICT") {
+        console.error("[SYNC HELPER] 版本冲突（409），放弃这批增量操作（用户需刷新页面获取最新数据）:", summarizeOps(batch));
+        this.retryCount = 0;
+        return;
+      }
       // 仅打印到控制台，不在这里上报 /api/log：真正需要留痕的是"彻底放弃"的那一刻（见 retryFailedBatch），
       // 中间每次瞬时失败都上报会放大噪音，也会干扰对重试次数的精确断言。
       console.error(
@@ -462,6 +469,51 @@ export class SyncHelper {
     }
   }
 
+  /** 连续重试仍失败、被放弃的增量操作暂存到本地的 key，下次加载完成后自动补传（见 replayStashedOps） */
+  private static readonly STASH_KEY = "kpmss_pending_sync_ops";
+
+  /**
+   * @description 把一批（因连续重试失败而）被放弃的增量操作追加暂存到 localStorage，等下次应用启动完成后补传。
+   * 仅用于网络/服务端 5xx 这类“过一会可能就好”的失败；版本冲突不会走到这里（见 flush）。
+   */
+  private static stashFailedOps(ops: SyncOp[]): void {
+    if (typeof localStorage === "undefined" || ops.length === 0) return;
+    try {
+      const existing: SyncOp[] = JSON.parse(localStorage.getItem(SyncHelper.STASH_KEY) || "[]");
+      localStorage.setItem(SyncHelper.STASH_KEY, JSON.stringify([...existing, ...ops]));
+    } catch (e) {
+      console.error("[SYNC HELPER] 暂存失败的同步操作到本地时出错:", e);
+    }
+  }
+
+  /**
+   * @description 在全局初始化完成后（见 useAppData 调用点）调用一次：把上次遗留、暂存在本地的失败增量操作
+   * 重新入队补传。补传前先取出并清空暂存，避免重复。
+   * @returns {void}
+   */
+  public static replayStashedOps(): void {
+    if (typeof localStorage === "undefined") return;
+    let ops: SyncOp[] = [];
+    try {
+      ops = JSON.parse(localStorage.getItem(SyncHelper.STASH_KEY) || "[]");
+    } catch {
+      ops = [];
+    }
+    if (!Array.isArray(ops) || ops.length === 0) return;
+    localStorage.removeItem(SyncHelper.STASH_KEY);
+    console.log(`[SYNC HELPER] 检测到上次有 ${ops.length} 个未同步的本地变更，正在补传`);
+    LogBroker.publish(
+      "WARN",
+      "SyncHelper",
+      `检测到上次有 ${ops.length} 个未同步的本地变更（暂存在本地），正在补传`,
+      `补传的 ops: ${summarizeOps(ops)}`
+    );
+    for (const op of ops) {
+      this.pendingOps.set(`${op.entity}:${JSON.stringify(op.key ?? null)}`, op);
+    }
+    this.scheduleFlush();
+  }
+
   /**
    * @description flush() 失败后的重试处理：把这批操作放回待提交队列（若某个 key 期间已经有更新的操作覆盖了它，
    * 则不用失败的旧数据覆盖回去），重新安排一次 flush；超过连续重试上限后放弃
@@ -472,14 +524,17 @@ export class SyncHelper {
     if (this.retryCount >= this.MAX_RETRY) {
       console.error(
         `[SYNC HELPER] 已连续重试 ${this.retryCount} 次仍失败，放弃这批 ${batch.length} 个同步操作，` +
-        `本地数据可能未能同步至服务器，请检查网络连接与后端服务状态。`
+        `已暂存到本地，将在下次加载完成后自动补传。`
       );
-      // 数据丢失高发点：这批本地变更已彻底放弃、不会再尝试落盘。把丢了什么完整记进日志，供后续按时间点排查。
+      // 曾经的数据丢失高发点：现在改成把这批 op 暂存进 localStorage，下次启动 replayStashedOps() 补传，
+      // 而不是彻底丢弃。仍记 ERROR 供按时间点排查。
+      const ops = batch.map(([, op]) => op);
+      SyncHelper.stashFailedOps(ops);
       LogBroker.publish(
         "ERROR",
         "SyncHelper",
-        `增量同步连续重试 ${this.MAX_RETRY} 次仍失败，已放弃 ${batch.length} 个操作，这些本地变更未能同步至服务器（数据丢失）`,
-        `被放弃的 ops: ${summarizeOps(batch)}`
+        `增量同步连续重试 ${this.MAX_RETRY} 次仍失败，已把 ${ops.length} 个操作暂存本地，将在下次加载完成后自动补传`,
+        `暂存的 ops: ${summarizeOps(batch)}`
       );
       this.retryCount = 0;
       return;

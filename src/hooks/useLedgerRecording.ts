@@ -38,6 +38,9 @@ function isMeaningfulValue(v: unknown): boolean {
  * - `seedIsReal = true`（基线取自已加载的真实记录）：做完整逐字段 diff，允许把字段改成任意值（含清空）。
  * - `seedIsReal = false`（基线只是占位模板）：只接受“填了东西”的字段，绝不下发会把已有数据清空的占位值。
  *
+ * 已知取舍(R10)：seedIsReal=false 时无法表达“清空某个字段”——编辑一个真实数据未加载的行、把值填了又删（净空），
+ * 该字段不会进 delta、真实值被保留。方向安全（不误删），代价是跨月字段要先切到该月加载后才能清空。刻意为之。
+ *
  * @param seed 基线草稿
  * @param draft 当前草稿
  * @param seedIsReal 基线是否取自已加载到内存的真实记录
@@ -256,6 +259,8 @@ export function useLedgerRecording({
 
       const promises: Promise<void>[] = [];
       const batchUpdates: Record<string, Partial<DailyStockRecord>> = {};
+      /** 新建台账原料项失败、这一行录入本次未能提交的原料名（含原因），用于结束时提示并保留草稿 */
+      const skippedNewItems: string[] = [];
 
       // 验证记录是否含有至少一项有效数据值（不为空且不为0）
       const hasAtLeastOneContent = (rec: DailyStockRecord) => {
@@ -303,15 +308,33 @@ export function useLedgerRecording({
               if (existingItem) {
                 targetItemId = existingItem.id;
               } else {
-                const newItem = await LedgerService.addLedgerItem(
-                  activeLedgerId,
-                  dictItem.name,
-                  dictItem.unit,
-                  dictItem.remark || "",
-                  0,
-                  dictItem.category
-                );
-                targetItemId = newItem.id;
+                try {
+                  const newItem = await LedgerService.addLedgerItem(
+                    activeLedgerId,
+                    dictItem.name,
+                    dictItem.unit,
+                    dictItem.remark || "",
+                    0,
+                    dictItem.category
+                  );
+                  targetItemId = newItem.id;
+                } catch (addErr: any) {
+                  // 新建失败（常见：多端/并发已建了同名项 → 400“已有名为X”）。刷新一次内存再找找看。
+                  try {
+                    await SyncHelper.refreshNow();
+                    const nowExisting = LedgerService.getLedgerItems().find(
+                      i => i.ledgerId === activeLedgerId && i.name.trim() === dictItem.name.trim()
+                    );
+                    if (nowExisting) {
+                      targetItemId = nowExisting.id;
+                    }
+                  } catch { /* 刷新也失败就按跳过处理 */ }
+                  if (!targetItemId) {
+                    // 这一项这次提交不了——跳过它，不阻断其余项，草稿保留供稍后重试
+                    skippedNewItems.push(`${dictItem.name}（${addErr?.message || "新建失败"}）`);
+                    continue;
+                  }
+                }
               }
               // 只下发用户填写的字段（相对全 0 基线的差异）
               batchUpdates[targetItemId] = delta;
@@ -346,15 +369,24 @@ export function useLedgerRecording({
       (window as any).__setGlobalLoading?.("正在等待服务器确认数据已安全落盘，请稍候...");
       await SyncHelper.waitForPendingSync();
 
-      // 清除本地缓存
       const draftKey = `ledger_draft_${activeLedgerId}_${selectedDate}`;
-      localStorage.removeItem(draftKey);
 
-      setIsRecordingMode(false);
-      setDraftRecords({});
-
-      onSaveToast("当天采购与台账数据已成功保存并同步！", 2500);
-      LogBroker.publish("INFO", "LedgerSystem", `已完成 ${selectedDate} 台账录入的提交与服务端落盘确认（提交 ${changedItemIds.length} 项改动）`);
+      if (skippedNewItems.length > 0) {
+        // 有原料没建成、这几行录入没提交上去——已成功的那批已落盘，但保留草稿和录入态，让用户能重试。
+        LogBroker.publish(
+          "WARN",
+          "LedgerSystem",
+          `确认提交 ${selectedDate}：${skippedNewItems.length} 个新原料项新建失败、其录入未保存（其余 ${changedItemIds.length} 项已落盘）`,
+          `未保存: ${skippedNewItems.join("、")}`
+        );
+        onError(`以下原料未能新建、其录入未保存，请稍后重试：${skippedNewItems.join("、")}`, 5000);
+      } else {
+        localStorage.removeItem(draftKey);
+        setIsRecordingMode(false);
+        setDraftRecords({});
+        onSaveToast("当天采购与台账数据已成功保存并同步！", 2500);
+        LogBroker.publish("INFO", "LedgerSystem", `已完成 ${selectedDate} 台账录入的提交与服务端落盘确认（提交 ${changedItemIds.length} 项改动）`);
+      }
     } catch (err: any) {
       onError(err.message || "批量保存台账记录失败", 3000);
     } finally {

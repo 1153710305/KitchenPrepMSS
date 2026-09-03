@@ -73,6 +73,9 @@ export const TableGrid: React.FC<TableGridProps> = ({
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
 
   // 1. 过滤与台账每日采购明细无缝对齐：按选定主类和搜索关键字过滤条目，并将 dailyData 数据完全拦截重定向至对应台账采购数量与单价上
+  // 说明(R7)：本 memo 里 resolveLedgerItemCategory 会调 RawMaterialsDictService.getItems() 但字典不在依赖数组里，
+  //   理论上存在陈旧闭包。字典与台账解耦(R1)后，分类以 item.category 快照为主、字典只是 null 项的兜底，回填后几乎不触发；
+  //   且字典任何增删改都会经 refreshNow 改到 ledgerItemsList（在依赖里）从而重算。留待需要时再引入字典版本号做精确依赖。
   const filteredItems = useMemo(() => {
     // 拉取台账所有原料项目
     const allLedgerItems = ledgerItemsList;

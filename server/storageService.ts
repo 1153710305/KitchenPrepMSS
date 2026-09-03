@@ -262,6 +262,40 @@ export class StorageService {
   }
 
   /**
+   * @description 统计给定原料项 id 集合下的逐日流水**真实全历史**条数与日期范围，供删除类审计日志给出准确的
+   * “连带删除 N 条流水 (最早 ~ 最晚)”——不能用 load() 的返回值算，那里只含当前自然月区间。
+   * 本地 SQLite 直接对流水表 COUNT/MIN/MAX；COS 模式回退按传入的 items（COS 的 load() 本就返回完整 dailyRecords）统计。
+   * @param {string[]} itemIds 原料项 id 列表
+   * @param {any[]} fallbackItems COS 模式或本地查询不可用时，据以统计的原料项数组（需含完整 dailyRecords）
+   * @returns {{ count: number; minDate: string | null; maxDate: string | null }}
+   */
+  private static countItemDailyRecords(
+    itemIds: string[],
+    fallbackItems: Array<{ id: string; dailyRecords?: Record<string, unknown> }>
+  ): { count: number; minDate: string | null; maxDate: string | null } {
+    if (itemIds.length === 0) return { count: 0, minDate: null, maxDate: null };
+    if (StorageService.storageType === "local") {
+      try {
+        const db = StorageService.getDb();
+        const placeholders = itemIds.map(() => "?").join(",");
+        const row = db
+          .prepare(`SELECT COUNT(*) AS count, MIN(date) AS minDate, MAX(date) AS maxDate FROM ledger_item_daily_records WHERE item_id IN (${placeholders})`)
+          .get(...itemIds) as { count: number; minDate: string | null; maxDate: string | null };
+        return { count: row?.count ?? 0, minDate: row?.minDate ?? null, maxDate: row?.maxDate ?? null };
+      } catch (err) {
+        console.error("[STORAGE SQLITE] 统计逐日流水条数失败，回退按内存统计:", err);
+      }
+    }
+    const idSet = new Set(itemIds);
+    const dates: string[] = [];
+    for (const it of fallbackItems) {
+      if (idSet.has(it.id)) dates.push(...Object.keys(it.dailyRecords ?? {}));
+    }
+    dates.sort();
+    return { count: dates.length, minDate: dates[0] ?? null, maxDate: dates[dates.length - 1] ?? null };
+  }
+
+  /**
    * @description 把一个异步任务放入写锁队列：等前面所有排队中的任务完成后再执行当前任务，并在完成后释放锁供下一个任务使用
    * @param {() => Promise<T> | T} task 需要互斥执行的任务
    * @returns {Promise<T>} 任务的执行结果
@@ -920,7 +954,14 @@ export class StorageService {
   private static readDataFromSqlite(startDate?: string, endDate?: string): any {
     const db = StorageService.getDb();
     if (StorageService.countNormalizedRows(db) === 0) {
-      return {};
+      // 骨架表全空——正常是首次启动，返回 {} 让上层判定 isFirstBoot 并清浏览器旧缓存。
+      // 但若逐日流水表里还有孤儿行（坏迁移 / 手工改库遗留），说明这库并不“干净空”，此时返回 {} 会误清用户
+      // 浏览器里的登录态/草稿等本地缓存。这种情况下按“非首启”继续走下面的正常读取（返回空骨架 + 现有配置）。
+      const orphanDaily = (db.prepare("SELECT COUNT(*) AS c FROM ledger_item_daily_records").get() as { c: number }).c;
+      if (orphanDaily === 0) {
+        return {};
+      }
+      console.warn(`[STORAGE SQLITE] 骨架表全空但检测到 ${orphanDaily} 条孤儿逐日流水（疑似坏迁移/手工改库），按非首启继续读取，避免前端误清本地缓存`);
     }
 
     const ledgers = db.prepare("SELECT id, name, created_at as createdAt FROM ledgers").all();
@@ -1451,15 +1492,16 @@ export class StorageService {
         throw new Error("找不到待删除的台账");
       }
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
-      // 用命中的 ledger.id 作为关联键（而非路由传入的 id），避免大小写差异导致漏删子项 / 误删他人行
-      const removedItems = ledgerItems.filter((item) => item.ledgerId === ledger.id);
+      // 关联子项按**大小写不敏感**匹配（与 deleteGroup 一致）——历史上出现过 ledgerId 与 ledger.id 大小写不一致的
+      // 脏数据，用严格 === 会漏删子项，留下孤儿 ledger_items / 逐日流水行（schema 无 FK 级联）。
+      const removedItems = ledgerItems.filter((item) => item.ledgerId.toUpperCase() === ledger.id.toUpperCase());
 
       const ops: SyncOp[] = [{ entity: "ledger", op: "delete", key: ledger.id }];
-      let removedDayRecordCount = 0;
       removedItems.forEach((item) => {
         ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
-        removedDayRecordCount += Object.keys(item.dailyRecords ?? {}).length;
       });
+      // 连带删除的逐日流水按真实全历史统计（不用 load() 的当月区间）
+      const dayStats = StorageService.countItemDailyRecords(removedItems.map((i) => i.id), current.ledgerItems ?? []);
 
       // 大小写不敏感匹配对应人群，删除时按人群实际行的 key 下 op（与 updateLedger / deleteGroup 一致）
       const activeGroups: DynamicGroup[] = current.activeGroups ?? [];
@@ -1475,7 +1517,7 @@ export class StorageService {
       }
       LogService.audit(
         "ledger.delete",
-        `物理删除台账 id=${ledger.id} name=${LogService.fmt(ledger.name)} | 级联删除原料项 ${removedItems.length} 个、逐日流水合计 ${removedDayRecordCount} 条${linkedGroup ? `、一级人群配置 key=${linkedGroup.key}` : ""} | 被删原料项: [${removedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]`,
+        `物理删除台账 id=${ledger.id} name=${LogService.fmt(ledger.name)} | 级联删除原料项 ${removedItems.length} 个、逐日流水合计 ${dayStats.count} 条${dayStats.count ? ` (${dayStats.minDate} ~ ${dayStats.maxDate})` : ""}${linkedGroup ? `、一级人群配置 key=${linkedGroup.key}` : ""} | 被删原料项: [${removedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]`,
         StorageService.auditCtx(),
         "warn"
       );
@@ -1621,16 +1663,17 @@ export class StorageService {
       if (!target) {
         throw new Error("找不到要删除的原料项目");
       }
-      const dayKeys = Object.keys(target.dailyRecords ?? {}).sort();
+      // 连带删除的逐日流水按真实全历史统计（load() 只含当月，会低估跨月历史）
+      const dayStats = StorageService.countItemDailyRecords([id], current.ledgerItems ?? []);
       const ok = await StorageService.saveInternal([{ entity: "ledgerItem", op: "delete", key: id }]);
       if (!ok) {
         throw new Error("删除原料失败");
       }
       LogService.audit(
         "ledger.item.delete",
-        `物理删除台账采购原料项 id=${id} ledger=${target.ledgerId} name=${LogService.fmt(target.name)} | 连带删除其逐日流水 ${dayKeys.length} 条${dayKeys.length ? ` (${dayKeys[0]} ~ ${dayKeys[dayKeys.length - 1]})` : ""}、当前库存 ${target.currentStock}`,
+        `物理删除台账采购原料项 id=${id} ledger=${target.ledgerId} name=${LogService.fmt(target.name)} | 连带删除其逐日流水 ${dayStats.count} 条${dayStats.count ? ` (${dayStats.minDate} ~ ${dayStats.maxDate})` : ""}、当前库存 ${target.currentStock}`,
         StorageService.auditCtx(),
-        dayKeys.length ? "warn" : "info"
+        dayStats.count ? "warn" : "info"
       );
     });
   }
@@ -1985,16 +2028,16 @@ export class StorageService {
       const ledgers: Ledger[] = current.ledgers ?? [];
       const ledger = ledgers.find((l) => l.id.toUpperCase() === upperKey);
       const cascadedItems: LedgerItem[] = [];
-      let cascadedDayRecordCount = 0;
       if (ledger) {
         ops.push({ entity: "ledger", op: "delete", key: ledger.id });
         const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
         ledgerItems.filter((item) => item.ledgerId.toUpperCase() === ledger.id.toUpperCase()).forEach((item) => {
           ops.push({ entity: "ledgerItem", op: "delete", key: item.id });
           cascadedItems.push(item);
-          cascadedDayRecordCount += Object.keys(item.dailyRecords ?? {}).length;
         });
       }
+      // 连带删除的逐日流水按真实全历史统计（load() 只含当月）
+      const dayStats = StorageService.countItemDailyRecords(cascadedItems.map((i) => i.id), current.ledgerItems ?? []);
 
       const ok = await StorageService.saveInternal(ops);
       if (!ok) {
@@ -2002,7 +2045,7 @@ export class StorageService {
       }
       LogService.audit(
         "config.group.delete",
-        `删除一级人群 key=${target ? target.key : upperKey} label=${LogService.fmt(target?.label)} | 级联删除对应台账${ledger ? ` id=${ledger.id}` : "(无)"}、原料项 ${cascadedItems.length} 个、逐日流水合计 ${cascadedDayRecordCount} 条${cascadedItems.length ? ` | 被删原料项: [${cascadedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]` : ""}`,
+        `删除一级人群 key=${target ? target.key : upperKey} label=${LogService.fmt(target?.label)} | 级联删除对应台账${ledger ? ` id=${ledger.id}` : "(无)"}、原料项 ${cascadedItems.length} 个、逐日流水合计 ${dayStats.count} 条${dayStats.count ? ` (${dayStats.minDate} ~ ${dayStats.maxDate})` : ""}${cascadedItems.length ? ` | 被删原料项: [${cascadedItems.map((i) => `${i.id}(${i.name})`).join(", ")}]` : ""}`,
         StorageService.auditCtx(),
         ledger || cascadedItems.length ? "warn" : "info"
       );
