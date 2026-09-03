@@ -50,8 +50,11 @@ LogService.audit(
 
 | action | 触发点 | severity |
 |---|---|---|
-| `persist.sqlite.ok` / `persist.sqlite.fail` | 每一批增量 `SyncOp` 落 SQLite（成功列出 `entity:op:key`，失败列出未落盘的批次） | info / **error** |
+| `persist.sqlite.stmts` | 每一批增量 `SyncOp` 的 SQLite 事务提交成功后，逐条列出实际执行的 prepared statement（语句名 + 绑定参数 + `changes=` 数据库实际影响行数，insert/upsert 还带 `rowid=`）。**这是回溯“数据库层面到底动了哪几行”的主依据**——例如某条 `deleteDailyRecord(...) -> changes=0` 说明代码以为删了、其实那行不存在。 | info |
+| `persist.sqlite.rollback` | 事务执行中抛错、better-sqlite3 自动整体回滚（本批全部未生效）；列出回滚前已尝试的每条 SQL 及原因 | **error** |
+| `persist.sqlite.fail` | `applyChangesIntoSqlite` 抛出后 `saveInternal` 兜底：本批变更未落盘的 op 级摘要 | **error** |
 | `persist.cos.ok` / `persist.cos.fail` | COS 模式整体覆盖写回 | info / **error** |
+| `sqlite.exec` | **仅当 `KPMSS_SQL_TRACE=1`**：SQLite 每执行一条 SQL（BEGIN/COMMIT/ROLLBACK 及每条 SELECT/INSERT/UPDATE/DELETE）都记一行语句原文。默认关闭，量很大，只在排查时临时开。 | info |
 | `ledger.dailyRecord.update` | 单条台账逐日流水录入（`PUT /api/ledger-items/:id/daily/:date`） | info；清空导致整条删除时 **warn** |
 | `ledger.dailyRecord.batch` | 批量录入（录入模式「确认提交」，`PUT /api/ledger-items/batch-daily/:date`），逐项列出前后变化 | info；有跳过项时 **warn** |
 | `ledger.dailyRecord.batch.skip` | 批量录入里某 `itemId` 找不到 → **该原料这一行录入被静默丢弃**（数据丢失高发点） | **warn** |

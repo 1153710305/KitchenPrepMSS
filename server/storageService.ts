@@ -252,6 +252,16 @@ export class StorageService {
   }
 
   /**
+   * @description auditCtx 的轻量版：只取 RequestContext 里的 reqId，**不查询数据库**。
+   * 供 SQLite verbose 回调使用——那里若调用会查询的 auditCtx()/getDbVersion() 会再触发 verbose，造成无限递归。
+   * @returns {string} 形如 `req=ab12cd34`（无请求上下文时为空串）
+   */
+  private static auditCtxLite(): string {
+    const c = RequestContext.getStore();
+    return c?.reqId ? `req=${c.reqId}` : "";
+  }
+
+  /**
    * @description 把一个异步任务放入写锁队列：等前面所有排队中的任务完成后再执行当前任务，并在完成后释放锁供下一个任务使用
    * @param {() => Promise<T> | T} task 需要互斥执行的任务
    * @returns {Promise<T>} 任务的执行结果
@@ -360,7 +370,25 @@ export class StorageService {
    */
   private static getDb(): Database.Database {
     if (!StorageService.db) {
-      StorageService.db = new Database(StorageService.sqliteDbPath);
+      // 低层 SQL 逐句追踪：设置环境变量 KPMSS_SQL_TRACE=1 后，better-sqlite3 每执行一条 SQL（含 BEGIN/COMMIT/
+      // ROLLBACK、每一条 SELECT/INSERT/UPDATE/DELETE）都会回调，把语句原文写进数据审计日志 audit-*.log。
+      // 默认关闭：它会把每次 GET /load 的多条 SELECT 也打出来，量很大，只在排查“数据库到底发生了什么”时临时开。
+      const sqlTrace = process.env.KPMSS_SQL_TRACE === "1" || process.env.KPMSS_SQL_TRACE === "true";
+      StorageService.db = new Database(
+        StorageService.sqliteDbPath,
+        sqlTrace
+          ? {
+              verbose: (sql?: unknown) => {
+                try {
+                  // 用 auditCtxLite（不查库）避免在 verbose 里再触发查询导致无限递归
+                  LogService.audit("sqlite.exec", String(sql).replace(/\s+/g, " ").trim(), StorageService.auditCtxLite());
+                } catch {
+                  /* 日志失败绝不能影响数据库操作本身 */
+                }
+              }
+            }
+          : undefined
+      );
       // WAL 模式：写入不阻塞并发读取，且每次事务提交都由 SQLite 引擎保证落盘的原子性与崩溃恢复能力
       StorageService.db.pragma("journal_mode = WAL");
       StorageService.db.exec(`
@@ -673,29 +701,46 @@ export class StorageService {
     const db = StorageService.getDb();
     const stmts = StorageService.getIncrementalStmts(db);
 
+    // 逐条 prepared statement 的执行留痕：语句名 + 绑定参数 + 数据库层面实际影响的行数（changes）。
+    // 这是回溯“某次写操作在数据库里到底动了哪几行”的关键——例如一条 delete 打出 changes=0 就说明
+    // 代码以为删掉了什么、其实那行根本不存在；一条本该 insert 的 upsert 打出 changes=1 且无 rowid
+    // 则说明命中了 ON CONFLICT 更新了已有行。始终开启（仅写操作触发，量不大）。
+    const trace: string[] = [];
+    const runStmt = (name: string, ...args: any[]): Database.RunResult => {
+      const info = stmts.get(name)!.run(...args);
+      const argStr =
+        args.length === 1 && typeof args[0] === "object" && args[0] !== null
+          ? JSON.stringify(args[0])
+          : JSON.stringify(args);
+      const rowid = /^(upsert|insert)/.test(name) && info.changes > 0 ? ` rowid=${info.lastInsertRowid}` : "";
+      trace.push(`${name}(${argStr}) -> changes=${info.changes}${rowid}`);
+      return info;
+    };
+
     const run = db.transaction((batch: SyncOp[]) => {
       for (const op of batch) {
         if (op.op === "replaceAll") {
+          trace.push(`replaceAll:${op.entity}(rows=${Array.isArray(op.data) ? op.data.length : 0})`);
           StorageService.applyReplaceAllIntoSqlite(db, stmts, op);
           continue;
         }
         switch (op.entity) {
           case "ledger":
             if (op.op === "delete") {
-              stmts.get("deleteLedger")!.run(op.key);
+              runStmt("deleteLedger", op.key);
             } else {
-              stmts.get("upsertLedger")!.run({ id: op.data.id, name: op.data.name, createdAt: op.data.createdAt });
+              runStmt("upsertLedger", { id: op.data.id, name: op.data.name, createdAt: op.data.createdAt });
             }
             break;
 
           case "ledgerItem":
             if (op.op === "delete") {
               // 无 FK 级联声明，显式先清空该原料项的全部逐日流水，再删骨架行，避免留下孤儿流水行
-              stmts.get("deleteDailyRecordsByItem")!.run(op.key);
-              stmts.get("deleteLedgerItem")!.run(op.key);
+              runStmt("deleteDailyRecordsByItem", op.key);
+              runStmt("deleteLedgerItem", op.key);
             } else {
               const d = op.data;
-              stmts.get("upsertLedgerItem")!.run({
+              runStmt("upsertLedgerItem", {
                 id: d.id, ledgerId: d.ledgerId, name: d.name, unit: d.unit,
                 spec: d.spec ?? null, initialStock: d.initialStock ?? 0, currentStock: d.currentStock ?? 0
               });
@@ -705,9 +750,9 @@ export class StorageService {
           case "ledgerItemDailyRecord": {
             const key = op.key as { itemId: string; date: string };
             if (op.op === "delete") {
-              stmts.get("deleteDailyRecord")!.run(key.itemId, key.date);
+              runStmt("deleteDailyRecord", key.itemId, key.date);
             } else {
-              stmts.get("upsertDailyRecord")!.run(StorageService.toDailyRecordParams(key.itemId, key.date, op.data));
+              runStmt("upsertDailyRecord", StorageService.toDailyRecordParams(key.itemId, key.date, op.data));
             }
             break;
           }
@@ -716,32 +761,32 @@ export class StorageService {
 
           case "activeGroup":
             if (op.op === "delete") {
-              stmts.get("deleteActiveGroup")!.run(op.key);
+              runStmt("deleteActiveGroup", op.key);
             } else {
               const d = op.data;
-              stmts.get("upsertActiveGroup")!.run({ key: d.key, label: d.label, emoji: d.emoji ?? null, isDefault: d.isDefault ? 1 : 0 });
+              runStmt("upsertActiveGroup", { key: d.key, label: d.label, emoji: d.emoji ?? null, isDefault: d.isDefault ? 1 : 0 });
             }
             break;
 
           case "activeCategory":
             if (op.op === "delete") {
-              stmts.get("deleteActiveCategory")!.run(op.key);
+              runStmt("deleteActiveCategory", op.key);
             } else {
               const d = op.data;
-              stmts.get("upsertActiveCategory")!.run({ key: d.key, label: d.label, isDefault: d.isDefault ? 1 : 0 });
+              runStmt("upsertActiveCategory", { key: d.key, label: d.label, isDefault: d.isDefault ? 1 : 0 });
             }
             break;
 
           case "rawMaterial":
             if (op.op === "delete") {
-              stmts.get("deleteRawMaterial")!.run(op.key);
+              runStmt("deleteRawMaterial", op.key);
             } else {
               const d = op.data;
               // rawMaterial.name 本身是主键且支持改名：改名时先删旧主键行，避免留下 (旧名, 新数据的孤本) 之外的重复行
               if (op.previousKey && op.previousKey !== d.name) {
-                stmts.get("deleteRawMaterial")!.run(op.previousKey);
+                runStmt("deleteRawMaterial", op.previousKey);
               }
-              stmts.get("upsertRawMaterial")!.run({
+              runStmt("upsertRawMaterial", {
                 name: d.name, category: d.category, unit: d.unit, remark: d.remark ?? null,
                 conversionUnit: d.conversionUnit ?? null, conversionRatio: d.conversionRatio ?? null, isDefault: d.isDefault ? 1 : 0
               });
@@ -750,9 +795,9 @@ export class StorageService {
 
           case "ledgerHelperOptions": {
             const category = op.key as string;
-            stmts.get("deleteHelperCategory")!.run(category);
+            runStmt("deleteHelperCategory", category);
             const values: string[] = op.data ?? [];
-            values.forEach((value, idx) => stmts.get("insertHelperOption")!.run(category, value, idx));
+            values.forEach((value, idx) => runStmt("insertHelperOption", category, value, idx));
             break;
           }
 
@@ -761,7 +806,24 @@ export class StorageService {
         }
       }
     });
-    run(ops);
+
+    try {
+      run(ops);
+      LogService.audit(
+        "persist.sqlite.stmts",
+        `事务提交成功：${ops.length} 个增量操作、${trace.length} 条 SQL | ${trace.join(" ;; ")}`,
+        StorageService.auditCtx()
+      );
+    } catch (err: any) {
+      // db.transaction 抛错时 better-sqlite3 已自动 ROLLBACK，这里把回滚前已尝试的语句原样记下来
+      LogService.audit(
+        "persist.sqlite.rollback",
+        `事务执行中抛错并整体回滚（本批 ${ops.length} 个操作全部未生效）| 回滚前已尝试 ${trace.length} 条 SQL: ${trace.join(" ;; ")} | 原因: ${err?.message || String(err)}`,
+        StorageService.auditCtx(),
+        "error"
+      );
+      throw err;
+    }
   }
 
   /**
@@ -842,12 +904,17 @@ export class StorageService {
     // currentStock 一律由 initialStock + 全历史入库累计 − 全历史出库累计 现算，不读 li.current_stock 存量列：
     // 存量列的维护历来只按“写操作发生当时前端加载的月份区间”重算，跨月编辑会写歪；这里以逐日流水表的无条件
     // SUM 为准，使 GET /load 返回的 currentStock 永远是真实库存，并自动修复任何历史写歪的存量值。
+    // historicalFirst/LastRecordDate 是对该原料**全部**逐日流水（无日期过滤）的 MIN/MAX(date)，
+    // 供前端在按月懒加载、内存里只有部分月份数据时，仍能准确判断"这本台账最近一次录入是哪天"，
+    // 避免出现"明明 8-28 有记录却提示最近是 9-23"这类因视野不全导致的误报。
     const ledgerItemsRaw = db.prepare(`
       SELECT li.id, li.ledger_id as ledgerId, li.name, li.unit, li.spec, li.initial_stock as initialStock,
              (li.initial_stock + COALESCE(SUM(dr.in_quantity), 0) - COALESCE(SUM(dr.out_quantity), 0)) as currentStock,
              COALESCE(SUM(dr.in_quantity), 0) as historicalTotalIn,
              COALESCE(SUM(dr.out_quantity), 0) as historicalTotalOut,
-             COALESCE(SUM(dr.in_amount), 0) as historicalTotalInAmount
+             COALESCE(SUM(dr.in_amount), 0) as historicalTotalInAmount,
+             MIN(dr.date) as historicalFirstRecordDate,
+             MAX(dr.date) as historicalLastRecordDate
       FROM ledger_items li
       LEFT JOIN ledger_item_daily_records dr ON li.id = dr.item_id
       GROUP BY li.id
@@ -1135,13 +1202,10 @@ export class StorageService {
     } else {
       // 本地存储模式：这批增量操作经由 SQLite 事务原子应用（要么全部生效、要么全部不生效），是唯一的持久化落点。
       try {
+        // applyChangesIntoSqlite 内部已按“逐条 SQL 语句 + 影响行数”写 persist.sqlite.stmts 审计（成功）
+        // 或 persist.sqlite.rollback（抛错回滚），这里不再重复写 op 级摘要，只保留控制台一行。
         StorageService.applyChangesIntoSqlite(ops);
         console.log(`[STORAGE SQLITE] 已通过事务增量应用 ${ops.length} 个同步操作至本地规范化关系型表结构。`);
-        LogService.audit(
-          "persist.sqlite.ok",
-          `${ops.length} 个增量操作已在一个事务内落盘: ${StorageService.summarizeOps(ops)}`,
-          StorageService.auditCtx()
-        );
         return true;
       } catch (err: any) {
         console.error("[STORAGE SQLITE] 写入本地数据失败:", err);
@@ -1568,7 +1632,11 @@ export class StorageService {
     fields: Partial<DailyStockRecord>
   ): Promise<{ item: LedgerItem; mergedRecord: DailyStockRecord }> {
     return StorageService.withWriteLock(async () => {
-      const current = await StorageService.load();
+      // 关键：必须按“正在编辑的这一天”精确加载，而不是用 load() 的默认当月区间。
+      // 否则当 dateStr 落在当月之外（如往月补录/补签字），item.dailyRecords[dateStr] 会缺失，
+      // 下面的 Partial 合并就会以“全 0 旧记录”为底，把该天早先已保存的供货商/单价/检验员等字段一并写空，
+      // 造成已录入数据（尤其是蔬菜等）在跨月编辑后凭空消失。
+      const current = await StorageService.load(dateStr, dateStr);
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
       const item = ledgerItems.find((i) => i.id === itemId);
       if (!item) {
@@ -1603,7 +1671,9 @@ export class StorageService {
     updates: Record<string, Partial<DailyStockRecord>>
   ): Promise<{ updatedItems: LedgerItem[]; mergedRecords: Record<string, DailyStockRecord> }> {
     return StorageService.withWriteLock(async () => {
-      const current = await StorageService.load();
+      // 同 updateLedgerDailyRecord：按录入的这一天精确加载，避免跨月批量录入时用“全 0 旧记录”做底、
+      // 把该天早先保存的字段写空（这是“录入了却丢了”的主因之一）。批次内所有更新都针对同一个 dateStr。
+      const current = await StorageService.load(dateStr, dateStr);
       const ledgerItems: LedgerItem[] = current.ledgerItems ?? [];
 
       const updatedItems: LedgerItem[] = [];

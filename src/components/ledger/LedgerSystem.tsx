@@ -312,13 +312,17 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
     const hasRecordOnSelectedDate = currentLedgerItems.some((item) => !!item.dailyRecords[selectedDate]);
     if (hasRecordOnSelectedDate) return null;
 
+    // 优先取服务端预聚合的“全历史最近记录日期”（historicalLastRecordDate，不受按月懒加载影响），
+    // 内存里已加载的最大日期只作为兜底；两者取较大值，避免因当前只加载了某个月而把“最近一次录入”误报成较早/较晚的错误日期。
     let latestDate: string | null = null;
+    const consider = (d: string | null | undefined) => {
+      if (d && (!latestDate || d > latestDate)) {
+        latestDate = d;
+      }
+    };
     currentLedgerItems.forEach((item) => {
-      Object.keys(item.dailyRecords).forEach((d) => {
-        if (!latestDate || d > latestDate) {
-          latestDate = d;
-        }
-      });
+      consider(item.historicalLastRecordDate);
+      Object.keys(item.dailyRecords).forEach((d) => consider(d));
     });
     return latestDate;
   }, [currentLedgerItems, selectedDate, isRecordingMode]);
@@ -606,14 +610,37 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
     const item = currentLedgerItems.find((i) => i.id === id);
     if (!item) return;
 
-    const otherDatesWithRecords = Object.keys(item.dailyRecords).filter((date) => {
+    // 判断该原料在“当前所选日期以外的日期”是否还有记录时，绝不能只看前端内存里的 dailyRecords ——
+    // 按月懒加载下内存通常只有当前查看的月份，别的月份即使有记录也不在内存里。
+    // 一旦据此误判为“没有其它记录”，就会走进“物理删除整个原料 + 全部历史流水”的分支，把用户几个月前
+    // 录入的数据（比如蔬菜）连根删掉。这里叠加服务端提供的全历史信息（首/末记录日期、累计出入库量）一起判断。
+    const memOtherDates = Object.keys(item.dailyRecords).some((date) => {
       if (date === selectedDate) return false;
       const r = item.dailyRecords[date];
-      return r.inQuantity > 0 || r.outQuantity > 0 || r.purchaseDate || r.supplier;
+      return !!r && (r.inQuantity > 0 || r.outQuantity > 0 || !!r.purchaseDate || !!r.supplier || !!r.note ||
+        !!r.buyer || !!r.inspector || !!r.keeper || !!r.outHandler || !!r.outRecipient);
     });
+    const firstDate = item.historicalFirstRecordDate;
+    const lastDate = item.historicalLastRecordDate;
+    const serverDatesBeyondSelected =
+      (!!firstDate && firstDate !== selectedDate) || (!!lastDate && lastDate !== selectedDate);
+    // 服务端全历史累计出入库量，减去当前所选日内存里那条记录的量，若仍 > 0 说明别的日期也有流水
+    const selRec = item.dailyRecords[selectedDate];
+    const histInBeyond = (item.historicalTotalIn ?? 0) - (selRec?.inQuantity ?? 0);
+    const histOutBeyond = (item.historicalTotalOut ?? 0) - (selRec?.outQuantity ?? 0);
+    const serverTotalsBeyondSelected = histInBeyond > 0.001 || histOutBeyond > 0.001;
 
-    if (otherDatesWithRecords.length > 0) {
-      if (confirm(`确定清除（${selectedDate}）日的【${item.name}】的记录吗？`)) {
+    const hasRecordsBeyondSelectedDate = memOtherDates || serverDatesBeyondSelected || serverTotalsBeyondSelected;
+
+    LogBroker.publish(
+      "INFO",
+      "LedgerSystem",
+      `点击删除台账原料【${item.name}】(id=${item.id})：判定为${hasRecordsBeyondSelectedDate ? "「仅清除当天记录」" : "「物理删除整个原料及全部历史」"}`,
+      `依据 -> 内存中其它日期有记录:${memOtherDates}, 服务端首/末记录日期越界:${serverDatesBeyondSelected}(first=${firstDate ?? "∅"},last=${lastDate ?? "∅"}), 服务端累计量越界:${serverTotalsBeyondSelected}(histIn=${item.historicalTotalIn ?? "∅"},histOut=${item.historicalTotalOut ?? "∅"}); selectedDate=${selectedDate}`
+    );
+
+    if (hasRecordsBeyondSelectedDate) {
+      if (confirm(`【${item.name}】在其它日期还有出入库记录，这里只会清除（${selectedDate}）当天的记录，不会影响其它日期。确定清除吗？`)) {
         LedgerService.updateDailyRecord(item.id, selectedDate, {
           inQuantity: 0,
           inPrice: 0,
