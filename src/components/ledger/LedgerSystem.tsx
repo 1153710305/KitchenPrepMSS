@@ -65,6 +65,13 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   const selectedDate = props.selectedDate || internalSelectedDate;
   const setSelectedDate = props.onDateChange || setInternalSelectedDate;
 
+  /** 系统当前真实日期 (YYYY-MM-DD)，用于提示用户所选录入日期是否为“今天”，避免把往日的账误当今天录入 */
+  const todayStr = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  })();
+  const isSelectedDateToday = selectedDate === todayStr;
+
   /** 样式二（单原料日流水）自定义时间段 - 开始日期 */
   const [style2StartDate, setStyle2StartDate] = useState<string>("");
   /** 样式二（单原料日流水）自定义时间段 - 结束日期 */
@@ -296,7 +303,7 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
   };
 
   /**
-   * @description 开启今日录入前，自动切换回总表模式（图一），确保录入时始终能看到完整的原料清单
+   * @description 开启当日录入前，自动切换回总表模式（图一），确保录入时始终能看到完整的原料清单
    */
   const handleStartRecording = () => {
     setLedgerStyle("style1");
@@ -855,10 +862,14 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* 日期选择器 */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-fit">
-              <Calendar size={13} className="text-slate-500" />
-              <span className="text-[12px] text-slate-500 font-medium">同步日期：</span>
+            {/* 日期选择器：非“今天”时整体转琥珀色并显式标注，避免把往日的账误当今天录入 */}
+            <div
+              className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 w-fit transition-colors ${
+                isSelectedDateToday ? "bg-slate-50 border-slate-200" : "bg-amber-50 border-amber-300"
+              }`}
+            >
+              <Calendar size={13} className={isSelectedDateToday ? "text-slate-500" : "text-amber-600"} />
+              <span className={`text-[12px] font-medium ${isSelectedDateToday ? "text-slate-500" : "text-amber-700"}`}>录入日期：</span>
               <input
                 type="date"
                 value={selectedDate}
@@ -866,8 +877,15 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
                   setSelectedDate(e.target.value);
                   LogBroker.publish("INFO", "LedgerSystem", `切换台账数据录入日期为: ${e.target.value}`);
                 }}
-                className="bg-transparent text-[12px] font-bold text-slate-700 outline-none cursor-pointer text-[13px]"
+                className={`bg-transparent text-[13px] font-bold outline-none cursor-pointer ${isSelectedDateToday ? "text-slate-700" : "text-amber-800"}`}
               />
+              <span
+                className={`text-[11px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                  isSelectedDateToday ? "bg-emerald-100 text-emerald-700" : "bg-amber-500 text-white"
+                }`}
+              >
+                {isSelectedDateToday ? "今天" : "非今天"}
+              </span>
             </div>
           </div>
         </div>
@@ -930,6 +948,8 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
           setPrintPreviewStyle={setPrintPreviewStyle}
           triggerPrintDoc={triggerPrintDoc}
           activeLedgerId={activeLedgerId}
+          selectedDate={selectedDate}
+          isSelectedDateToday={isSelectedDateToday}
         />
 
         {/* 主体工作区 */}
