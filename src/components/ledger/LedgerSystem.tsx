@@ -699,34 +699,47 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
       return;
     }
 
-    const promises: Promise<void>[] = [];
+    const handler = batchOutHandler.trim();
+    const recipient = batchOutRecipient.trim();
+    if (!handler && !recipient) {
+      triggerError("请先填写出库人或接收人姓名，再点击一键应用。");
+      return;
+    }
 
-    // 对有变动的原料项目执行批量浅合并写入
+    // 汇总成一次批量提交（键为 itemId），只带 outHandler / outRecipient 两个字段，
+    // 服务端按当天做字段级浅合并，不会动该日已有的数量/单价/供货商/索证等其它字段。
+    // 用批量接口而非逐项并发 PUT：一次请求 = 一次版本校验，避免多个并发写共用同一过期版本号相互撞 409；
+    // 且整批走单个事务，要么全写要么全不写，不会出现“签了一半”的中间态。
+    const batchUpdates: Record<string, Partial<DailyStockRecord>> = {};
     currentLedgerItems.forEach((item) => {
       const record = item.dailyRecords[selectedDate];
       if (record && (record.inQuantity > 0 || record.outQuantity > 0)) {
         const fieldsToUpdate: Partial<DailyStockRecord> = {};
-        if (batchOutHandler.trim()) {
-          fieldsToUpdate.outHandler = batchOutHandler.trim();
-        }
-        if (batchOutRecipient.trim()) {
-          fieldsToUpdate.outRecipient = batchOutRecipient.trim();
-        }
-
-        if (Object.keys(fieldsToUpdate).length > 0) {
-          promises.push(LedgerService.updateDailyRecord(item.id, selectedDate, fieldsToUpdate));
-        }
+        if (handler) fieldsToUpdate.outHandler = handler;
+        if (recipient) fieldsToUpdate.outRecipient = recipient;
+        batchUpdates[item.id] = fieldsToUpdate;
       }
     });
 
-    Promise.all(promises)
+    if (Object.keys(batchUpdates).length === 0) {
+      triggerError("当前所选日期没有需要填写签字的出入库记录。");
+      return;
+    }
+
+    LedgerService.updateDailyRecordsBatch(selectedDate, batchUpdates)
       .then(() => {
         triggerSaveToast();
         setBatchOutHandler("");
         setBatchOutRecipient("");
-        LogBroker.publish("INFO", "LedgerSystem", `批量填报今日签字：出库/发料人设定为「${batchOutHandler}」，接收/领料人设定为「${batchOutRecipient}」`);
+        LogBroker.publish("INFO", "LedgerSystem", `批量填报 ${selectedDate} 签字：出库/发料人「${handler}」，接收/领料人「${recipient}」，共 ${Object.keys(batchUpdates).length} 项`);
       })
-      .catch((err) => triggerError("批量应用签字时发生异常: " + err.message));
+      .catch((err) => {
+        const raw = err instanceof Error ? err.message : String(err);
+        const msg = raw === "VERSION_CONFLICT"
+          ? "台账数据已被其它页面或设备更新，请刷新页面获取最新数据后再重试。"
+          : `批量应用签字失败：${raw}`;
+        triggerError(msg);
+      });
   };
 
   // ================= 导出与打印核心逻辑 =================
