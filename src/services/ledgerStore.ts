@@ -10,9 +10,6 @@
 import { Ledger, LedgerItem, DailyStockRecord } from "../types/ledgerTypes.ts";
 import { LogBroker } from "../utils.ts";
 import { SyncHelper } from "./syncHelper.ts";
-import { PrepReportService } from "./store.ts";
-import { RawMaterialsDictService } from "./rawMaterialDict.ts";
-import { FoodCategory } from "../types/types.ts";
 
 /** 模拟接口响应延迟 */
 const LEDGER_API_LATENCY = 100;
@@ -448,7 +445,6 @@ export class LedgerService {
     }
 
     const updatedItems: LedgerItem[] = body.updatedItems;
-    const mergedRecords: Record<string, DailyStockRecord> = body.mergedRecords;
 
     // 批量更新内存缓存：同 updateDailyRecord，按天合并，保留前端已加载的其它日期数据
     const newLedgerItems = [...this.ledgerItems];

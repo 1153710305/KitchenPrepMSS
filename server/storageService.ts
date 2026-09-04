@@ -14,12 +14,10 @@
 
 import path from "path";
 import fs from "fs";
-import crypto from "crypto";
 import { AsyncLocalStorage } from "async_hooks";
 import Database from "better-sqlite3";
 import COS from "cos-nodejs-sdk-v5";
-// Constants previously here were removed
-import { FoodCategory, TargetGroup, DynamicGroup, DynamicCategory } from "../src/types/types.ts";
+import { FoodCategory, DynamicGroup, DynamicCategory } from "../src/types/types.ts";
 import { Ledger, LedgerItem, DailyStockRecord } from "../src/types/ledgerTypes.ts";
 import { RawMaterialsDictService, RawMaterialDictItem } from "../src/services/rawMaterialDict.ts";
 import { LogService } from "./logService.ts";
@@ -459,9 +457,6 @@ export class StorageService {
    * @returns {any} 全量的后端存储快照格式数据
    */
   private static generateDefaultSeeds(): any {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-
     // 1. active_groups
     const activeGroups: DynamicGroup[] = [
       { key: "KID", label: "幼儿", emoji: "👶", isDefault: true },

@@ -7,12 +7,11 @@
  * @description 原料购销台账及库存仓储系统主面板组件：编排台账的筛选、样式一/样式二切换、录入模式、原料增删改、批量签字与打印导出等各子组件；数据加载与录入模式状态机已分别抽取到 useLedgerData/useLedgerRecording 两个自定义 Hook 中。
  */
 
-import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
-import { Ledger, LedgerItem, DailyStockRecord, LedgerSortField, LedgerSortOrder } from "../../types/ledgerTypes.ts";
+import React, { useEffect, useState, useMemo } from "react";
+import { LedgerItem, DailyStockRecord, LedgerSortField, LedgerSortOrder } from "../../types/ledgerTypes.ts";
 import { LedgerService } from "../../services/ledgerStore.ts";
-import { LEDGER_UI_TEXT, LEDGER_HEADERS, LEDGER_PRINT_OUT_CONFIG, LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
+import { LEDGER_UI_TEXT, LEDGER_PRINT_OUT_CONFIG, LEDGER_PRINT_STYLE1_CONFIG } from "../../constants/ledgerConstants.ts";
 import { LogBroker, matchPinyin, getDatesBetween, computeLedgerDailyStockBalances } from "../../utils.ts";
-import { SearchableSelect } from "../shared/SearchableSelect.tsx";
 import { RawMaterialsDictService } from "../../services/rawMaterialDict.ts";
 import { FoodCategory } from "../../types/types.ts";
 import { resolveLedgerItemCategory, UNCATEGORIZED_CATEGORY_KEY } from "../../constants/constants.ts";
@@ -896,7 +895,7 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
             <div className="flex items-center gap-2">
               <Calendar size={14} className="shrink-0" />
               <span>
-                当前所选同步日期（<strong>{selectedDate}</strong>）在本台账下暂无出入库记录，本台账最近一次录入记录的日期为 <strong>{nearestRecordDateHint}</strong>，并非数据丢失，你可以切换日期查看。
+                当前所选录入日期（<strong>{selectedDate}</strong>）在本台账下暂无出入库记录，本台账最近一次录入记录的日期为 <strong>{nearestRecordDateHint}</strong>，并非数据丢失，你可以切换日期查看。
               </span>
             </div>
             <button
@@ -936,8 +935,6 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
           setBatchOutHandler={setBatchOutHandler}
           batchOutRecipient={batchOutRecipient}
           setBatchOutRecipient={setBatchOutRecipient}
-          setSaveToast={setSaveToast}
-          triggerError={triggerError}
           handleStartRecording={handleStartRecording}
           handleConfirmRecording={handleConfirmRecording}
           handleCancelRecording={handleCancelRecording}
@@ -947,7 +944,6 @@ export function LedgerSystem(props: LedgerSystemProps = {}) {
           setPrintModalOpen={handleTogglePrintModal}
           setPrintPreviewStyle={setPrintPreviewStyle}
           triggerPrintDoc={triggerPrintDoc}
-          activeLedgerId={activeLedgerId}
           selectedDate={selectedDate}
           isSelectedDateToday={isSelectedDateToday}
         />

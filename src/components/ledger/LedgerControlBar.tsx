@@ -10,7 +10,6 @@
 import {
   Play,
   Check,
-  X,
   Save,
   Download,
   Printer,
@@ -35,8 +34,6 @@ interface LedgerControlBarProps {
   setBatchOutHandler: (val: string) => void;
   batchOutRecipient: string;
   setBatchOutRecipient: (val: string) => void;
-  setSaveToast: (val: string | null) => void;
-  triggerError: (msg: string) => void;
   handleStartRecording: () => void;
   handleConfirmRecording: () => void;
   handleCancelRecording: () => void;
@@ -46,7 +43,6 @@ interface LedgerControlBarProps {
   triggerPrintDoc: (type: "in" | "out") => void;
   setPrintModalOpen: (val: boolean) => void;
   setPrintPreviewStyle: (style: "style1" | "style2" | "style3" | null) => void;
-  activeLedgerId: string;
   /** 当前录入/查看的日期 (YYYY-MM-DD)，显示在录入按钮与状态提示上，让用户明确感知在录哪天的账 */
   selectedDate: string;
   /** selectedDate 是否等于系统今天：为 false 时按钮与提示转琥珀色警示，防止把往日误当今天录入 */
@@ -69,8 +65,6 @@ export function LedgerControlBar({
   setBatchOutHandler,
   batchOutRecipient,
   setBatchOutRecipient,
-  setSaveToast,
-  triggerError,
   handleStartRecording,
   handleConfirmRecording,
   handleCancelRecording,
@@ -80,7 +74,6 @@ export function LedgerControlBar({
   triggerPrintDoc,
   setPrintModalOpen,
   setPrintPreviewStyle,
-  activeLedgerId,
   selectedDate,
   isSelectedDateToday
 }: LedgerControlBarProps) {
